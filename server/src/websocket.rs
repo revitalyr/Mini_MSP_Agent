@@ -1,10 +1,10 @@
-use axum::extract::ws::{WebSocket, Message, Sender};
+use axum::extract::ws::{WebSocket, Message};
 use futures_util::{SinkExt, StreamExt};
 use mini_msp_shared::Command;
 use serde_json;
 use std::collections::HashMap;
 use std::time::Instant;
-use tracing::{debug, error, warn};
+use tracing::{debug, info, warn};
 
 pub struct WebSocketManager {
     agents: HashMap<String, AgentConnection>,
@@ -12,7 +12,7 @@ pub struct WebSocketManager {
 
 #[derive(Debug)]
 struct AgentConnection {
-    sender: Sender,
+    sender: futures_util::stream::SplitSink<WebSocket, Message>,
     last_activity: std::time::Instant,
 }
 
@@ -26,7 +26,7 @@ impl WebSocketManager {
     pub async fn register_agent(
         &mut self,
         agent_id: String,
-        sender: Sender,
+        sender: futures_util::stream::SplitSink<WebSocket, Message>,
     ) {
         let connection = AgentConnection {
             sender,

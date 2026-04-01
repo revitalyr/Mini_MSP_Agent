@@ -13,7 +13,7 @@ use serde_json::json;
 use std::{
     collections::HashMap,
     net::SocketAddr,
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::Instant,
 };
 use tokio::time::{interval, Duration};
@@ -28,8 +28,8 @@ use websocket::WebSocketManager;
 
 #[derive(Clone)]
 struct AppState {
-    agents: Arc<Mutex<HashMap<String, AgentInfo>>>,
-    ws_manager: Arc<Mutex<WebSocketManager>>,
+    agents: Arc<tokio::sync::Mutex<HashMap<String, AgentInfo>>>,
+    ws_manager: Arc<tokio::sync::Mutex<WebSocketManager>>,
 }
 
 #[derive(Debug, Clone)]
@@ -68,8 +68,8 @@ async fn main() -> Result<()> {
 
     // Initialize application state
     let app_state = AppState {
-        agents: Arc::new(Mutex::new(HashMap::new())),
-        ws_manager: Arc::new(Mutex::new(WebSocketManager::new())),
+        agents: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+        ws_manager: Arc::new(tokio::sync::Mutex::new(WebSocketManager::new())),
     };
 
     // Build router
@@ -81,12 +81,17 @@ async fn main() -> Result<()> {
         .route("/agents/:id/command", post(send_command))
         .layer(
             CorsLayer::new()
-                .allow_origin(axum::http::HeaderValue::from_static("*"))
+                .allow_origin("http://localhost:3000".parse::<axum::http::HeaderValue>().unwrap())
+                .allow_origin("http://localhost:8080".parse::<axum::http::HeaderValue>().unwrap())
                 .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
-                .allow_headers(axum::http::HeaderValue::from_static("*")),
+                .allow_headers([
+                    axum::http::header::CONTENT_TYPE,
+                    axum::http::header::AUTHORIZATION,
+                    axum::http::header::ACCEPT,
+                ]),
         )
         .layer(TraceLayer::new_for_http())
-        .with_state(app_state);
+        .with_state(app_state.clone());
 
     // Spawn cleanup task for inactive agents
     let cleanup_state = app_state.clone();
@@ -118,7 +123,7 @@ async fn health_check() -> impl IntoResponse {
 }
 
 async fn list_agents(State(state): State<AppState>) -> impl IntoResponse {
-    let agents = state.agents.lock().unwrap();
+    let agents = state.agents.lock().await;
     let agent_list: Vec<_> = agents
         .values()
         .map(|agent| {
@@ -144,7 +149,7 @@ async fn send_command(
 ) -> impl IntoResponse {
     debug!("Sending command to agent {}: {:?}", agent_id, command);
 
-    let mut ws_manager = state.ws_manager.lock().unwrap();
+    let mut ws_manager = state.ws_manager.lock().await;
     match ws_manager.send_to_agent(&agent_id, &command).await {
         Ok(_) => (StatusCode::OK, Json(json!({
             "status": "sent",
@@ -164,8 +169,8 @@ async fn send_command(
 }
 
 async fn cleanup_inactive_agents(state: &AppState) {
-    let mut agents = state.agents.lock().unwrap();
-    let mut ws_manager = state.ws_manager.lock().unwrap();
+    let mut agents = state.agents.lock().await;
+    let mut ws_manager = state.ws_manager.lock().await;
     
     let now = Instant::now();
     let timeout = Duration::from_secs(120); // 2 minutes timeout
@@ -174,7 +179,7 @@ async fn cleanup_inactive_agents(state: &AppState) {
     
     for (id, agent) in agents.iter() {
         if now.duration_since(agent.last_heartbeat) > timeout {
-            to_remove.push(id.clone());
+            to_remove.push(id.to_string());
         }
     }
     
