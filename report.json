@@ -1,0 +1,49 @@
+{
+  "generated_at": 1640995200,
+  "agent_id": "all",
+  "time_range": "2024-01-01/2024-01-02",
+  "agents": [
+    {
+      "id": "agent-001",
+      "status": "active",
+      "hostname": "windows-pc",
+      "uptime": 86400,
+      "last_heartbeat": 1640995200,
+      "version": "1.0.0",
+      "platform": "windows"
+    },
+    {
+      "id": "agent-002",
+      "status": "inactive",
+      "hostname": "linux-server",
+      "uptime": 43200,
+      "last_heartbeat": 1640995200,
+      "version": "1.0.0",
+      "platform": "linux"
+    }
+  ],
+  "metrics": [
+    {
+      "timestamp": 1640995200,
+      "cpu_usage": 25.5,
+      "ram_usage": 67.8,
+      "disk_usage": 45.2,
+      "processes": 156
+    },
+    {
+      "timestamp": 1640995260,
+      "cpu_usage": 30.1,
+      "ram_usage": 68.2,
+      "disk_usage": 45.3,
+      "processes": 158
+    }
+  ],
+  "summary": {
+    "total_agents": 2,
+    "active_agents": 1,
+    "avg_cpu_usage": 27.8,
+    "avg_ram_usage": 68.0,
+    "avg_disk_usage": 45.25,
+    "total_processes": 314
+  }
+}
