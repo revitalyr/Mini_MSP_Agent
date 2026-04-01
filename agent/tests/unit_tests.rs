@@ -1,9 +1,10 @@
-use mini_msp_agent::agent::plugins::ffi::*;
-use mini_msp_agent::agent::plugins::manager::*;
-use mini_msp_agent::agent::plugins::manager::{PluginRegistryEntry, PluginStatus};
-use mini_msp_agent::agent::plugins::ffi::{SystemInfoData, CommandResultData};
+use mini_msp_agent::plugins::ffi::*;
+use mini_msp_agent::plugins::{PluginManager, PluginEventType};
+use mini_msp_agent::plugins::manager::{PluginRegistryEntry, PluginStatus};
+use mini_msp_agent::plugins::ffi::{SystemInfoData, CommandResultData};
 use mini_msp_shared::{Command, Heartbeat, Metrics};
 use std::time::SystemTime;
+use std::sync::Arc;
 
 /// Unit tests for agent plugin system
 

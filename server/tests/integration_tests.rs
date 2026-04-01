@@ -1,19 +1,88 @@
 use axum::{
     body::Body,
     http::{Request, StatusCode, Method},
+    response::IntoResponse,
+    routing::{get, post},
+    Router,
+    ServiceExt,
 };
 use mini_msp_shared::{Heartbeat, Metrics, Command};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tower::ServiceExt;
+use std::time::Instant;
 
-// Import the server modules
-use mini_msp_agent::server::{AppState, WebSocketManager};
-use mini_msp_agent::server::{health_check, handle_heartbeat, list_agents, send_command};
+// Import the server modules directly from crate
+use crate::main::{AppState, AgentInfo, health_check, handle_heartbeat, list_agents, send_command};
+use crate::websocket::WebSocketManager;
 
 /// Integration tests for the Mini MSP Server
 /// These tests verify the complete API functionality
+
+#[tokio::test]
+async fn test_health_check() {
+    let app = create_test_app().await;
+    
+    let request = Request::builder()
+        .uri("/health")
+        .method(Method::GET)
+        .body(Body::empty())
+        .unwrap();
+
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body_str = String::from_utf8(body.to_vec()).unwrap();
+    
+    assert!(body_str.contains("ok"));
+}
+
+#[tokio::test]
+async fn test_list_agents_empty() {
+    let app = create_test_app().await;
+    
+    let request = Request::builder()
+        .uri("/agents")
+        .method(Method::GET)
+        .body(Body::empty())
+        .unwrap();
+
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body_str = String::from_utf8(body.to_vec()).unwrap();
+    
+    assert!(body_str.contains("\"count\":0"));
+}
+
+#[tokio::test]
+async fn test_heartbeat() {
+    let app = create_test_app().await;
+    
+    let heartbeat = Heartbeat {
+        agent_id: "test-agent".to_string(),
+        timestamp: 1234567890,
+        metrics: Metrics {
+            cpu: 50.0,
+            ram: 60.0,
+            disk: 70.0,
+        },
+        hostname: "test-host".to_string(),
+        uptime: 3600,
+    };
+
+    let request = Request::builder()
+        .uri("/heartbeat")
+        .method(Method::POST)
+        .header("content-type", "application/json")
+        .body(Body::from(serde_json::to_string(&heartbeat).unwrap()))
+        .unwrap();
+
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+}
 
 #[tokio::test]
 async fn test_complete_agent_workflow() {
@@ -128,7 +197,7 @@ async fn test_invalid_endpoints() {
         .body(Body::empty())
         .unwrap();
     
-    let response = app.oneshot(response).await.unwrap();
+    let response = app.clone().oneshot(response).await.unwrap();
     assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
 }
 
@@ -175,7 +244,7 @@ async fn test_malformed_requests() {
         .body(Body::from("{invalid json"))
         .unwrap();
     
-    let response = app.oneshot(response).await.unwrap();
+    let response = app.clone().oneshot(response).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     
     // Test malformed JSON in command
@@ -186,7 +255,7 @@ async fn test_malformed_requests() {
         .body(Body::from("{invalid json"))
         .unwrap();
     
-    let response = app.oneshot(response).await.unwrap();
+    let response = app.clone().oneshot(response).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
 

@@ -148,6 +148,9 @@ impl WebSocketClient {
                             info!("WebSocket close message received");
                             break;
                         }
+                        Ok(Message::Frame(_)) => {
+                            debug!("Received frame message (not implemented)");
+                        }
                         Err(e) => {
                             error!("WebSocket error: {}", e);
                             break;

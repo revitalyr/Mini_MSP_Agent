@@ -25,6 +25,6 @@ tokio-tungstenite = { workspace = true }
 clap = { workspace = true }
 
 [dev-dependencies]
-tower = { workspace = true }
+tower = { workspace = true, features = ["util"] }
 axum = { workspace = true }
 tokio-test = "0.4"
