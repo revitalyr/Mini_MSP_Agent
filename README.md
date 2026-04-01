@@ -2,19 +2,25 @@
 
 Cross-platform system agent for MSP/fleet management built with Rust and C++ plugins.
 
-## Features
+## 🚀 Overview
 
-- **Real-time telemetry collection** (CPU, RAM, Disk usage) via C++ plugins
-- **Remote command execution** with security whitelist
-- **WebSocket control channel** for bidirectional communication
-- **HTTP heartbeat** for agent status reporting
-- **Cross-platform support** (Windows, Linux, macOS)
-- **Async architecture** using Tokio
-- **Structured logging** with JSON output
-- **Docker support** for containerized deployment
-- **Plugin architecture** with C++ FFI for OS-specific operations
+Mini MSP Agent is a comprehensive monitoring and management solution for distributed systems. It provides real-time telemetry collection, remote command execution, and extensible plugin architecture for custom functionality.
 
-## Architecture
+## ✨ Features
+
+- **🔧 Real-time telemetry collection** (CPU, RAM, Disk usage) via C++ plugins
+- **⚡ Remote command execution** with security whitelist and validation
+- **🌐 WebSocket control channel** for bidirectional real-time communication
+- **📡 HTTP heartbeat** for agent status reporting and health monitoring
+- **🌍 Cross-platform support** (Windows, Linux, macOS) with unified interface
+- **⚡ Async architecture** using Tokio for high-performance I/O
+- **📊 Structured logging** with JSON output and configurable levels
+- **🐳 Docker support** for containerized deployment and orchestration
+- **🔌 Plugin architecture** with C++ FFI for OS-specific operations
+- **📚 Comprehensive documentation** with rustdoc and Doxygen comments
+- **🧪 Integration testing** with full test coverage
+
+## 🏗️ Architecture
 
 ```
 ┌─────────────────┐    HTTP/WebSocket    ┌─────────────────┐
@@ -23,6 +29,7 @@ Cross-platform system agent for MSP/fleet management built with Rust and C++ plu
 │ • Communication │                      │ • REST API      │
 │ • Plugin Mgmt   │                      │ • WebSocket Hub │
 │ • Config        │                      │ • Agent Registry│
+│ • Telemetry    │                      │ • Command Dispatch│
 └─────────┬───────┘                      └─────────────────┘
           │ FFI
           ▼
@@ -33,12 +40,14 @@ Cross-platform system agent for MSP/fleet management built with Rust and C++ plu
 │ • Process Mgmt   │
 │ • File Ops       │
 │ • Command Exec   │
+│ • Security       │
+│ • Monitoring     │
 └─────────────────┘
 ```
 
 ## Quick Start
 
-### Using Docker Compose (Recommended)
+### 🐳 Using Docker Compose (Recommended)
 
 ```bash
 # Start both server and agent
@@ -51,7 +60,7 @@ docker-compose logs -f
 docker-compose down
 ```
 
-### Manual Build
+### 🔨 Manual Build
 
 ```bash
 # Build C++ plugins first
@@ -63,13 +72,176 @@ cd ..
 cargo build --release
 
 # Start server
-./target/release/mini_msp_server --port 8080
+./target/release/server --port 8080
 
 # Start agent (in another terminal)
-./target/release/mini_msp_agent --config configs/config.toml --plugin-dir ./plugins
+./target/release/agent --config configs/config.toml --plugin-dir ./plugins
 ```
 
-## Configuration
+## 📚 Documentation
+
+### 📖 Code Documentation
+
+- **Rust Documentation**: Full rustdoc coverage for all modules
+  - Agent: `cargo doc --open --no-deps -p mini_msp_agent`
+  - Server: `cargo doc --open --no-deps -p mini_msp_server`
+  - Shared: `cargo doc --open --no-deps -p mini_msp_shared`
+
+- **C++ Plugin Documentation**: Complete Doxygen coverage
+  - Plugin interface: `plugins/include/plugin_interface.h`
+  - System plugin: `plugins/src/unix/simple_plugin.c`
+
+### 📋 API Documentation
+
+#### Server REST API
+
+- `GET /health` - Health check endpoint
+- `GET /agents` - List all registered agents  
+- `GET /agents/{id}` - Get specific agent information
+- `POST /agents/{id}/command` - Send command to agent
+- `GET /ws` - WebSocket upgrade endpoint
+
+#### WebSocket Events
+
+- **Heartbeat**: Agent status updates with metrics
+- **Command**: Command execution requests with parameters
+- **Response**: Command execution results with output
+- **Register**: New agent registration with system info
+- **Unregister**: Agent disconnection and cleanup
+
+#### Command Types
+
+```json
+{
+  "type": "GetProcesses"
+}
+{
+  "type": "Exec", 
+  "data": {"cmd": "ps aux"}
+}
+{
+  "type": "GetFile",
+  "data": {"path": "/etc/hostname"}
+}
+{
+  "type": "GetSystemInfo"
+}
+```
+
+## 🧪 Testing
+
+### Running Tests
+
+```bash
+# Run all tests
+cargo test
+
+# Run with logging
+RUST_LOG=debug cargo test
+
+# Run specific test
+cargo test agent_tests
+cargo test server_tests
+
+# Run integration tests
+cargo test --test integration_tests
+
+# Generate test coverage
+cargo tarpaulin --out Html
+```
+
+### Integration Testing
+
+The project includes comprehensive integration tests:
+
+- **Agent-Server Communication**: WebSocket connection and heartbeat
+- **Command Execution**: Remote command processing and response
+- **Plugin System**: Dynamic loading and unloading
+- **Security Controls**: Command whitelist and path validation
+
+```bash
+# Run integration tests with detailed output
+RUST_LOG=debug cargo test --test integration_tests -- --nocapture
+```
+
+## 📈 Usage Examples
+
+### Basic Agent Registration
+
+```bash
+# Start server
+./target/release/server --port 8080
+
+# Start agent with custom configuration
+./target/release/agent \
+  --config custom-config.toml \
+  --plugin-dir ./plugins \
+  --hot-reload
+```
+
+### Remote Command Execution
+
+```bash
+# Send command to agent
+curl -X POST http://localhost:8080/agents/agent-123/command \
+  -H "Content-Type: application/json" \
+  -d '{"type": "Exec", "data": {"cmd": "ps aux"}}'
+
+# Get system information
+curl -X POST http://localhost:8080/agents/agent-123/command \
+  -H "Content-Type: application/json" \
+  -d '{"type": "GetSystemInfo"}'
+```
+
+### WebSocket Communication
+
+```javascript
+// Connect to WebSocket
+const ws = new WebSocket('ws://localhost:8080/ws');
+
+// Send heartbeat
+ws.send(JSON.stringify({
+  type: 'heartbeat',
+  agent_id: 'agent-123',
+  timestamp: Date.now(),
+  metrics: { cpu: 25.5, ram: 60.2, disk: 45.8 },
+  hostname: 'server-01',
+  uptime: 86400
+}));
+```
+
+### Plugin Development
+
+```c
+// Basic plugin structure
+#include "plugin_interface.h"
+
+bool plugin_init(void) {
+    // Initialize plugin resources
+    return true;
+}
+
+bool get_system_metrics(system_metrics_t* metrics) {
+    // Collect system metrics
+    metrics->cpu_usage = get_cpu_usage();
+    metrics->ram_usage = get_ram_usage();
+    metrics->disk_usage = get_disk_usage();
+    return true;
+}
+
+PLUGIN_EXPORT plugin_interface_t* get_plugin_interface(void) {
+    static plugin_interface_t interface = {
+        .init = plugin_init,
+        .get_system_metrics = get_system_metrics,
+        // ... other function pointers
+    };
+    return &interface;
+}
+```
+
+## 🔧 Configuration
+
+### Agent Configuration
 
 Agent configuration is managed via `config.toml`:
 
@@ -83,7 +255,17 @@ agent_id = "unique-agent-id"
 [security]
 allowed_commands = ["ps", "top", "df", "free", "ls", "cat"]
 max_file_size = 100000  # Max file size to read (bytes)
+
+[plugins]
+directory = "./plugins"
+hot_reload = false
 ```
+
+### Environment Variables
+
+- `RUST_LOG`: Set logging level (trace, debug, info, warn, error)
+- `AGENT_CONFIG_PATH`: Override default config file location
+- `PLUGIN_DIR`: Override default plugin directory
 
 ## API Endpoints
 
