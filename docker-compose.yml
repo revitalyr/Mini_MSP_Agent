@@ -6,7 +6,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - RUST_LOG=info
+      - RUST_LOG=debug
     networks:
       - msp-network
     healthcheck:
@@ -20,9 +20,9 @@ services:
       context: .
       dockerfile: agent/Dockerfile
     environment:
-      - RUST_LOG=info
+      - RUST_LOG=debug
     volumes:
-      - ./configs/config.toml:/app/config.toml
+      - ./agent_config.toml:/app/config.toml
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /:/rootfs:ro

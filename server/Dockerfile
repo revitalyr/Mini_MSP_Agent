@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 COPY target/release/server /usr/local/bin/server
+COPY server/static/ ./static/
 
 EXPOSE 8080
 

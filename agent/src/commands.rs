@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use mini_msp_shared::{Command, CommandResponse};
 use serde_json::json;
 use std::time::SystemTime;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::plugins::PluginManager;
 
@@ -74,7 +74,7 @@ async fn handle_get_processes(plugin_manager: &PluginManager, timestamp: i64) ->
 }
 
 async fn handle_exec(cmd: String, timestamp: i64, plugin_manager: &PluginManager) -> Result<CommandResponse> {
-    debug!("Executing command via plugin: {}", cmd);
+    info!("Executing command via plugin: {}", cmd);
     
     // Security check - whitelist allowed commands
     if !is_command_allowed(&cmd) {
@@ -249,7 +249,8 @@ fn is_command_allowed(cmd: &str) -> bool {
     let allowed_commands = vec![
         "ps", "top", "df", "free", "uptime", "whoami", "id", "uname", "date",
         "ls", "cat", "grep", "find", "wc", "head", "tail", "sort", "uniq",
-        "netstat", "ss", "ip", "ifconfig", "ping", "systemctl", "service"
+        "netstat", "ss", "ip", "ifconfig", "ping", "systemctl", "service",
+        "echo", "sleep", "reboot", "shutdown"
     ];
 
     let first_word = cmd.split_whitespace().next().unwrap_or("");

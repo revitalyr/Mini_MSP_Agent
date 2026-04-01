@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mini MSP Agent Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://unpkg.com/feather-icons"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <i data-feather="cpu"></i>
+                    <h1>Mini MSP Agent Dashboard</h1>
+                </div>
+                <div class="status-indicator">
+                    <span class="status-dot" id="connectionStatus"></span>
+                    <span id="statusText">Connecting...</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Stats Cards -->
+            <section class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i data-feather="server"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3>Total Agents</h3>
+                        <p class="stat-number" id="totalAgents">0</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i data-feather="check-circle"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3>Active Agents</h3>
+                        <p class="stat-number" id="activeAgents">0</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i data-feather="activity"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3>System Status</h3>
+                        <p class="stat-number" id="systemStatus">Healthy</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i data-feather="clock"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3>Last Update</h3>
+                        <p class="stat-number" id="lastUpdate">Never</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Agents List -->
+            <section class="agents-section">
+                <div class="section-header">
+                    <h2>Connected Agents</h2>
+                    <button class="btn btn-primary" id="refreshBtn">
+                        <i data-feather="refresh-cw"></i>
+                        Refresh
+                    </button>
+                </div>
+                
+                <div class="agents-grid" id="agentsGrid">
+                    <!-- Agent cards will be dynamically added here -->
+                </div>
+
+                <div class="empty-state" id="emptyState">
+                    <i data-feather="inbox"></i>
+                    <h3>No agents connected</h3>
+                    <p>Waiting for agents to connect to the server...</p>
+                </div>
+            </section>
+
+            <!-- Agent Details Modal -->
+            <div class="modal" id="agentModal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 id="modalTitle">Agent Details</h3>
+                        <button class="modal-close" id="modalClose">
+                            <i data-feather="x"></i>
+                        </button>
+                    </div>
+                    <div class="modal-body" id="modalBody">
+                        <!-- Agent details will be dynamically added here -->
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>&copy; 2026 Mini MSP Agent. Built with Rust & WebSockets.</p>
+        </footer>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

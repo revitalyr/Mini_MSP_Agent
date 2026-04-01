@@ -120,7 +120,7 @@ impl WebSocketClient {
                 Some(msg) = read.next() => {
                     match msg {
                         Ok(Message::Text(text)) => {
-                            debug!("Received WebSocket message: {}", text);
+                            info!("Received WebSocket message: {}", text);
                             
                             match self.handle_message(text).await {
                                 Ok(response) => {
@@ -169,10 +169,12 @@ impl WebSocketClient {
     }
 
     async fn handle_message(&self, message: String) -> Result<Option<String>> {
+        info!("Handling WebSocket message: {}", message);
+        
         let command: Command = serde_json::from_str(&message)
             .with_context(|| "Failed to parse command")?;
 
-        debug!("Handling command: {:?}", command);
+        info!("Parsed command: {:?}", command);
 
         match handle_command(command, &self.plugin_manager).await {
             Ok(response) => {

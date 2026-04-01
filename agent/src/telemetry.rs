@@ -61,11 +61,28 @@ impl TelemetryCollector {
         if let Ok(system_metrics) = self.plugin_manager.get_system_metrics() {
             system_metrics.uptime
         } else {
-            self.start_time
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs()
+            // Fallback: calculate actual system uptime using /proc/uptime on Linux
+            self.get_system_uptime_fallback()
         }
+    }
+
+    fn get_system_uptime_fallback(&self) -> u64 {
+        #[cfg(target_os = "linux")]
+        {
+            if let Ok(uptime_content) = std::fs::read_to_string("/proc/uptime") {
+                if let Some(uptime_str) = uptime_content.split_whitespace().next() {
+                    if let Ok(uptime_seconds) = uptime_str.parse::<f64>() {
+                        return uptime_seconds as u64;
+                    }
+                }
+            }
+        }
+        
+        // Final fallback: agent uptime (not ideal but better than timestamp)
+        self.start_time
+            .elapsed()
+            .unwrap_or_default()
+            .as_secs()
     }
 
     pub fn get_processes(&self) -> Result<Vec<ProcessInfo>> {

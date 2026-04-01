@@ -44,10 +44,13 @@ impl WebSocketManager {
     }
 
     pub async fn send_to_agent(&mut self, agent_id: &str, command: &Command) -> Result<(), String> {
+        println!("WS: Attempting to send to agent: {}", agent_id);
         if let Some(connection) = self.agents.get_mut(agent_id) {
+            println!("WS: Found agent connection");
             let command_json = serde_json::to_string(command)
                 .map_err(|e| format!("Failed to serialize command: {}", e))?;
             
+            println!("WS: Sending JSON: {}", command_json);
             connection
                 .sender
                 .send(Message::Text(command_json))
@@ -55,10 +58,12 @@ impl WebSocketManager {
                 .map_err(|e| format!("Failed to send message: {}", e))?;
             
             connection.last_activity = std::time::Instant::now();
-            debug!("Command sent to agent {}: {:?}", agent_id, command);
+            info!("Command sent to agent {}: {:?}", agent_id, command);
+            println!("WS: Command sent successfully");
             
             Ok(())
         } else {
+            println!("WS: Agent {} not found in connections", agent_id);
             Err(format!("Agent {} not connected", agent_id))
         }
     }

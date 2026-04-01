@@ -2,7 +2,7 @@
  * @file plugin_interface.h
  * @brief Plugin Interface Definition for Mini MSP Agent
  * 
- * This header defines the standardized interface that all C++ plugins must implement
+ * This header defines the standardized interface that all C plugins must implement
  * to work with the Mini MSP Agent system. It provides data structures and
  * function pointers for plugin communication.
  * 
@@ -28,6 +28,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 #ifdef _WIN32
     #define PLUGIN_EXPORT __declspec(dllexport)
@@ -139,6 +140,14 @@ typedef struct {
  * 
  * @var os_type - Operating system type (null-terminated, max 63 chars)
  * @var os_version - OS version (null-terminated, max 127 chars)
+ * @var hostname - System hostname (null-terminated, max 255 chars)
+ * @var uptime - System uptime in seconds
+ * @var cpu_cores - Number of CPU cores
+ * @var total_memory - Total system memory in bytes
+ * @var available_memory - Available memory in bytes
+ */
+typedef struct {
+    char os_type[64];
     char os_version[128];
     char hostname[256];
     uint64_t uptime;

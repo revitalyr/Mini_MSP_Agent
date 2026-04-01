@@ -1,5 +1,5 @@
-server_url = "http://localhost:8081"
-ws_url = "ws://localhost:8081/ws"
+server_url = "http://server:8080"
+ws_url = "ws://server:8080/ws"
 interval = 30
 agent_id = "test-agent-os-report"
 log_level = "info"

@@ -40,6 +40,12 @@ logs/
 *.csv
 reports/
 
+# Static web files (exclude from gitignore)
+!server/static/
+!server/static/*.html
+!server/static/*.css
+!server/static/*.js
+
 # Plugins directory (built plugins)
 agent/plugins/*.dll
 agent/plugins/*.so

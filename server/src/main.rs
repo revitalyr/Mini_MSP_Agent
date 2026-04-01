@@ -70,7 +70,7 @@ use std::{
     time::Instant,
 };
 use tokio::time::{interval, Duration};
-use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use tower_http::{cors::CorsLayer, trace::TraceLayer, services::ServeDir};
 use tracing::{debug, error, info};
 
 mod routes;
@@ -176,6 +176,8 @@ async fn main() -> Result<()> {
         .route("/ws", get(handle_websocket))
         .route("/agents", get(list_agents))
         .route("/agents/:id/command", post(send_command))
+        .nest_service("/static", ServeDir::new("static"))
+        .route("/", get(|| async { axum::response::Redirect::permanent("/static/index.html") }))
         .layer(
             CorsLayer::new()
                 .allow_origin("http://localhost:3000".parse::<axum::http::HeaderValue>().unwrap())
@@ -244,16 +246,22 @@ pub async fn send_command(
     Path(agent_id): Path<String>,
     Json(command): Json<Command>,
 ) -> impl IntoResponse {
-    debug!("Sending command to agent {}: {:?}", agent_id, command);
+    error!("=== COMMAND RECEIVED === agent: {}, command: {:?}", agent_id, command);
+    info!("Sending command to agent {}: {:?}", agent_id, command);
 
     let mut ws_manager = state.ws_manager.lock().await;
+    println!("HTTP: About to send via WebSocket manager");
     match ws_manager.send_to_agent(&agent_id, &command).await {
-        Ok(_) => (StatusCode::OK, Json(json!({
-            "status": "sent",
-            "agent_id": agent_id,
-            "command": command
-        }))),
+        Ok(_) => {
+            println!("HTTP: Command sent successfully");
+            (StatusCode::OK, Json(json!({
+                "status": "sent",
+                "agent_id": agent_id,
+                "command": command
+            })))
+        },
         Err(e) => {
+            println!("HTTP: Failed to send command: {}", e);
             error!("Failed to send command to agent {}: {}", agent_id, e);
             (
                 StatusCode::NOT_FOUND,
