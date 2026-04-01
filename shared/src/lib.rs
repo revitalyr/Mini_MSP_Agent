@@ -1,7 +1,37 @@
+//! # Mini MSP Shared Library
+//! 
+//! This library contains shared data structures and types used by both
+//! the Mini MSP Agent and Server components. It provides a common
+//! interface for communication and data exchange.
+//! 
+//! ## Data Structures
+//! 
+//! - **Heartbeat**: Agent status and metrics reporting
+//! - **Metrics**: System performance metrics (CPU, RAM, Disk)
+//! - **Command**: Command enumeration for agent operations
+//! - **AgentConfig**: Agent configuration structure
+//! 
+//! ## Serialization
+//! 
+//! All structures support JSON serialization/deserialization using serde,
+//! enabling seamless communication over HTTP and WebSocket protocols.
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
+/// Agent heartbeat message containing status and metrics
+/// 
+/// Sent periodically by agents to report their current state
+/// and system performance metrics.
+/// 
+/// # Fields
+/// 
+/// * `agent_id` - Unique identifier for the agent
+/// * `timestamp` - Unix timestamp of the heartbeat
+/// * `metrics` - Current system performance metrics
+/// * `hostname` - System hostname
+/// * `uptime` - System uptime in seconds
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Heartbeat {
     pub agent_id: String,
@@ -11,6 +41,16 @@ pub struct Heartbeat {
     pub uptime: u64,
 }
 
+/// System performance metrics
+/// 
+/// Contains current resource usage percentages for monitoring
+/// and alerting purposes.
+/// 
+/// # Fields
+/// 
+/// * `cpu` - CPU usage percentage (0.0 - 100.0)
+/// * `ram` - RAM usage percentage (0.0 - 100.0)
+/// * `disk` - Disk usage percentage (0.0 - 100.0)
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Metrics {
     pub cpu: f32,
@@ -18,6 +58,17 @@ pub struct Metrics {
     pub disk: f32,
 }
 
+/// Command enumeration for agent operations
+/// 
+/// Represents different types of commands that can be
+/// sent to agents for execution.
+/// 
+/// # Variants
+/// 
+/// * `GetProcesses` - Retrieve running processes list
+/// * `Exec` - Execute shell command with specified string
+/// * `GetFile` - Read file contents at specified path
+/// * `GetSystemInfo` - Get comprehensive system information
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", content = "data")]
 pub enum Command {

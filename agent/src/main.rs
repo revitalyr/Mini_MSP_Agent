@@ -1,3 +1,46 @@
+//! # Mini MSP Agent
+//! 
+//! A cross-platform system agent for MSP (Managed Service Provider) and fleet management.
+//! This agent provides comprehensive system monitoring, plugin architecture, and real-time
+//! communication with a central management server.
+//! 
+//! ## Features
+//! 
+//! - **Plugin Architecture**: Extensible C++ plugin system for custom functionality
+//! - **Real-time Monitoring**: System metrics, process information, and resource usage
+//! - **WebSocket Communication**: Persistent connection to management server
+//! - **Hot-reload Support**: Dynamic plugin loading and unloading
+//! - **Cross-platform**: Works on Linux, Windows, and macOS
+//! 
+//! ## Architecture
+//! 
+//! The agent consists of several key components:
+//! 
+//! - **Config Module**: Configuration management and validation
+//! - **Telemetry Module**: System metrics collection and reporting
+//! - **Network Module**: HTTP and WebSocket client communication
+//! - **Commands Module**: Command execution and response handling
+//! - **Plugins Module**: Dynamic plugin loading and management
+//! 
+//! ## Usage
+//! 
+//! ```bash
+//! mini-msp-agent --config config.toml --plugin-dir ./plugins
+//! ```
+//! 
+//! ## Configuration
+//! 
+//! The agent uses TOML configuration files for settings including:
+//! - Server connection parameters
+//! - Plugin directory paths
+//! - Telemetry collection intervals
+//! - Logging levels
+//! 
+//! ## Plugin Development
+//! 
+//! Plugins are developed as C++ shared libraries with a standardized interface.
+//! See the `plugins` directory for examples and development guidelines.
+
 use anyhow::Result;
 use clap::{Arg, Command};
 use mini_msp_shared::{AgentConfig, Heartbeat, Metrics};
@@ -18,6 +61,34 @@ use telemetry::TelemetryCollector;
 use network::{HttpClient, WebSocketClient};
 use plugins::{PluginManager, PluginEventType};
 
+/// Main entry point for the Mini MSP Agent
+/// 
+/// This function initializes and starts the agent with the following steps:
+/// 1. Parse command line arguments
+/// 2. Initialize logging system
+/// 3. Load configuration from file
+/// 4. Initialize plugin manager
+/// 5. Load plugins from specified directory
+/// 6. Start telemetry collection
+/// 7. Connect to management server via WebSocket
+/// 8. Start main event loop with periodic heartbeats
+/// 
+/// # Arguments
+/// 
+/// * `config` - Path to configuration file (default: "config.toml")
+/// * `plugin-dir` - Directory containing C++ plugins (default: "./plugins")
+/// * `hot-reload` - Enable plugin hot-reload functionality
+/// * `daemon` - Run as daemon/service
+/// 
+/// # Returns
+/// 
+/// Returns `Ok(())` on successful execution, `Err(e)` on any failure
+/// 
+/// # Example
+/// 
+/// ```bash
+/// mini-msp-agent --config custom.toml --plugin-dir /opt/plugins --hot-reload
+/// ```
 #[tokio::main]
 async fn main() -> Result<()> {
     let matches = Command::new("mini-msp-agent")

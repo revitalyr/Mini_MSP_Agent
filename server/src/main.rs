@@ -1,3 +1,57 @@
+//! # Mini MSP Server
+//! 
+//! A high-performance HTTP and WebSocket server for managing Mini MSP agents.
+//! This server provides REST API endpoints and real-time WebSocket communication
+//! for fleet management and monitoring.
+//! 
+//! ## Features
+//! 
+//! - **REST API**: HTTP endpoints for agent management and commands
+//! - **WebSocket Support**: Real-time bidirectional communication with agents
+//! - **Agent Registry**: In-memory storage of connected agents
+//! - **Command Dispatch**: Send commands to specific agents
+//! - **Health Monitoring**: Built-in health checks and metrics
+//! - **CORS Support**: Cross-origin resource sharing for web interfaces
+//! 
+//! ## Architecture
+//! 
+//! The server consists of several key components:
+//! 
+//! - **Routes Module**: HTTP endpoint handlers and routing
+//! - **WebSocket Module**: WebSocket connection management
+//! - **AppState**: Shared state for agent registry
+//! - **AgentInfo**: Agent metadata and connection status
+//! 
+//! ## API Endpoints
+//! 
+//! ### HTTP Endpoints
+//! 
+//! - `GET /health` - Health check endpoint
+//! - `GET /agents` - List all registered agents
+//! - `GET /agents/{id}` - Get specific agent information
+//! - `POST /agents/{id}/command` - Send command to agent
+//! - `GET /ws` - WebSocket upgrade endpoint
+//! 
+//! ### WebSocket Events
+//! 
+//! - **Heartbeat**: Agent status updates
+//! - **Command**: Command execution requests
+//! - **Response**: Command execution results
+//! - **Register**: New agent registration
+//! - **Unregister**: Agent disconnection
+//! 
+//! ## Usage
+//! 
+//! ```bash
+//! mini-msp-server --port 8080
+//! ```
+//! 
+//! ## Configuration
+//! 
+//! The server accepts command-line arguments:
+//! - `--port`: HTTP server port (default: 8080)
+//! - `--host`: Bind address (default: 0.0.0.0)
+
 use anyhow::Result;
 use axum::{
     extract::{Path, State},
@@ -25,12 +79,32 @@ mod websocket;
 use routes::{handle_heartbeat, handle_websocket};
 use websocket::WebSocketManager;
 
+/// Shared application state for the server
+/// 
+/// This structure contains all the shared data that needs to be accessed
+/// across different HTTP handlers and WebSocket connections.
+/// 
+/// # Fields
+/// 
+/// * `agents` - Thread-safe hashmap of registered agents indexed by ID
+/// * `ws_manager` - Thread-safe WebSocket connection manager
 #[derive(Clone)]
 pub struct AppState {
     agents: Arc<tokio::sync::Mutex<HashMap<String, AgentInfo>>>,
     ws_manager: Arc<tokio::sync::Mutex<WebSocketManager>>,
 }
 
+/// Information about a connected agent
+/// 
+/// Contains metadata about each agent that connects to the server,
+/// including connection status and system information.
+/// 
+/// # Fields
+/// 
+/// * `id` - Unique identifier for the agent
+/// * `last_heartbeat` - Timestamp of the last heartbeat received
+/// * `hostname` - System hostname reported by the agent
+/// * `uptime` - System uptime reported by the agent
 #[derive(Debug, Clone)]
 pub struct AgentInfo {
     id: String,
@@ -39,6 +113,30 @@ pub struct AgentInfo {
     uptime: u64,
 }
 
+/// Main entry point for the Mini MSP Server
+/// 
+/// This function initializes and starts the server with the following steps:
+/// 1. Parse command line arguments (port, host)
+/// 2. Initialize shared application state
+/// 3. Create WebSocket manager
+/// 4. Setup HTTP routes and middleware
+/// 5. Start periodic cleanup tasks
+/// 6. Bind to specified address and start serving
+/// 
+/// # Arguments
+/// 
+/// * `port` - HTTP server port (default: 8080)
+/// * `host` - Bind address (default: 0.0.0.0)
+/// 
+/// # Returns
+/// 
+/// Returns `Ok(())` on successful execution, `Err(e)` on any failure
+/// 
+/// # Example
+/// 
+/// ```bash
+/// mini-msp-server --port 8080 --host 127.0.0.1
+/// ```
 #[tokio::main]
 async fn main() -> Result<()> {
     let matches = ClapCommand::new("mini-msp-server")
