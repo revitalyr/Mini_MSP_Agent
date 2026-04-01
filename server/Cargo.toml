@@ -23,3 +23,8 @@ tower-http = { workspace = true }
 futures-util = { workspace = true }
 tokio-tungstenite = { workspace = true }
 clap = { workspace = true }
+
+[dev-dependencies]
+tower = { workspace = true }
+axum = { workspace = true }
+tokio-test = "0.4"

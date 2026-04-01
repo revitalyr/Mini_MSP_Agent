@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Heartbeat {
     pub agent_id: String,
     pub timestamp: i64,
@@ -11,14 +11,14 @@ pub struct Heartbeat {
     pub uptime: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Metrics {
     pub cpu: f32,
     pub ram: f32,
     pub disk: f32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", content = "data")]
 pub enum Command {
     GetProcesses,
@@ -27,7 +27,7 @@ pub enum Command {
     GetSystemInfo,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CommandResponse {
     pub command_id: Option<String>,
     pub r#type: String,
@@ -36,7 +36,7 @@ pub struct CommandResponse {
     pub timestamp: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AgentConfig {
     pub server_url: String,
     pub ws_url: String,

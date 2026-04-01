@@ -168,6 +168,116 @@ async fn send_command(
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode, Method},
+    };
+    use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn test_health_check() {
+        let app = create_app().await;
+        
+        let request = Request::builder()
+            .uri("/health")
+            .method(Method::GET)
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+        
+        assert_eq!(response.status(), StatusCode::OK);
+        
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body_str = String::from_utf8(body.to_vec()).unwrap();
+        
+        assert!(body_str.contains("ok"));
+    }
+
+    #[tokio::test]
+    async fn test_list_agents_empty() {
+        let app = create_app().await;
+        
+        let request = Request::builder()
+            .uri("/agents")
+            .method(Method::GET)
+            .body(Body::empty())
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+        
+        assert_eq!(response.status(), StatusCode::OK);
+        
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body_str = String::from_utf8(body.to_vec()).unwrap();
+        
+        assert!(body_str.contains("\"count\":0"));
+    }
+
+    #[tokio::test]
+    async fn test_heartbeat() {
+        let app = create_app().await;
+        
+        let heartbeat = mini_msp_shared::Heartbeat {
+            agent_id: "test-agent".to_string(),
+            timestamp: 1234567890,
+            metrics: mini_msp_shared::Metrics {
+                cpu: 50.0,
+                ram: 60.0,
+                disk: 70.0,
+            },
+            hostname: "test-host".to_string(),
+            uptime: 3600,
+        };
+
+        let request = Request::builder()
+            .uri("/heartbeat")
+            .method(Method::POST)
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_string(&heartbeat).unwrap()))
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+        
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_send_command_agent_not_found() {
+        let app = create_app().await;
+        
+        let command = mini_msp_shared::Command::GetSystemInfo;
+        
+        let request = Request::builder()
+            .uri("/agents/non-existent-agent/command")
+            .method(Method::POST)
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_string(&command).unwrap()))
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+        
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    async fn create_app() -> axum::Router<AppState> {
+        let app_state = AppState {
+            agents: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+            ws_manager: Arc::new(tokio::sync::Mutex::new(WebSocketManager::new())),
+        };
+
+        axum::Router::new()
+            .route("/health", get(health_check))
+            .route("/heartbeat", post(handle_heartbeat))
+            .route("/agents", get(list_agents))
+            .route("/agents/:id/command", post(send_command))
+            .with_state(app_state)
+    }
+}
+
 async fn cleanup_inactive_agents(state: &AppState) {
     let mut agents = state.agents.lock().await;
     let mut ws_manager = state.ws_manager.lock().await;
