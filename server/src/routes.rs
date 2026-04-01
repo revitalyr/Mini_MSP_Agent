@@ -1,6 +1,7 @@
 use axum::{
-    extract::{ws::WebSocket, ws::Message, State, WebSocketUpgrade},
+    extract::{ws::WebSocket, ws::Message, State, WebSocketUpgrade, Path},
     response::{IntoResponse, Json, Response},
+    http::StatusCode,
 };
 use futures_util::{SinkExt, StreamExt};
 use mini_msp_shared::{Command, Heartbeat};
@@ -121,6 +122,39 @@ async fn handle_websocket_connection(socket: WebSocket, state: AppState) {
                     }
                 }
             }
+        }
+    }
+}
+
+pub async fn send_command(
+    State(state): State<AppState>,
+    Path(agent_id): Path<String>,
+    Json(command): Json<Command>,
+) -> impl IntoResponse {
+    println!("=== HTTP COMMAND RECEIVED === agent: {}, command: {:?}", agent_id, command);
+    error!("=== COMMAND RECEIVED === agent: {}, command: {:?}", agent_id, command);
+    info!("Sending command to agent {}: {:?}", agent_id, command);
+
+    let mut ws_manager = state.ws_manager.lock().await;
+    println!("HTTP: About to send via WebSocket manager");
+    match ws_manager.send_to_agent(&agent_id, &command).await {
+        Ok(_) => {
+            println!("HTTP: Command sent successfully");
+            (StatusCode::OK, Json(serde_json::json!({
+                "status": "sent",
+                "agent_id": agent_id,
+                "command": command
+            })))
+        },
+        Err(e) => {
+            println!("HTTP: Failed to send command: {}", e);
+            error!("Failed to send command to agent {}: {}", agent_id, e);
+            (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({
+                    "error": format!("Agent not connected: {}", e)
+                })),
+            )
         }
     }
 }

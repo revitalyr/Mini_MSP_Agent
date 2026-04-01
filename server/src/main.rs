@@ -76,7 +76,7 @@ use tracing::{debug, error, info};
 mod routes;
 mod websocket;
 
-use routes::{handle_heartbeat, handle_websocket};
+use routes::{handle_heartbeat, handle_websocket, send_command};
 use websocket::WebSocketManager;
 
 /// Shared application state for the server
@@ -239,38 +239,6 @@ pub async fn list_agents(State(state): State<AppState>) -> impl IntoResponse {
         "agents": agent_list,
         "count": agent_list.len()
     }))
-}
-
-pub async fn send_command(
-    State(state): State<AppState>,
-    Path(agent_id): Path<String>,
-    Json(command): Json<Command>,
-) -> impl IntoResponse {
-    error!("=== COMMAND RECEIVED === agent: {}, command: {:?}", agent_id, command);
-    info!("Sending command to agent {}: {:?}", agent_id, command);
-
-    let mut ws_manager = state.ws_manager.lock().await;
-    println!("HTTP: About to send via WebSocket manager");
-    match ws_manager.send_to_agent(&agent_id, &command).await {
-        Ok(_) => {
-            println!("HTTP: Command sent successfully");
-            (StatusCode::OK, Json(json!({
-                "status": "sent",
-                "agent_id": agent_id,
-                "command": command
-            })))
-        },
-        Err(e) => {
-            println!("HTTP: Failed to send command: {}", e);
-            error!("Failed to send command to agent {}: {}", agent_id, e);
-            (
-                StatusCode::NOT_FOUND,
-                Json(json!({
-                    "error": format!("Agent not connected: {}", e)
-                })),
-            )
-        }
-    }
 }
 
 
