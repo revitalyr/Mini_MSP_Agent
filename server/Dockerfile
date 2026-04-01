@@ -1,12 +1,3 @@
-FROM rust:1.75-slim as builder
-
-WORKDIR /app
-COPY Cargo.toml Cargo.lock ./
-COPY src ./src
-COPY ../shared ../shared
-
-RUN cargo build --release
-
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y \
@@ -16,7 +7,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-COPY --from=builder /app/target/release/server /usr/local/bin/server
+COPY target/release/server /usr/local/bin/server
 
 EXPOSE 8080
 
