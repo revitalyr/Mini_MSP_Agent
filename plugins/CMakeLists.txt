@@ -1,11 +1,11 @@
 cmake_minimum_required(VERSION 3.12)
 project(mini_msp_plugins)
 
+# Set C and C++ standards
+set(CMAKE_C_STANDARD 99)
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-# Plugin configuration
-set(PLUGIN_OUTPUT_DIR ${CMAKE_BINARY_DIR}/plugins)
 
 # Detect platform
 if(WIN32)
@@ -18,53 +18,154 @@ endif()
 
 message(STATUS "Building plugins for platform: ${PLATFORM}")
 
-# System plugin for the detected platform
+# Set output directory for plugins
+set(PLUGIN_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/plugins)
+
+# Create plugin output directory
+file(MAKE_DIRECTORY ${PLUGIN_OUTPUT_DIR})
+
+# System plugin (basic)
 add_library(system_plugin SHARED
-    src/${PLATFORM}/system_plugin_${PLATFORM}.cpp
+    src/${PLATFORM}/simple_plugin.c
 )
 
 target_include_directories(system_plugin PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-# Set output directory for plugins
 set_target_properties(system_plugin PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
     ARCHIVE_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
     RUNTIME_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
 )
 
-# Platform-specific settings
+# Platform-specific linking
 if(WIN32)
-    target_compile_definitions(system_plugin PUBLIC 
-        _WIN32 
-        WIN32_LEAN_AND_MEAN
-        NOMINMAX
-    )
-    
-    # Link Windows libraries
-    target_link_libraries(system_plugin 
-        kernel32
-        psapi
-        user32
-        shell32
-    )
-    
-    # Set DLL export
-    target_compile_definitions(system_plugin PUBLIC PLUGIN_EXPORT)
-    
-elseif(UNIX AND NOT APPLE)
-    # Linux
-    target_link_libraries(system_plugin pthread)
-    
+    target_link_libraries(system_plugin psapi)
 elseif(APPLE)
-    # macOS
-    target_link_libraries(system_plugin pthread)
+    target_link_libraries(system_plugin)
+else()
+    target_link_libraries(system_plugin)
 endif()
+
+# Directory Information Plugin
+add_library(directory_info_plugin SHARED
+    src/${PLATFORM}/directory_info_plugin.c
+)
+
+target_include_directories(directory_info_plugin PUBLIC 
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+set_target_properties(directory_info_plugin PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
+    ARCHIVE_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
+    RUNTIME_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
+)
+
+if(WIN32)
+    target_link_libraries(directory_info_plugin psapi)
+endif()
+
+# Event Data Plugin
+add_library(event_data_plugin SHARED
+    src/${PLATFORM}/event_data_plugin.c
+)
+
+target_include_directories(event_data_plugin PUBLIC 
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+set_target_properties(event_data_plugin PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
+    ARCHIVE_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
+    RUNTIME_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
+)
+
+if(WIN32)
+    target_link_libraries(event_data_plugin psapi wevtapi)
+endif()
+
+# File Signature Plugin
+add_library(file_signature_plugin SHARED
+    src/${PLATFORM}/file_signature_plugin.c
+)
+
+target_include_directories(file_signature_plugin PUBLIC 
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+set_target_properties(file_signature_plugin PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
+    ARCHIVE_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
+    RUNTIME_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
+)
+
+if(WIN32)
+    target_link_libraries(file_signature_plugin psapi advapi32)
+endif()
+
+# Folder Watcher Plugin
+add_library(folder_watcher_plugin SHARED
+    src/${PLATFORM}/folder_watcher_plugin.c
+)
+
+target_include_directories(folder_watcher_plugin PUBLIC 
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+set_target_properties(folder_watcher_plugin PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
+    ARCHIVE_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
+    RUNTIME_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
+)
+
+if(WIN32)
+    target_link_libraries(folder_watcher_plugin psapi)
+endif()
+
+# Custom target to copy all plugins to agent directory
+add_custom_target(copy_plugins ALL
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_SOURCE_DIR}/../agent/plugins
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${PLUGIN_OUTPUT_DIR}/system_plugin.dll ${CMAKE_CURRENT_SOURCE_DIR}/../agent/plugins/ || ${CMAKE_COMMAND} -E copy_if_different ${PLUGIN_OUTPUT_DIR}/libsystem_plugin.so ${CMAKE_CURRENT_SOURCE_DIR}/../agent/plugins/ || ${CMAKE_COMMAND} -E copy_if_different ${PLUGIN_OUTPUT_DIR}/libsystem_plugin.dylib ${CMAKE_CURRENT_SOURCE_DIR}/../agent/plugins/
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${PLUGIN_OUTPUT_DIR}/directory_info_plugin.dll ${CMAKE_CURRENT_SOURCE_DIR}/../agent/plugins/ || ${CMAKE_COMMAND} -E copy_if_different ${PLUGIN_OUTPUT_DIR}/libdirectory_info_plugin.so ${CMAKE_CURRENT_SOURCE_DIR}/../agent/plugins/ || ${CMAKE_COMMAND} -E copy_if_different ${PLUGIN_OUTPUT_DIR}/libdirectory_info_plugin.dylib ${CMAKE_CURRENT_SOURCE_DIR}/../agent/plugins/
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${PLUGIN_OUTPUT_DIR}/event_data_plugin.dll ${CMAKE_CURRENT_SOURCE_DIR}/../agent/plugins/ || ${CMAKE_COMMAND} -E copy_if_different ${PLUGIN_OUTPUT_DIR}/libevent_data_plugin.so ${CMAKE_CURRENT_SOURCE_DIR}/../agent/plugins/ || ${CMAKE_COMMAND} -E copy_if_different ${PLUGIN_OUTPUT_DIR}/libevent_data_plugin.dylib ${CMAKE_CURRENT_SOURCE_DIR}/../agent/plugins/
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${PLUGIN_OUTPUT_DIR}/file_signature_plugin.dll ${CMAKE_CURRENT_SOURCE_DIR}/../agent/plugins/ || ${CMAKE_COMMAND} -E copy_if_different ${PLUGIN_OUTPUT_DIR}/libfile_signature_plugin.so ${CMAKE_CURRENT_SOURCE_DIR}/../agent/plugins/ || ${CMAKE_COMMAND} -E copy_if_different ${PLUGIN_OUTPUT_DIR}/libfile_signature_plugin.dylib ${CMAKE_CURRENT_SOURCE_DIR}/../agent/plugins/
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${PLUGIN_OUTPUT_DIR}/folder_watcher_plugin.dll ${CMAKE_CURRENT_SOURCE_DIR}/../agent/plugins/ || ${CMAKE_COMMAND} -E copy_if_different ${PLUGIN_OUTPUT_DIR}/libfolder_watcher_plugin.so ${CMAKE_CURRENT_SOURCE_DIR}/../agent/plugins/ || ${CMAKE_COMMAND} -E copy_if_different ${PLUGIN_OUTPUT_DIR}/libfolder_watcher_plugin.dylib ${CMAKE_CURRENT_SOURCE_DIR}/../agent/plugins/
+    DEPENDS system_plugin directory_info_plugin event_data_plugin file_signature_plugin folder_watcher_plugin
+    COMMENT "Copying all plugins to agent directory"
+)
+
+# Make copy_plugins run after building all plugins
+add_dependencies(copy_plugins system_plugin directory_info_plugin event_data_plugin file_signature_plugin folder_watcher_plugin)
 
 # Compiler-specific optimizations
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     target_compile_options(system_plugin PRIVATE
+        -Wall
+        -Wextra
+        -O2
+        -fPIC
+    )
+    target_compile_options(directory_info_plugin PRIVATE
+        -Wall
+        -Wextra
+        -O2
+        -fPIC
+    )
+    target_compile_options(event_data_plugin PRIVATE
+        -Wall
+        -Wextra
+        -O2
+        -fPIC
+    )
+    target_compile_options(file_signature_plugin PRIVATE
+        -Wall
+        -Wextra
+        -O2
+        -fPIC
+    )
+    target_compile_options(folder_watcher_plugin PRIVATE
         -Wall
         -Wextra
         -O2
@@ -78,35 +179,6 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     )
 endif()
 
-# Plugin manager (optional - for advanced plugin management)
-option(BUILD_PLUGIN_MANAGER "Build C++ plugin manager" OFF)
-if(BUILD_PLUGIN_MANAGER)
-    add_library(plugin_manager SHARED
-        src/plugin_manager.cpp
-    )
-    
-    target_include_directories(plugin_manager PUBLIC 
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-    )
-    
-    target_link_libraries(plugin_manager 
-        ${CMAKE_DL_LIBS}
-    )
-    
-    if(WIN32)
-        target_link_libraries(plugin_manager 
-            kernel32
-            user32
-        )
-    endif()
-    
-    set_target_properties(plugin_manager PROPERTIES
-        LIBRARY_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
-        ARCHIVE_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
-        RUNTIME_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
-    )
-endif()
-
 # Custom command to copy plugins to agent directory
 add_custom_command(TARGET system_plugin POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/../agent/plugins
@@ -116,16 +188,6 @@ add_custom_command(TARGET system_plugin POST_BUILD
     COMMENT "Copying system_plugin to agent directory"
 )
 
-# Copy plugin manager if built
-if(BUILD_PLUGIN_MANAGER)
-    add_custom_command(TARGET plugin_manager POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            $<TARGET_FILE:plugin_manager>
-            ${CMAKE_SOURCE_DIR}/../agent/plugins/
-        COMMENT "Copying plugin_manager to agent directory"
-    )
-endif()
-
 # Install targets
 install(TARGETS system_plugin
     LIBRARY DESTINATION plugins
@@ -133,16 +195,7 @@ install(TARGETS system_plugin
     RUNTIME DESTINATION plugins
 )
 
-if(BUILD_PLUGIN_MANAGER)
-    install(TARGETS plugin_manager
-        LIBRARY DESTINATION plugins
-        ARCHIVE DESTINATION plugins
-        RUNTIME DESTINATION plugins
-    )
-endif()
-
 # Print plugin information
 message(STATUS "Plugin configuration:")
 message(STATUS "  Platform: ${PLATFORM}")
 message(STATUS "  Output directory: ${PLUGIN_OUTPUT_DIR}")
-message(STATUS "  Plugin manager: ${BUILD_PLUGIN_MANAGER}")
