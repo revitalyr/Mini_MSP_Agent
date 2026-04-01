@@ -1,0 +1,388 @@
+use anyhow::{anyhow, Result};
+use std::collections::HashMap;
+use std::path::Path;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+use tokio::time::interval;
+use tracing::{debug, error, info, warn};
+
+use super::loader::PluginLoader;
+use super::ffi::{PluginInfoData, SystemMetricsData, ProcessInfoData, CommandResultData, FileContentData, SystemInfoData};
+
+#[derive(Debug, Clone)]
+pub enum PluginStatus {
+    Unloaded,
+    Loading,
+    Loaded,
+    Active,
+    Error,
+    Unloading,
+}
+
+#[derive(Debug, Clone)]
+pub struct PluginRegistryEntry {
+    pub name: String,
+    pub version: String,
+    pub platform: String,
+    pub library_path: String,
+    pub status: PluginStatus,
+    pub status_message: String,
+    pub last_loaded: Option<Instant>,
+    pub last_unloaded: Option<Instant>,
+}
+
+#[derive(Clone)]
+pub struct PluginManager {
+    plugins: Arc<Mutex<HashMap<String, PluginLoader>>>,
+    registry: Arc<Mutex<HashMap<String, PluginRegistryEntry>>>,
+    system_plugin: Option<String>,
+    hot_reload_enabled: bool,
+    plugin_directory: Option<String>,
+    event_callback: Option<Box<dyn Fn(PluginEventType, &str, &str) + Send + Sync>>,
+}
+
+#[derive(Debug, Clone)]
+pub enum PluginEventType {
+    Loaded,
+    Unloaded,
+    Error,
+    StatusChanged,
+}
+
+impl PluginManager {
+    pub fn new() -> Self {
+        Self {
+            plugins: Arc::new(Mutex::new(HashMap::new())),
+            registry: Arc::new(Mutex::new(HashMap::new())),
+            system_plugin: None,
+            hot_reload_enabled: false,
+            plugin_directory: None,
+            event_callback: None,
+        }
+    }
+
+    pub fn enable_hot_reload(&mut self, enable: bool) {
+        self.hot_reload_enabled = enable;
+        info!("Hot reload {}", if enable { "enabled" } else { "disabled" });
+        
+        if enable && self.plugin_directory.is_some() {
+            self.start_hot_reload_monitor();
+        }
+    }
+
+    pub fn set_event_callback<F>(&mut self, callback: F) 
+    where 
+        F: Fn(PluginEventType, &str, &str) + Send + Sync + 'static
+    {
+        self.event_callback = Some(Box::new(callback));
+    }
+
+    fn notify_event(&self, event_type: PluginEventType, plugin_name: &str, message: &str) {
+        if let Some(ref callback) = self.event_callback {
+            callback(event_type, plugin_name, message);
+        }
+    }
+
+    pub fn load_plugin<P: AsRef<Path>>(&mut self, name: &str, path: P) -> Result<()> {
+        let path = path.as_ref();
+        info!("Loading plugin '{}' from: {:?}", name, path);
+        
+        let mut loader = PluginLoader::new();
+        loader.load_plugin(path)?;
+        
+        // Get plugin info to determine type
+        let plugin_info = loader.get_plugin_info()?;
+        
+        // Update registry
+        let mut registry = self.registry.lock().unwrap();
+        let entry = PluginRegistryEntry {
+            name: name.to_string(),
+            version: plugin_info.version.clone(),
+            platform: plugin_info.name.clone(), // Simplified
+            library_path: path.to_string_lossy().to_string(),
+            status: PluginStatus::Active,
+            status_message: "Plugin loaded successfully".to_string(),
+            last_loaded: Some(Instant::now()),
+            last_unloaded: None,
+        };
+        
+        registry.insert(name.to_string(), entry);
+        
+        // Check if this is a system plugin
+        if plugin_info.name.contains("system") || plugin_info.description.contains("system") {
+            if let Some(ref existing) = self.system_plugin {
+                warn!("System plugin already loaded ({}), replacing with {}", existing, name);
+            }
+            self.system_plugin = Some(name.to_string());
+            info!("Registered '{}' as system plugin", name);
+        }
+        
+        let mut plugins = self.plugins.lock().unwrap();
+        plugins.insert(name.to_string(), loader);
+        
+        self.notify_event(PluginEventType::Loaded, name, "Plugin loaded successfully");
+        
+        Ok(())
+    }
+
+    pub fn unload_plugin(&mut self, name: &str) -> Result<()> {
+        info!("Unloading plugin: {}", name);
+        
+        // Remove from plugins
+        let mut plugins = self.plugins.lock().unwrap();
+        if plugins.remove(name).is_none() {
+            return Err(anyhow!("Plugin '{}' not found", name));
+        }
+        
+        // Update registry
+        let mut registry = self.registry.lock().unwrap();
+        if let Some(entry) = registry.get_mut(name) {
+            entry.status = PluginStatus::Unloaded;
+            entry.status_message = "Plugin unloaded".to_string();
+            entry.last_unloaded = Some(Instant::now());
+        }
+        
+        // Clear system plugin reference if needed
+        if let Some(ref system_plugin) = self.system_plugin {
+            if system_plugin == name {
+                self.system_plugin = None;
+                info!("System plugin unloaded");
+            }
+        }
+        
+        self.notify_event(PluginEventType::Unloaded, name, "Plugin unloaded");
+        
+        Ok(())
+    }
+
+    pub fn reload_plugin(&mut self, name: &str) -> Result<()> {
+        info!("Reloading plugin: {}", name);
+        
+        let library_path = {
+            let registry = self.registry.lock().unwrap();
+            registry.get(name)
+                .ok_or_else(|| anyhow!("Plugin '{}' not found", name))?
+                .library_path
+                .clone()
+        };
+        
+        // Unload first
+        self.unload_plugin(name)?;
+        
+        // Load again
+        self.load_plugin(name, &library_path)?;
+        
+        self.notify_event(PluginEventType::StatusChanged, name, "Plugin reloaded successfully");
+        
+        Ok(())
+    }
+
+    pub fn get_system_plugin(&self) -> Result<&PluginLoader> {
+        let plugin_name = self.system_plugin.as_ref()
+            .ok_or_else(|| anyhow!("No system plugin loaded"))?;
+        
+        self.plugins.lock().unwrap()
+            .get(plugin_name)
+            .ok_or_else(|| anyhow!("System plugin not found in registry"))
+    }
+
+    pub fn get_plugin(&self, name: &str) -> Result<&PluginLoader> {
+        self.plugins.lock().unwrap()
+            .get(name)
+            .ok_or_else(|| anyhow!("Plugin '{}' not found", name))
+    }
+
+    pub fn list_plugins(&self) -> Vec<PluginInfoData> {
+        let mut plugins_info = Vec::new();
+        
+        for (name, loader) in self.plugins.lock().unwrap().iter() {
+            if let Ok(info) = loader.get_plugin_info() {
+                plugins_info.push(info);
+            }
+        }
+        
+        plugins_info
+    }
+
+    pub fn get_plugin_registry(&self) -> Vec<PluginRegistryEntry> {
+        self.registry.lock().unwrap()
+            .values()
+            .cloned()
+            .collect()
+    }
+
+    pub fn get_loaded_plugins(&self) -> Vec<String> {
+        self.registry.lock().unwrap()
+            .values()
+            .filter(|entry| matches!(entry.status, PluginStatus::Active))
+            .map(|entry| entry.name.clone())
+            .collect()
+    }
+
+    pub fn is_plugin_loaded(&self, name: &str) -> bool {
+        self.registry.lock().unwrap()
+            .get(name)
+            .map(|entry| matches!(entry.status, PluginStatus::Active))
+            .unwrap_or(false)
+    }
+
+    pub fn get_plugin_status(&self, name: &str) -> PluginStatus {
+        self.registry.lock().unwrap()
+            .get(name)
+            .map(|entry| entry.status.clone())
+            .unwrap_or(PluginStatus::Unloaded)
+    }
+
+    // Convenience methods that delegate to the system plugin
+    pub fn get_system_metrics(&self) -> Result<SystemMetricsData> {
+        self.get_system_plugin()?.get_interface()?.get_system_metrics()
+    }
+
+    pub fn get_processes(&self) -> Result<Vec<ProcessInfoData>> {
+        self.get_system_plugin()?.get_interface()?.get_processes()
+    }
+
+    pub fn execute_command(&self, command: &str) -> Result<CommandResultData> {
+        self.get_system_plugin()?.get_interface()?.execute_command(command)
+    }
+
+    pub fn read_file(&self, path: &str) -> Result<FileContentData> {
+        self.get_system_plugin()?.get_interface()?.read_file(path)
+    }
+
+    pub fn get_system_info(&self) -> Result<SystemInfoData> {
+        self.get_system_plugin()?.get_interface()?.get_system_info()
+    }
+
+    pub fn is_system_plugin_loaded(&self) -> bool {
+        self.system_plugin.is_some()
+    }
+
+    pub fn load_plugins_from_directory<P: AsRef<Path>>(&mut self, dir: P) -> Result<()> {
+        let dir = dir.as_ref();
+        self.plugin_directory = Some(dir.to_string_lossy().to_string());
+        
+        if !dir.exists() || !dir.is_dir() {
+            warn!("Plugin directory does not exist: {:?}", dir);
+            return Ok(());
+        }
+        
+        info!("Loading plugins from directory: {:?}", dir);
+        
+        for entry in std::fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            
+            if path.is_file() {
+                let file_name = path.file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("");
+                
+                // Check for common plugin extensions
+                if file_name.ends_with(".dll") || file_name.ends_with(".so") || file_name.ends_with(".dylib") {
+                    let plugin_name = file_name.split('.')
+                        .next()
+                        .unwrap_or(file_name);
+                    
+                    match self.load_plugin(plugin_name, &path) {
+                        Ok(_) => info!("Successfully loaded plugin: {}", plugin_name),
+                        Err(e) => error!("Failed to load plugin {}: {}", plugin_name, e),
+                    }
+                }
+            }
+        }
+        
+        // Start hot-reload monitor if enabled
+        if self.hot_reload_enabled {
+            self.start_hot_reload_monitor();
+        }
+        
+        Ok(())
+    }
+
+    fn start_hot_reload_monitor(&self) {
+        if !self.hot_reload_enabled {
+            return;
+        }
+
+        let plugin_dir = self.plugin_directory.clone().unwrap();
+        let registry = Arc::clone(&self.registry);
+        let plugins = Arc::clone(&self.plugins);
+        let event_callback = self.event_callback.as_ref().map(|cb| cb as *const _);
+        
+        tokio::spawn(async move {
+            let mut interval = interval(Duration::from_secs(1));
+            
+            loop {
+                interval.tick().await;
+                
+                if let Ok(entries) = std::fs::read_dir(&plugin_dir) {
+                    for entry in entries {
+                        if let Ok(entry) = entry {
+                            let path = entry.path();
+                            
+                            if path.is_file() {
+                                let file_name = path.file_name()
+                                    .and_then(|n| n.to_str())
+                                    .unwrap_or("");
+                                
+                                if file_name.ends_with(".dll") || file_name.ends_with(".so") || file_name.ends_with(".dylib") {
+                                    // Check file modification time
+                                    if let Ok(metadata) = std::fs::metadata(&path) {
+                                        if let Ok(modified) = metadata.modified() {
+                                            let plugin_name = file_name.split('.')
+                                                .next()
+                                                .unwrap_or(file_name);
+                                            
+                                            let mut registry = registry.lock().unwrap();
+                                            
+                                            if let Some(entry) = registry.get_mut(plugin_name) {
+                                                // Check if file is newer than last load time
+                                                if let Some(last_loaded) = entry.last_loaded {
+                                                    let elapsed = modified.duration_since(std::time::UNIX_EPOCH)
+                                                        .unwrap_or_default()
+                                                        .as_secs() as u64;
+                                                    
+                                                    let last_loaded_secs = last_loaded.duration_since(std::time::UNIX_EPOCH)
+                                                        .unwrap_or_default()
+                                                        .as_secs() as u64;
+                                                    
+                                                    if elapsed > last_loaded_secs {
+                                                        info!("Plugin file changed: {}", plugin_name);
+                                                        // This would trigger a reload in a real implementation
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
+
+impl Default for PluginManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Drop for PluginManager {
+    fn drop(&mut self) {
+        info!("Shutting down plugin manager");
+        
+        // Unload all plugins
+        let plugin_names: Vec<String> = self.registry.lock().unwrap()
+            .keys()
+            .cloned()
+            .collect();
+        
+        for name in plugin_names {
+            let _ = self.unload_plugin(&name);
+        }
+    }
+}

@@ -1,0 +1,68 @@
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+
+# C++ build artifacts
+build/
+cmake-build-*/
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib
+*.lib
+*.a
+*.pdb
+*.ilk
+*.exp
+*.tlog
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Reports
+*.html
+*.json
+*.csv
+reports/
+
+# Plugins directory (built plugins)
+agent/plugins/*.dll
+agent/plugins/*.so
+agent/plugins/*.dylib
+
+# Configuration
+config.toml
+*.toml.local
+
+# Temporary
+tmp/
+temp/
+*.tmp
+
+# Docker
+.dockerignore
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Backup files
+*.bak
+*.backup
+*.old
