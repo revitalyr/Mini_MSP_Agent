@@ -76,7 +76,7 @@ use tracing::{debug, error, info};
 mod routes;
 mod websocket;
 
-use routes::{handle_heartbeat, handle_websocket, send_command};
+use routes::{handle_heartbeat, handle_websocket, send_command as send_command_handler};
 use websocket::WebSocketManager;
 
 /// Shared application state for the server
@@ -175,9 +175,10 @@ async fn main() -> Result<()> {
         .route("/heartbeat", post(handle_heartbeat))
         .route("/ws", get(handle_websocket))
         .route("/agents", get(list_agents))
-        .route("/agents/:id/command", post(send_command))
+        .route("/agents/:id/command", post(send_command_handler))
         .nest_service("/static", ServeDir::new("static"))
         .route("/", get(|| async { axum::response::Redirect::permanent("/static/index.html") }))
+        .with_state(app_state.clone())
         .layer(
             CorsLayer::new()
                 .allow_origin("http://localhost:3000".parse::<axum::http::HeaderValue>().unwrap())
@@ -187,10 +188,9 @@ async fn main() -> Result<()> {
                     axum::http::header::CONTENT_TYPE,
                     axum::http::header::AUTHORIZATION,
                     axum::http::header::ACCEPT,
-                ]),
+                ])
         )
-        .layer(TraceLayer::new_for_http())
-        .with_state(app_state.clone());
+        .layer(TraceLayer::new_for_http());
 
     // Spawn cleanup task for inactive agents
     let cleanup_state = app_state.clone();

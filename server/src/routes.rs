@@ -131,15 +131,14 @@ pub async fn send_command(
     Path(agent_id): Path<String>,
     Json(command): Json<Command>,
 ) -> impl IntoResponse {
-    println!("=== HTTP COMMAND RECEIVED === agent: {}, command: {:?}", agent_id, command);
-    error!("=== COMMAND RECEIVED === agent: {}, command: {:?}", agent_id, command);
-    info!("Sending command to agent {}: {:?}", agent_id, command);
-
+    warn!("=== HTTP COMMAND RECEIVED === agent: {}, command: {:?}", agent_id, command);
+    
+    // Send via WebSocket
     let mut ws_manager = state.ws_manager.lock().await;
-    println!("HTTP: About to send via WebSocket manager");
+    warn!("About to send via WebSocket manager");
     match ws_manager.send_to_agent(&agent_id, &command).await {
         Ok(_) => {
-            println!("HTTP: Command sent successfully");
+            warn!("Command sent successfully via WebSocket");
             (StatusCode::OK, Json(serde_json::json!({
                 "status": "sent",
                 "agent_id": agent_id,
@@ -147,14 +146,10 @@ pub async fn send_command(
             })))
         },
         Err(e) => {
-            println!("HTTP: Failed to send command: {}", e);
-            error!("Failed to send command to agent {}: {}", agent_id, e);
-            (
-                StatusCode::NOT_FOUND,
-                Json(serde_json::json!({
-                    "error": format!("Agent not connected: {}", e)
-                })),
-            )
+            warn!("Failed to send command via WebSocket: {}", e);
+            (StatusCode::NOT_FOUND, Json(serde_json::json!({
+                "error": format!("Agent not connected: {}", e)
+            })))
         }
     }
 }
