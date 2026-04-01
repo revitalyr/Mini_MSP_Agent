@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#undef stdout
+
 // Global plugin info
 static PluginInfo g_plugin_info = {
     "windows_folder_watcher_plugin",
@@ -318,7 +320,7 @@ PLUGIN_EXPORT int PLUGIN_CALL execute_command(const char* command, CommandResult
     if (!command || !result) return 0;
     strcpy_s(result->error, sizeof(result->error), "Command execution not implemented");
     result->success = 0;
-    result->stdout = NULL;
+    result->output = NULL;
     result->exit_code = -1;
     return 1;
 }

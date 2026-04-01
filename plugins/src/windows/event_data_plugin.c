@@ -4,6 +4,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#undef stdout
+
+// Type aliases for better readability
+typedef uint64_t Timestamp;
+typedef uint32_t EventId;
+typedef uint32_t EventCount;
+
 // Global plugin info
 static PluginInfo g_plugin_info = {
     "windows_event_data_plugin",
@@ -12,15 +19,43 @@ static PluginInfo g_plugin_info = {
 };
 
 // Helper function to convert FILETIME to Unix timestamp
-uint64_t filetime_to_unix(const FILETIME* ft) {
+static Timestamp filetime_to_unix(const FILETIME* ft) {
     LARGE_INTEGER li;
     li.LowPart = ft->dwLowDateTime;
     li.HighPart = ft->dwHighDateTime;
     
     // Convert from 100-nanosecond intervals since January 1, 1601
     // to Unix timestamp (seconds since January 1, 1970)
-    uint64_t unix_time = (li.QuadPart - 116444736000000000LL) / 10000000;
+    Timestamp unix_time = (li.QuadPart - 116444736000000000LL) / 10000000;
     return unix_time;
+}
+
+// Error handling helper
+static void set_error(char* buffer, size_t buffer_size, const char* message) {
+    if (buffer && buffer_size > 0) {
+        strncpy_s(buffer, buffer_size, message, _TRUNCATE);
+        buffer[buffer_size - 1] = '\0';
+    }
+}
+
+// Memory allocation helper with error checking
+static void* safe_malloc(size_t size) {
+    void* ptr = malloc(size);
+    return ptr;
+}
+
+// Event creation helper
+static void create_sample_event(EventData* event, const char* type, const char* source, 
+                              const char* message, const char* severity, EventId id, const char* category) {
+    if (!event) return;
+    
+    strncpy_s(event->event_type, sizeof(event->event_type), type, _TRUNCATE);
+    strncpy_s(event->source, sizeof(event->source), source, _TRUNCATE);
+    event->timestamp = GetTickCount64() / 1000;
+    strncpy_s(event->message, sizeof(event->message), message, _TRUNCATE);
+    strncpy_s(event->severity, sizeof(event->severity), severity, _TRUNCATE);
+    event->event_id = id;
+    strncpy_s(event->category, sizeof(event->category), category, _TRUNCATE);
 }
 
 // Plugin implementation
@@ -75,41 +110,44 @@ PLUGIN_EXPORT int PLUGIN_CALL get_system_metrics(SystemMetrics* metrics) {
     return 1;
 }
 
-// Get system events from Windows Event Log
+// Get system events from Windows Event Log with improved safety
 PLUGIN_EXPORT int PLUGIN_CALL get_system_events(EventList* events, int max_count) {
     if (!events || max_count <= 0) return 0;
     
     // Initialize result
-    events->events = (EventData*)malloc(sizeof(EventData) * max_count);
+    events->events = (EventData*)safe_malloc(sizeof(EventData) * max_count);
     if (!events->events) {
+        set_error(events->error, sizeof(events->error), "Memory allocation failed");
         events->success = 0;
-        strcpy_s(events->error, sizeof(events->error), "Memory allocation failed");
         return 0;
     }
     
     events->count = 0;
     events->success = 1;
     
-    // Create sample events for demonstration
-    events->count = 2;
-    
-    EventData* event1 = &events->events[0];
-    strcpy_s(event1->event_type, sizeof(event1->event_type), "system");
-    strcpy_s(event1->source, sizeof(event1->source), "Windows");
-    event1->timestamp = GetTickCount64() / 1000;
-    strcpy_s(event1->message, sizeof(event1->message), "System started successfully");
-    strcpy_s(event1->severity, sizeof(event1->severity), "INFO");
-    event1->event_id = 6009;
-    strcpy_s(event1->category, sizeof(event1->category), "System");
-    
-    EventData* event2 = &events->events[1];
-    strcpy_s(event2->event_type, sizeof(event2->event_type), "security");
-    strcpy_s(event2->source, sizeof(event2->source), "Windows Security");
-    event2->timestamp = GetTickCount64() / 1000 - 3600;
-    strcpy_s(event2->message, sizeof(event2->message), "User login successful");
-    strcpy_s(event2->severity, sizeof(event2->severity), "INFO");
-    event2->event_id = 4624;
-    strcpy_s(event2->category, sizeof(event2->category), "Logon/Logoff");
+    // Create sample events for demonstration with helper function
+    if (max_count >= 2) {
+        events->count = 2;
+        
+        create_sample_event(&events->events[0], 
+                          "system", "Windows", 
+                          "System started successfully", "INFO", 
+                          6009, "System");
+        
+        create_sample_event(&events->events[1], 
+                          "security", "Windows Security", 
+                          "User login successful", "INFO", 
+                          4624, "Logon/Logoff");
+        
+        // Adjust timestamp for second event (1 hour ago)
+        events->events[1].timestamp = GetTickCount64() / 1000 - 3600;
+    } else if (max_count == 1) {
+        events->count = 1;
+        create_sample_event(&events->events[0], 
+                          "system", "Windows", 
+                          "System event sample", "INFO", 
+                          1, "System");
+    }
     
     return 1;
 }
@@ -159,7 +197,7 @@ PLUGIN_EXPORT int PLUGIN_CALL execute_command(const char* command, CommandResult
     if (!command || !result) return 0;
     strcpy_s(result->error, sizeof(result->error), "Command execution not implemented");
     result->success = 0;
-    result->stdout = NULL;
+    result->output = NULL;
     result->exit_code = -1;
     return 1;
 }

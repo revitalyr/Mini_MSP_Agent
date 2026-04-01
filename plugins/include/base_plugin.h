@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <functional>
+#include <chrono>
 
 #ifdef _WIN32
     #define PLUGIN_EXPORT __declspec(dllexport)
@@ -19,6 +20,47 @@ struct ProcessInfo;
 struct FileContent;
 struct CommandResult;
 struct SystemInfo;
+
+// Data structures
+struct SystemMetrics {
+    float cpu_usage;
+    float ram_usage;
+    float disk_usage;
+    uint64_t uptime;
+    char hostname[256];
+};
+
+struct ProcessInfo {
+    uint32_t pid;
+    char name[256];
+    uint64_t memory_usage;
+    uint64_t start_time;
+    float cpu_usage;
+};
+
+struct FileContent {
+    char* content;
+    size_t size;
+    bool success;
+    char error[256];
+};
+
+struct CommandResult {
+    char* output;
+    int exit_code;
+    bool success;
+    char error[256];
+};
+
+struct SystemInfo {
+    char os_type[64];
+    char os_version[64];
+    char hostname[256];
+    uint32_t cpu_cores;
+    uint64_t total_memory;
+    uint64_t available_memory;
+    uint64_t uptime;
+};
 
 // Plugin event types
 enum class PluginEventType {

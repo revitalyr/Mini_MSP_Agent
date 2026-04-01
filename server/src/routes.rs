@@ -1,11 +1,13 @@
 use axum::{
-    extract::{ws::WebSocket, State, WebSocketUpgrade},
-    response::Response,
+    extract::{ws::WebSocket, ws::{Message, Sender}, State, WebSocketUpgrade},
+    http::StatusCode,
+    response::{IntoResponse, Json},
+    routing::get,
 };
 use futures_util::{SinkExt, StreamExt};
 use mini_msp_shared::{Command, Heartbeat};
 use serde_json;
-use std::time::Instant;
+use std::{sync::Arc, time::Instant};
 use tracing::{debug, error, info, warn};
 
 use crate::{AgentInfo, AppState};
@@ -46,7 +48,8 @@ pub async fn handle_websocket(
 }
 
 async fn handle_websocket_connection(socket: WebSocket, state: AppState) {
-    let (mut sender, mut receiver) = socket.split();
+    let (sender, receiver) = socket.split();
+    let mut sender = sender; // Make sender mutable for cloning
     let agent_id = Arc::new(std::sync::Mutex::new(None::<String>));
     
     info!("New WebSocket connection established");
@@ -55,7 +58,7 @@ async fn handle_websocket_connection(socket: WebSocket, state: AppState) {
         tokio::select! {
             Some(msg) = receiver.next() => {
                 match msg {
-                    Ok(axum::extract::ws::Message::Text(text)) => {
+                    Ok(Message::Text(text)) => {
                         debug!("Received WebSocket message: {}", text);
                         
                         match serde_json::from_str::<serde_json::Value>(&text) {
@@ -79,7 +82,7 @@ async fn handle_websocket_connection(socket: WebSocket, state: AppState) {
                                                     "status": "ok"
                                                 });
                                                 
-                                                if let Err(e) = sender.send(axum::extract::ws::Message::Text(response.to_string())).await {
+                                                if let Err(e) = sender.send(Message::Text(response.to_string())).await {
                                                     error!("Failed to send registration response: {}", e);
                                                     break;
                                                 }
@@ -97,20 +100,20 @@ async fn handle_websocket_connection(socket: WebSocket, state: AppState) {
                             }
                         }
                     }
-                    Ok(axum::extract::ws::Message::Binary(_data)) => {
+                    Ok(Message::Binary(_data)) => {
                         debug!("Received binary WebSocket message");
                     }
-                    Ok(axum::extract::ws::Message::Ping(payload)) => {
+                    Ok(Message::Ping(payload)) => {
                         debug!("Received ping, sending pong");
-                        if let Err(e) = sender.send(axum::extract::ws::Message::Pong(payload)).await {
+                        if let Err(e) = sender.send(Message::Pong(payload)).await {
                             error!("Failed to send pong: {}", e);
                             break;
                         }
                     }
-                    Ok(axum::extract::ws::Message::Pong(_)) => {
+                    Ok(Message::Pong(_)) => {
                         debug!("Received pong");
                     }
-                    Ok(axum::extract::ws::Message::Close(_)) => {
+                    Ok(Message::Close(_)) => {
                         info!("WebSocket connection closed");
                         break;
                     }

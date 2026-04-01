@@ -5,7 +5,7 @@ use std::slice;
 use anyhow::{anyhow, Result};
 
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct PluginInfo {
     pub name: *const c_char,
     pub version: *const c_char,
@@ -23,7 +23,7 @@ pub struct SystemMetrics {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct ProcessInfo {
     pub pid: u32,
     pub name: [c_char; 256],
@@ -33,7 +33,7 @@ pub struct ProcessInfo {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct FileContent {
     pub content: *mut c_char,
     pub size: usize,
@@ -42,17 +42,16 @@ pub struct FileContent {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct CommandResult {
-    pub stdout: *mut c_char,
-    pub stderr: *mut c_char,
+    pub output: *mut c_char,
     pub exit_code: i32,
     pub success: bool,
-    pub error: [c_char; 512],
+    pub error: [c_char; 256],
 }
 
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct SystemInfo {
     pub os_type: [c_char; 64],
     pub os_version: [c_char; 128],
@@ -64,6 +63,7 @@ pub struct SystemInfo {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct PluginInterface {
     pub get_plugin_info: Option<unsafe extern "C" fn() -> *mut PluginInfo>,
     pub init: Option<unsafe extern "C" fn() -> bool>,
@@ -115,11 +115,10 @@ impl Default for FileContent {
 impl Default for CommandResult {
     fn default() -> Self {
         Self {
-            stdout: ptr::null_mut(),
-            stderr: ptr::null_mut(),
+            output: ptr::null_mut(),
             exit_code: 0,
             success: false,
-            error: [0; 512],
+            error: [0; 256],
         }
     }
 }
@@ -166,14 +165,14 @@ pub fn string_to_c_string(s: &str) -> Result<CString> {
 // Safe wrappers for FFI functions
 pub struct SafePluginInterface {
     interface: PluginInterface,
-    free_memory: unsafe extern "C" fn(*mut c_void),
+    free_memory: Option<unsafe extern "C" fn(*mut c_void)>,
 }
 
 impl SafePluginInterface {
     pub unsafe fn new(interface: PluginInterface) -> Self {
         Self {
             interface,
-            free_memory: interface.free_memory.unwrap_or(|_| {}),
+            free_memory: interface.free_memory,
         }
     }
     
@@ -239,7 +238,9 @@ impl SafePluginInterface {
                 }
                 
                 // Free allocated memory
-                (self.free_memory)(processes as *mut c_void);
+                if let Some(free_fn) = self.free_memory {
+                    free_fn(processes as *mut c_void);
+                }
                 
                 Ok(result)
             } else {
@@ -257,14 +258,13 @@ impl SafePluginInterface {
             let mut result = CommandResult::default();
             
             if exec_cmd(cmd_cstr.as_ptr(), &mut result) {
-                let data = CommandResultData::from_c_struct(result);
+                let data = CommandResultData::from_c_struct(&result);
                 
                 // Free allocated memory
-                if !result.stdout.is_null() {
-                    (self.free_memory)(result.stdout as *mut c_void);
-                }
-                if !result.stderr.is_null() {
-                    (self.free_memory)(result.stderr as *mut c_void);
+                if !result.output.is_null() {
+                    if let Some(free_fn) = self.free_memory {
+                        free_fn(result.output as *mut c_void);
+                    }
                 }
                 
                 Ok(data)
@@ -283,11 +283,13 @@ impl SafePluginInterface {
             let mut content = FileContent::default();
             
             if read_file(path_cstr.as_ptr(), &mut content) {
-                let data = FileContentData::from_c_struct(content);
+                let data = FileContentData::from_c_struct(&content);
                 
                 // Free allocated memory
                 if !content.content.is_null() {
-                    (self.free_memory)(content.content as *mut c_void);
+                    if let Some(free_fn) = self.free_memory {
+                        free_fn(content.content as *mut c_void);
+                    }
                 }
                 
                 Ok(data)
@@ -304,7 +306,8 @@ impl SafePluginInterface {
             
             let mut info = SystemInfo::default();
             if get_info(&mut info) {
-                Ok(SystemInfoData::from_c_struct(info))
+                let data = SystemInfoData::from_c_struct(&info);
+                Ok(data)
             } else {
                 Err(anyhow!("Failed to get system info"))
             }
@@ -381,7 +384,7 @@ pub struct FileContentData {
 }
 
 impl FileContentData {
-    unsafe fn from_c_struct(content: FileContent) -> Self {
+    unsafe fn from_c_struct(content: &FileContent) -> Self {
         Self {
             content: if !content.content.is_null() {
                 c_string_to_string_lossy(content.content)
@@ -397,23 +400,17 @@ impl FileContentData {
 
 #[derive(Debug, Clone)]
 pub struct CommandResultData {
-    pub stdout: String,
-    pub stderr: String,
+    pub output: String,
     pub exit_code: i32,
     pub success: bool,
     pub error: String,
 }
 
 impl CommandResultData {
-    unsafe fn from_c_struct(result: CommandResult) -> Self {
+    unsafe fn from_c_struct(result: &CommandResult) -> Self {
         Self {
-            stdout: if !result.stdout.is_null() {
-                c_string_to_string_lossy(result.stdout)
-            } else {
-                String::new()
-            },
-            stderr: if !result.stderr.is_null() {
-                c_string_to_string_lossy(result.stderr)
+            output: if !result.output.is_null() {
+                c_string_to_string_lossy(result.output)
             } else {
                 String::new()
             },
@@ -436,7 +433,7 @@ pub struct SystemInfoData {
 }
 
 impl SystemInfoData {
-    unsafe fn from_c_struct(info: SystemInfo) -> Self {
+    unsafe fn from_c_struct(info: &SystemInfo) -> Self {
         Self {
             os_type: c_string_to_string_lossy(info.os_type.as_ptr()),
             os_version: c_string_to_string_lossy(info.os_version.as_ptr()),

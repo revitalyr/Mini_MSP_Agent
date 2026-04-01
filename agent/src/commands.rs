@@ -110,8 +110,7 @@ async fn handle_exec(cmd: String, timestamp: i64, plugin_manager: &PluginManager
                 data: json!({
                     "cmd": cmd,
                     "exit_code": result.exit_code,
-                    "stdout": result.stdout,
-                    "stderr": result.stderr
+                    "output": result.output
                 }),
                 timestamp,
             })

@@ -27,8 +27,8 @@ pub struct PluginRegistryEntry {
     pub library_path: String,
     pub status: PluginStatus,
     pub status_message: String,
-    pub last_loaded: Option<Instant>,
-    pub last_unloaded: Option<Instant>,
+    pub last_loaded: Option<std::time::SystemTime>,
+    pub last_unloaded: Option<std::time::SystemTime>,
 }
 
 #[derive(Clone)]
@@ -38,7 +38,7 @@ pub struct PluginManager {
     system_plugin: Option<String>,
     hot_reload_enabled: bool,
     plugin_directory: Option<String>,
-    event_callback: Option<Box<dyn Fn(PluginEventType, &str, &str) + Send + Sync>>,
+    event_callback: Option<Arc<dyn Fn(PluginEventType, &str, &str) + Send + Sync>>,
 }
 
 #[derive(Debug, Clone)]
@@ -74,7 +74,7 @@ impl PluginManager {
     where 
         F: Fn(PluginEventType, &str, &str) + Send + Sync + 'static
     {
-        self.event_callback = Some(Box::new(callback));
+        self.event_callback = Some(Arc::new(callback));
     }
 
     fn notify_event(&self, event_type: PluginEventType, plugin_name: &str, message: &str) {
@@ -102,7 +102,7 @@ impl PluginManager {
             library_path: path.to_string_lossy().to_string(),
             status: PluginStatus::Active,
             status_message: "Plugin loaded successfully".to_string(),
-            last_loaded: Some(Instant::now()),
+            last_loaded: Some(std::time::SystemTime::now()),
             last_unloaded: None,
         };
         
@@ -139,7 +139,7 @@ impl PluginManager {
         if let Some(entry) = registry.get_mut(name) {
             entry.status = PluginStatus::Unloaded;
             entry.status_message = "Plugin unloaded".to_string();
-            entry.last_unloaded = Some(Instant::now());
+            entry.last_unloaded = Some(SystemTime::now());
         }
         
         // Clear system plugin reference if needed
@@ -339,17 +339,16 @@ impl PluginManager {
                                             if let Some(entry) = registry.get_mut(plugin_name) {
                                                 // Check if file is newer than last load time
                                                 if let Some(last_loaded) = entry.last_loaded {
-                                                    let elapsed = modified.duration_since(std::time::UNIX_EPOCH)
-                                                        .unwrap_or_default()
-                                                        .as_secs() as u64;
-                                                    
-                                                    let last_loaded_secs = last_loaded.duration_since(std::time::UNIX_EPOCH)
-                                                        .unwrap_or_default()
-                                                        .as_secs() as u64;
-                                                    
-                                                    if elapsed > last_loaded_secs {
-                                                        info!("Plugin file changed: {}", plugin_name);
-                                                        // This would trigger a reload in a real implementation
+                                                    if let Ok(duration) = modified.duration_since(last_loaded) {
+                                                        if duration > Duration::from_secs(1) {
+                                                            // File was modified, reload plugin
+                                                            drop(registry);
+                                                            if let Err(e) = self.reload_plugin(&plugin_name) {
+                                                                tracing::error!("Failed to reload plugin {}: {}", plugin_name, e);
+                                                            }
+                                                            // Re-acquire the correct registry lock
+                                                            let registry = self.registry.lock().unwrap();
+                                                        }
                                                     }
                                                 }
                                             }

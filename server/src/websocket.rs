@@ -1,6 +1,9 @@
+use axum::extract::ws::{WebSocket, Message, Sender};
+use futures_util::{SinkExt, StreamExt};
 use mini_msp_shared::Command;
 use serde_json;
 use std::collections::HashMap;
+use std::time::Instant;
 use tracing::{debug, error, warn};
 
 pub struct WebSocketManager {
@@ -9,7 +12,7 @@ pub struct WebSocketManager {
 
 #[derive(Debug)]
 struct AgentConnection {
-    sender: axum::extract::ws::Sender,
+    sender: Sender,
     last_activity: std::time::Instant,
 }
 
@@ -23,7 +26,7 @@ impl WebSocketManager {
     pub async fn register_agent(
         &mut self,
         agent_id: String,
-        sender: axum::extract::ws::Sender,
+        sender: Sender,
     ) {
         let connection = AgentConnection {
             sender,
@@ -47,7 +50,7 @@ impl WebSocketManager {
             
             connection
                 .sender
-                .send(axum::extract::ws::Message::Text(command_json))
+                .send(Message::Text(command_json))
                 .await
                 .map_err(|e| format!("Failed to send message: {}", e))?;
             

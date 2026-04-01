@@ -5,6 +5,11 @@
 #include <string.h>
 #include <wincrypt.h>
 
+// Type aliases for better readability
+typedef uint64_t HashSize;
+typedef uint32_t FileSize;
+typedef uint64_t Timestamp;
+
 // Global plugin info
 static PluginInfo g_plugin_info = {
     "windows_file_signature_plugin",
@@ -13,19 +18,103 @@ static PluginInfo g_plugin_info = {
 };
 
 // Helper function to convert FILETIME to Unix timestamp
-uint64_t filetime_to_unix(const FILETIME* ft) {
+static Timestamp filetime_to_unix(const FILETIME* ft) {
     LARGE_INTEGER li;
     li.LowPart = ft->dwLowDateTime;
     li.HighPart = ft->dwHighDateTime;
     
     // Convert from 100-nanosecond intervals since January 1, 1601
     // to Unix timestamp (seconds since January 1, 1970)
-    uint64_t unix_time = (li.QuadPart - 116444736000000000LL) / 10000000;
+    Timestamp unix_time = (li.QuadPart - 116444736000000000LL) / 10000000;
     return unix_time;
 }
 
-// Helper function to calculate MD5 hash
-int calculate_md5_hash(const char* file_path, char* hash_output, size_t hash_size) {
+// Error handling helper
+static void set_error(char* buffer, size_t buffer_size, const char* message) {
+    if (buffer && buffer_size > 0) {
+        strncpy_s(buffer, buffer_size, message, _TRUNCATE);
+        buffer[buffer_size - 1] = '\0';
+    }
+}
+
+// RAII-style crypto context wrapper
+typedef struct {
+    HCRYPTPROV hCryptProv;
+    int is_valid;
+} SafeCryptoContext;
+
+static SafeCryptoContext create_safe_crypto_context() {
+    HCRYPTPROV hCryptProv = 0;
+    BOOL result = CryptAcquireContext(&hCryptProv, NULL, NULL, PROV_RSA_FULL, 0);
+    SafeCryptoContext scc = {hCryptProv, result != FALSE};
+    return scc;
+}
+
+static void close_safe_crypto_context(SafeCryptoContext* scc) {
+    if (scc->is_valid && scc->hCryptProv) {
+        CryptReleaseContext(scc->hCryptProv, 0);
+        scc->is_valid = 0;
+        scc->hCryptProv = 0;
+    }
+}
+
+// RAII-style hash wrapper
+typedef struct {
+    HCRYPTHASH hHash;
+    int is_valid;
+} SafeHash;
+
+static SafeHash create_safe_hash(HCRYPTPROV hCryptProv, ALG_ID alg_id) {
+    HCRYPTHASH hHash = 0;
+    BOOL result = CryptCreateHash(hCryptProv, alg_id, 0, 0, &hHash);
+    SafeHash sh = {hHash, result != FALSE};
+    return sh;
+}
+
+static void close_safe_hash(SafeHash* sh) {
+    if (sh->is_valid && sh->hHash) {
+        CryptDestroyHash(sh->hHash);
+        sh->is_valid = 0;
+        sh->hHash = 0;
+    }
+}
+
+// File type detection helper
+static const char* get_file_type_from_extension(const char* filename) {
+    if (!filename) return "unknown";
+    
+    const char* ext = strrchr(filename, '.');
+    if (!ext) return "unknown";
+    
+    // Common file types
+    if (_stricmp(ext, ".txt") == 0) return "text/plain";
+    if (_stricmp(ext, ".exe") == 0) return "application/x-executable";
+    if (_stricmp(ext, ".dll") == 0) return "application/x-dll";
+    if (_stricmp(ext, ".jpg") == 0 || _stricmp(ext, ".jpeg") == 0) return "image/jpeg";
+    if (_stricmp(ext, ".png") == 0) return "image/png";
+    if (_stricmp(ext, ".pdf") == 0) return "application/pdf";
+    if (_stricmp(ext, ".zip") == 0) return "application/zip";
+    if (_stricmp(ext, ".json") == 0) return "application/json";
+    if (_stricmp(ext, ".xml") == 0) return "application/xml";
+    if (_stricmp(ext, ".log") == 0) return "text/log";
+    
+    return "application/octet-stream";
+}
+
+// Helper function to calculate MD5 hash with RAII
+static int calculate_md5_hash(const char* file_path, char* hash_output, size_t hash_size) {
+    if (!file_path || !hash_output || hash_size < 33) return 0;
+    
+    SafeCryptoContext crypto_ctx = create_safe_crypto_context();
+    if (!crypto_ctx.is_valid) return 0;
+    
+    SafeHash hash = create_safe_hash(crypto_ctx.hCryptProv, CALG_MD5);
+    if (!hash.is_valid) {
+        close_safe_crypto_context(&crypto_ctx);
+        return 0;
+    }
+    
+    // Open file for reading
     HANDLE hFile = CreateFileA(
         file_path,
         GENERIC_READ,
@@ -37,60 +126,43 @@ int calculate_md5_hash(const char* file_path, char* hash_output, size_t hash_siz
     );
     
     if (hFile == INVALID_HANDLE_VALUE) {
-        return 0;
-    }
-    
-    // Create hash context
-    HCRYPTPROV hCryptProv = 0;
-    HCRYPTHASH hHash = 0;
-    
-    if (!CryptAcquireContext(&hCryptProv, NULL, NULL, PROV_RSA_FULL, 0)) {
-        CloseHandle(hFile);
-        return 0;
-    }
-    
-    if (!CryptCreateHash(hCryptProv, CALG_MD5, 0, 0, &hHash)) {
-        CryptReleaseContext(hCryptProv, 0);
-        CloseHandle(hFile);
+        close_safe_hash(&hash);
+        close_safe_crypto_context(&crypto_ctx);
         return 0;
     }
     
     // Read file and update hash
+    const DWORD buffer_size = 4096;
     BYTE buffer[4096];
-    DWORD bytesRead;
+    DWORD bytes_read;
+    int success = 1;
     
-    while (ReadFile(hFile, buffer, sizeof(buffer), &bytesRead, NULL) && bytesRead > 0) {
-        if (!CryptHashData(hHash, buffer, bytesRead, 0)) {
-            CryptDestroyHash(hHash);
-            CryptReleaseContext(hCryptProv, 0);
-            CloseHandle(hFile);
-            return 0;
+    while (ReadFile(hFile, buffer, buffer_size, &bytes_read, NULL) && bytes_read > 0) {
+        if (!CryptHashData(hash.hHash, buffer, bytes_read, 0)) {
+            success = 0;
+            break;
         }
     }
     
-    // Get hash value
-    DWORD hashLen = hash_size;
-    if (!CryptGetHashParam(hHash, HP_HASHVAL, (BYTE*)hash_output, &hashLen, 0)) {
-        CryptDestroyHash(hHash);
-        CryptReleaseContext(hCryptProv, 0);
-        CloseHandle(hFile);
-        return 0;
-    }
-    
-    // Convert binary hash to hex string
-    char hex_hash[64];
-    for (DWORD i = 0; i < hashLen; i++) {
-        sprintf_s(&hex_hash[i * 2], 3, "%02x", ((BYTE*)hash_output)[i]);
-    }
-    hex_hash[hashLen * 2] = '\0';
-    
-    strcpy_s(hash_output, hash_size, hex_hash);
-    
-    CryptDestroyHash(hHash);
-    CryptReleaseContext(hCryptProv, 0);
     CloseHandle(hFile);
     
-    return 1;
+    if (success) {
+        BYTE hash_bytes[16];
+        DWORD hash_len = sizeof(hash_bytes);
+        if (CryptGetHashParam(hash.hHash, HP_HASHVAL, hash_bytes, &hash_len, 0)) {
+            for (DWORD i = 0; i < hash_len; i++) {
+                snprintf(hash_output + (i * 2), hash_size - (i * 2), "%02x", hash_bytes[i]);
+            }
+            hash_output[32] = '\0'; // Ensure null termination
+        } else {
+            success = 0;
+        }
+    }
+    
+    close_safe_hash(&hash);
+    close_safe_crypto_context(&crypto_ctx);
+    
+    return success;
 }
 
 // Helper function to detect file type
@@ -333,7 +405,7 @@ PLUGIN_EXPORT int PLUGIN_CALL execute_command(const char* command, CommandResult
     if (!command || !result) return 0;
     strcpy_s(result->error, sizeof(result->error), "Command execution not implemented");
     result->success = 0;
-    result->stdout = NULL;
+    result->output = NULL;
     result->exit_code = -1;
     return 1;
 }

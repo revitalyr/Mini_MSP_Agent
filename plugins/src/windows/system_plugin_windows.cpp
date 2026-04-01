@@ -302,12 +302,10 @@ public:
         if (GlobalMemoryStatusEx(&memInfo)) {
             info->total_memory = memInfo.ullTotalPhys;
             info->available_memory = memInfo.ullAvailPhys;
-        }
-        
         char hostname[256] = {0};
         DWORD hostname_size = sizeof(hostname);
         if (GetComputerNameA(hostname, &hostname_size)) {
-            strncpy_s(info->hostname, sizeof(info->hostname), hostname, _TRUNCATE);
+            strncpy_s(info->os_type, sizeof(info->os_type), "Windows", _TRUNCATE);
         }
         
         info->uptime = get_system_uptime();

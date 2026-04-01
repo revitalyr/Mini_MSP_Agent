@@ -36,7 +36,7 @@ typedef struct {
 } ProcessInfo;
 
 typedef struct {
-    char* stdout;
+    char* output;
     int exit_code;
     int success;
     char error[256];

@@ -1,14 +1,14 @@
 use anyhow::Result;
 use axum::{
     extract::{ws::WebSocket, Path, State, WebSocketUpgrade},
-    http::StatusCode,
+    http::{StatusCode, HeaderValue},
     response::{IntoResponse, Json},
     routing::{get, post},
     Router,
 };
-use clap::{Arg, Command};
+use clap::{Arg, Command as ClapCommand};
 use futures_util::{SinkExt, StreamExt};
-use mini_msp_shared::{Command, Heartbeat};
+use mini_msp_shared::Command;
 use serde_json::json;
 use std::{
     collections::HashMap,
@@ -18,7 +18,7 @@ use std::{
 };
 use tokio::time::{interval, Duration};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 mod routes;
 mod websocket;
@@ -42,7 +42,7 @@ struct AgentInfo {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let matches = Command::new("mini-msp-server")
+    let matches = ClapCommand::new("mini-msp-server")
         .version("0.1.0")
         .about("Backend server for Mini MSP Agent")
         .arg(
@@ -81,9 +81,9 @@ async fn main() -> Result<()> {
         .route("/agents/:id/command", post(send_command))
         .layer(
             CorsLayer::new()
-                .allow_origin("*".parse::<http::HeaderValue>().unwrap())
+                .allow_origin(axum::http::HeaderValue::from_static("*"))
                 .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
-                .allow_headers("*".parse::<http::HeaderValue>().unwrap()),
+                .allow_headers(axum::http::HeaderValue::from_static("*")),
         )
         .layer(TraceLayer::new_for_http())
         .with_state(app_state);
