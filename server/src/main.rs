@@ -176,13 +176,14 @@ async fn main() -> Result<()> {
         .route("/ws", get(handle_websocket))
         .route("/agents", get(list_agents))
         .route("/agents/:id/command", post(send_command_handler))
+        .route("/directory/:path", get(get_directory_info))
         .nest_service("/static", ServeDir::new("static"))
-        .route("/", get(|| async { axum::response::Redirect::permanent("/static/index.html") }))
+        .route("/", get(|| async { axum::response::Redirect::permanent("/static/plugin_control.html") }))
         .with_state(app_state.clone())
         .layer(
             CorsLayer::new()
-                .allow_origin("http://localhost:3000".parse::<axum::http::HeaderValue>().unwrap())
                 .allow_origin("http://localhost:8080".parse::<axum::http::HeaderValue>().unwrap())
+                .allow_origin("http://127.0.0.1:8080".parse::<axum::http::HeaderValue>().unwrap())
                 .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
                 .allow_headers([
                     axum::http::header::CONTENT_TYPE,

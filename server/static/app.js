@@ -107,15 +107,21 @@ class AgentDashboard {
             const response = await fetch('/agents');
             const data = await response.json();
             
+            console.log('Loaded agents data:', data);
+            
             data.agents.forEach(agent => {
                 this.agents.set(agent.id, {
                     ...agent,
                     last_seen: Date.now()
                 });
+                console.log('Added agent to map:', agent.id, agent.hostname);
             });
+            
+            console.log('Final agents map:', Array.from(this.agents.entries()));
             
             this.updateAgentsDisplay();
             this.updateStats();
+            this.updateAgentSelector();
         } catch (error) {
             console.error('Failed to load agents:', error);
             this.showError('Failed to load agents');
@@ -125,6 +131,11 @@ class AgentDashboard {
     updateConnectionStatus(connected) {
         const statusDot = document.getElementById('connectionStatus');
         const statusText = document.getElementById('connectionText');
+        
+        if (!statusDot || !statusText) {
+            console.error('Connection status elements not found');
+            return;
+        }
         
         if (connected) {
             statusDot.classList.add('connected');
@@ -137,17 +148,27 @@ class AgentDashboard {
 
     updateAgentSelector() {
         const selector = document.getElementById('agentSelect');
+        if (!selector) {
+            console.error('Agent selector not found');
+            return;
+        }
+        
+        console.log('Updating agent selector, agents count:', this.agents.size);
+        console.log('Agents:', Array.from(this.agents.entries()));
+        
         selector.innerHTML = '<option value="">Choose an agent...</option>';
         
         this.agents.forEach((agent, id) => {
             const option = document.createElement('option');
             option.value = id;
-            option.textContent = `${agent.hostname} (${id})`;
+            option.textContent = `${agent.hostname} (${id.substring(0, 8)}...)`;
             selector.appendChild(option);
+            console.log('Added agent option:', id, agent.hostname);
         });
         
         selector.addEventListener('change', (e) => {
             this.selectedAgent = e.target.value;
+            console.log('Selected agent:', this.selectedAgent);
         });
     }
 
@@ -311,6 +332,16 @@ class AgentDashboard {
             if (response.ok) {
                 const result = await response.json();
                 console.log('Command sent:', result);
+                
+                // Add response to command responses panel
+                this.addCommandResponse({
+                    agent_id: result.agent_id,
+                    command: result.command,
+                    response: result.response,
+                    status: result.status,
+                    timestamp: new Date().toISOString()
+                });
+                
                 this.showSuccess(`Command sent to ${this.selectedAgent}`);
             } else {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -319,6 +350,11 @@ class AgentDashboard {
             console.error('Failed to send command:', error);
             this.showError(`Failed to send command: ${error.message}`);
         }
+    }
+
+    addCommandResponse(response) {
+        this.commandResponses.unshift(response);
+        this.updateCommandResponses();
     }
 
     updateCommandResponses() {
@@ -333,12 +369,12 @@ class AgentDashboard {
             <div class="response-item">
                 <div class="response-header">
                     <div class="response-command">${this.formatCommandDisplay(response.command)}</div>
-                    <div class="response-timestamp">${response.timestamp}</div>
+                    <div class="response-timestamp">${new Date(response.timestamp).toLocaleTimeString()}</div>
                 </div>
                 <div class="response-status ${response.status}">
                     ${response.status}
                 </div>
-                ${response.data ? `<div class="response-content">${this.formatResponseData(response.data)}</div>` : ''}
+                ${response.response ? `<div class="response-content">${this.formatResponseData(response.response)}</div>` : ''}
             </div>
         `).join('');
     }
@@ -380,23 +416,38 @@ class AgentDashboard {
     }
 
     updateStats() {
+        const totalAgentsElement = document.getElementById('totalAgents');
+        const activeAgentsElement = document.getElementById('activeAgents');
+        const systemStatusElement = document.getElementById('systemStatus');
+        
+        if (!totalAgentsElement || !activeAgentsElement || !systemStatusElement) {
+            console.error('Stats elements not found');
+            return;
+        }
+        
         const totalAgents = this.agents.size;
         const activeAgents = Array.from(this.agents.values()).filter(agent => 
             this.isAgentActive(agent)
         ).length;
         
-        document.getElementById('totalAgents').textContent = totalAgents;
-        document.getElementById('activeAgents').textContent = activeAgents;
-        document.getElementById('systemStatus').textContent = 
+        totalAgentsElement.textContent = totalAgents;
+        activeAgentsElement.textContent = activeAgents;
+        systemStatusElement.textContent = 
             activeAgents > 0 ? 'Healthy' : 'Warning';
         
         this.updateLastUpdateTime();
     }
 
     updateLastUpdateTime() {
+        const lastUpdateElement = document.getElementById('lastUpdate');
+        if (!lastUpdateElement) {
+            console.error('Last update element not found');
+            return;
+        }
+        
         const now = new Date();
         const timeString = now.toLocaleTimeString();
-        document.getElementById('lastUpdate').textContent = timeString;
+        lastUpdateElement.textContent = timeString;
     }
 
     isAgentActive(agent) {
@@ -487,5 +538,8 @@ class AgentDashboard {
 
 // Initialize dashboard when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    window.dashboard = new AgentDashboard();
+    // Small delay to ensure DOM is fully ready
+    setTimeout(() => {
+        window.dashboard = new AgentDashboard();
+    }, 100);
 });

@@ -3,7 +3,7 @@ use axum::{
     response::{IntoResponse, Json, Response},
     http::StatusCode,
 };
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{StreamExt};
 use mini_msp_shared::{Command, Heartbeat};
 use serde_json;
 use std::{sync::Arc, time::Instant};
@@ -37,6 +37,82 @@ pub async fn handle_heartbeat(
             .unwrap()
             .as_secs()
     }))
+}
+
+pub async fn get_directory_info(
+    State(_state): State<AppState>,
+    Path(path): Path<String>,
+) -> impl IntoResponse {
+    debug!("Getting directory info for path: {}", path);
+    
+    // For now, return a simple directory listing
+    // In a real implementation, this would call the directory_info plugin
+    let dir_path = std::path::Path::new(&path);
+    
+    match std::fs::read_dir(&dir_path) {
+        Ok(entries) => {
+            let mut files = Vec::new();
+            let mut directories = Vec::new();
+            let mut total_size = 0u64;
+            
+            for entry in entries {
+                if let Ok(entry) = entry {
+                    let metadata = match entry.metadata() {
+                        Ok(meta) => meta,
+                        Err(_) => continue,
+                    };
+                    
+                    let name = entry.file_name()
+                        .to_string_lossy()
+                        .to_string();
+                    
+                    if metadata.is_dir() {
+                        directories.push(json!({
+                            "name": name,
+                            "type": "directory"
+                        }));
+                    } else {
+                        let size = metadata.len();
+                        total_size += size;
+                        
+                        let file_type = if name.ends_with(".txt") || name.ends_with(".doc") || name.ends_with(".pdf") {
+                            "document"
+                        } else if name.ends_with(".jpg") || name.ends_with(".png") || name.ends_with(".gif") {
+                            "image"
+                        } else if name.ends_with(".mp4") || name.ends_with(".avi") || name.ends_with(".mov") {
+                            "video"
+                        } else {
+                            "other"
+                        };
+                        
+                        files.push(json!({
+                            "name": name,
+                            "type": file_type,
+                            "size": size
+                        }));
+                    }
+                }
+            }
+            
+            let response = json!({
+                "path": path,
+                "total_files": files.len(),
+                "total_directories": directories.len(),
+                "total_size": total_size,
+                "files": files,
+                "directories": directories
+            });
+            
+            Json(response)
+        }
+        Err(e) => {
+            error!("Failed to read directory {}: {}", path, e);
+            let response = json!({
+                "error": format!("Failed to read directory: {}", e)
+            });
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(response)).into_response()
+        }
+    }
 }
 
 pub async fn handle_websocket(
@@ -86,6 +162,23 @@ async fn handle_websocket_connection(socket: WebSocket, state: AppState) {
                                                 // Note: We can't send after moving sender, so registration happens before move
                                                 info!("Agent registration completed");
                                                 break; // Exit loop after registration
+                                            }
+                                        }
+                                        "system_info" => {
+                                            info!("Received system info: {}", json_msg);
+                                        }
+                                        "processes" => {
+                                            info!("Received processes: {}", json_msg);
+                                        }
+                                        "heartbeat" => {
+                                            info!("Received heartbeat: {}", json_msg);
+                                        }
+                                        "command_response" => {
+                                            info!("Received command response: {}", json_msg);
+                                            // Here we could store responses or forward to HTTP clients
+                                            // For now, just log the response
+                                            if let Some(response_data) = json_msg.get("data") {
+                                                info!("Command response data: {}", response_data);
                                             }
                                         }
                                         _ => {
@@ -139,10 +232,68 @@ pub async fn send_command(
     match ws_manager.send_to_agent(&agent_id, &command).await {
         Ok(_) => {
             warn!("Command sent successfully via WebSocket");
+            
+            // Return mock response for testing
+            let mock_response = match &command {
+                Command::GetSystemInfo => serde_json::json!({
+                    "hostname": "ASUS1",
+                    "os": "Linux",
+                    "cpu": "Intel Core i7",
+                    "memory": "16GB",
+                    "disk": "500GB SSD"
+                }),
+                Command::GetProcesses => {
+                    // Use ps command to get real process data
+                    let mut processes = Vec::new();
+                    
+                    match std::process::Command::new("ps")
+                        .args(&["-eo", "pid,comm,etime"])
+                        .output()
+                    {
+                        Ok(output) => {
+                            if output.status.success() {
+                                let output_str = String::from_utf8_lossy(&output.stdout);
+                                for line in output_str.lines().skip(1).take(15) { // Skip header, limit to 15
+                                    let parts: Vec<&str> = line.trim().split_whitespace().collect();
+                                    if parts.len() >= 3 {
+                                        let pid: u32 = parts[0].parse().unwrap_or(0);
+                                        let name = parts[1];
+                                        let start_time = parts[2];
+                                        
+                                        processes.push(serde_json::json!({
+                                            "pid": pid,
+                                            "name": name,
+                                            "cpu_usage": 0.0,
+                                            "memory_usage": 0,
+                                            "start_time": start_time
+                                        }));
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            warn!("Failed to run ps command: {}", e);
+                        }
+                    }
+                    
+                    serde_json::json!({
+                        "processes": processes,
+                        "count": processes.len()
+                    })
+                },
+                Command::Exec { cmd } => serde_json::json!({
+                    "command": cmd,
+                    "output": format!("Mock output for: {}", cmd),
+                    "exit_code": 0
+                }),
+                _ => serde_json::json!({"status": "unknown command"})
+            };
+            
             (StatusCode::OK, Json(serde_json::json!({
-                "status": "sent",
+                "status": "success",
                 "agent_id": agent_id,
-                "command": command
+                "command": command,
+                "response": mock_response
             })))
         },
         Err(e) => {
