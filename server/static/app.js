@@ -1,47 +1,25 @@
-// Mini MSP Agent Dashboard JavaScript
 class AgentDashboard {
     constructor() {
         this.agents = new Map();
-        this.ws = null;
-        this.reconnectInterval = null;
-        this.isConnecting = false;
-        
+        this.selectedAgent = null;
+        this.commandResponses = [];
         this.init();
     }
 
-    init() {
-        this.setupEventListeners();
-        this.connectWebSocket();
-        this.loadAgents();
-        feather.replace();
-        
-        // Update last update time every minute
-        setInterval(() => this.updateLastUpdateTime(), 60000);
-    }
-
-    setupEventListeners() {
-        // Refresh button
-        document.getElementById('refreshBtn').addEventListener('click', () => {
+    async init() {
+        try {
+            await this.connectWebSocket();
             this.loadAgents();
-        });
-
-        // Modal close
-        document.getElementById('modalClose').addEventListener('click', () => {
-            this.closeModal();
-        });
-
-        // Close modal on outside click
-        document.getElementById('agentModal').addEventListener('click', (e) => {
-            if (e.target.id === 'agentModal') {
-                this.closeModal();
-            }
-        });
+            this.setupEventListeners();
+            this.updateAgentSelector();
+            feather.replace();
+        } catch (error) {
+            console.error('Failed to initialize dashboard:', error);
+            this.showError('Failed to initialize dashboard');
+        }
     }
 
     async connectWebSocket() {
-        if (this.isConnecting) return;
-        this.isConnecting = true;
-
         try {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}/ws`;
@@ -51,80 +29,77 @@ class AgentDashboard {
             this.ws.onopen = () => {
                 console.log('WebSocket connected');
                 this.updateConnectionStatus(true);
-                this.isConnecting = false;
-                
-                if (this.reconnectInterval) {
-                    clearInterval(this.reconnectInterval);
-                    this.reconnectInterval = null;
-                }
             };
-
+            
             this.ws.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    this.handleWebSocketMessage(data);
-                } catch (error) {
-                    console.error('Error parsing WebSocket message:', error);
-                }
+                this.handleWebSocketMessage(event);
             };
-
+            
             this.ws.onclose = () => {
                 console.log('WebSocket disconnected');
                 this.updateConnectionStatus(false);
-                this.isConnecting = false;
-                
                 // Attempt to reconnect after 5 seconds
-                if (!this.reconnectInterval) {
-                    this.reconnectInterval = setInterval(() => {
-                        if (!this.isConnecting) {
-                            this.connectWebSocket();
-                        }
-                    }, 5000);
-                }
+                setTimeout(() => this.connectWebSocket(), 5000);
             };
-
+            
             this.ws.onerror = (error) => {
                 console.error('WebSocket error:', error);
                 this.updateConnectionStatus(false);
-                this.isConnecting = false;
             };
-
         } catch (error) {
-            console.error('Error connecting WebSocket:', error);
+            console.error('Failed to connect WebSocket:', error);
             this.updateConnectionStatus(false);
-            this.isConnecting = false;
         }
     }
 
-    handleWebSocketMessage(data) {
-        console.log('WebSocket message:', data);
-        
-        switch (data.type) {
-            case 'heartbeat':
-                this.updateAgentHeartbeat(data.agent_id, data.data);
-                break;
-            case 'register':
-                this.addAgent(data.data);
-                break;
-            case 'unregister':
-                this.removeAgent(data.agent_id);
-                break;
-            default:
-                console.log('Unknown message type:', data.type);
+    handleWebSocketMessage(event) {
+        try {
+            const data = JSON.parse(event.data);
+            
+            switch (data.type) {
+                case 'heartbeat':
+                    this.updateAgentHeartbeat(data.agent_id, data);
+                    break;
+                case 'command_response':
+                    this.handleCommandResponse(data);
+                    break;
+                case 'system_info':
+                    this.handleSystemInfoResponse(data);
+                    break;
+                case 'processes':
+                    this.handleProcessesResponse(data);
+                    break;
+                default:
+                    console.log('Unknown message type:', data.type);
+            }
+        } catch (error) {
+            console.error('Failed to parse WebSocket message:', error);
         }
     }
 
-    updateConnectionStatus(connected) {
-        const statusDot = document.getElementById('connectionStatus');
-        const statusText = document.getElementById('statusText');
+    handleCommandResponse(response) {
+        const responseItem = {
+            id: Date.now(),
+            agentId: response.agent_id,
+            command: response.command,
+            status: response.status,
+            data: response.data,
+            timestamp: new Date().toLocaleString()
+        };
         
-        if (connected) {
-            statusDot.className = 'status-dot connected';
-            statusText.textContent = 'Connected';
-        } else {
-            statusDot.className = 'status-dot disconnected';
-            statusText.textContent = 'Disconnected';
-        }
+        this.commandResponses.unshift(responseItem);
+        this.updateCommandResponses();
+        this.showSuccess(`Command executed on ${response.agent_id}`);
+    }
+
+    handleSystemInfoResponse(data) {
+        this.showSuccess(`System info received from ${data.agent_id}`);
+        // Could update modal with system info
+    }
+
+    handleProcessesResponse(data) {
+        this.showSuccess(`Process list received from ${data.agent_id}`);
+        // Could update modal with process list
     }
 
     async loadAgents() {
@@ -132,40 +107,58 @@ class AgentDashboard {
             const response = await fetch('/agents');
             const data = await response.json();
             
-            this.agents.clear();
             data.agents.forEach(agent => {
                 this.agents.set(agent.id, {
                     ...agent,
-                    last_seen: Date.now() - (agent.last_heartbeat * 1000)
+                    last_seen: Date.now()
                 });
             });
             
             this.updateAgentsDisplay();
             this.updateStats();
-            
         } catch (error) {
-            console.error('Error loading agents:', error);
+            console.error('Failed to load agents:', error);
             this.showError('Failed to load agents');
         }
     }
 
-    updateAgentsDisplay() {
-        const agentsGrid = document.getElementById('agentsGrid');
-        const emptyState = document.getElementById('emptyState');
+    updateConnectionStatus(connected) {
+        const statusDot = document.getElementById('connectionStatus');
+        const statusText = document.getElementById('connectionText');
         
-        if (this.agents.size === 0) {
-            agentsGrid.style.display = 'none';
-            emptyState.style.display = 'block';
+        if (connected) {
+            statusDot.classList.add('connected');
+            statusText.textContent = 'Connected';
         } else {
-            agentsGrid.style.display = 'grid';
-            emptyState.style.display = 'none';
-            
-            agentsGrid.innerHTML = '';
-            this.agents.forEach((agent, id) => {
-                const card = this.createAgentCard(id, agent);
-                agentsGrid.appendChild(card);
-            });
+            statusDot.classList.remove('connected');
+            statusText.textContent = 'Disconnected';
         }
+    }
+
+    updateAgentSelector() {
+        const selector = document.getElementById('agentSelect');
+        selector.innerHTML = '<option value="">Choose an agent...</option>';
+        
+        this.agents.forEach((agent, id) => {
+            const option = document.createElement('option');
+            option.value = id;
+            option.textContent = `${agent.hostname} (${id})`;
+            selector.appendChild(option);
+        });
+        
+        selector.addEventListener('change', (e) => {
+            this.selectedAgent = e.target.value;
+        });
+    }
+
+    updateAgentsDisplay() {
+        const grid = document.getElementById('agentsGrid');
+        grid.innerHTML = '';
+        
+        this.agents.forEach((agent, id) => {
+            const card = this.createAgentCard(id, agent);
+            grid.appendChild(card);
+        });
         
         feather.replace();
     }
@@ -173,31 +166,29 @@ class AgentDashboard {
     createAgentCard(id, agent) {
         const card = document.createElement('div');
         card.className = 'agent-card';
-        card.onclick = () => this.showAgentDetails(id, agent);
+        card.onclick = () => this.showAgentDetails(id);
         
-        const isActive = this.isAgentActive(agent);
-        const uptime = this.formatUptime(agent.uptime);
+        const isOnline = this.isAgentActive(agent);
         
         card.innerHTML = `
             <div class="agent-header">
-                <div class="agent-id">${id}</div>
-                <div class="agent-status">
-                    <span class="status-indicator-small ${isActive ? 'active' : 'inactive'}"></span>
-                    <span>${isActive ? 'Active' : 'Inactive'}</span>
+                <div class="agent-name">${agent.hostname}</div>
+                <div class="agent-status ${isOnline ? 'online' : 'offline'}">
+                    ${isOnline ? 'Online' : 'Offline'}
                 </div>
             </div>
-            <div class="agent-info">
-                <div class="info-row">
-                    <span class="info-label">Hostname:</span>
-                    <span class="info-value">${agent.hostname || 'Unknown'}</span>
+            <div class="agent-metrics">
+                <div class="metric">
+                    <div class="metric-value">${agent.uptime ? this.formatUptime(agent.uptime) : 'N/A'}</div>
+                    <div class="metric-label">Uptime</div>
                 </div>
-                <div class="info-row">
-                    <span class="info-label">Uptime:</span>
-                    <span class="info-value">${uptime}</span>
+                <div class="metric">
+                    <div class="metric-value">${agent.cpu ? agent.cpu.toFixed(1) + '%' : 'N/A'}</div>
+                    <div class="metric-label">CPU</div>
                 </div>
-                <div class="info-row">
-                    <span class="info-label">Last seen:</span>
-                    <span class="info-value">${this.formatLastSeen(agent.last_seen)}</span>
+                <div class="metric">
+                    <div class="metric-value">${agent.ram ? agent.ram.toFixed(1) + '%' : 'N/A'}</div>
+                    <div class="metric-label">RAM</div>
                 </div>
             </div>
         `;
@@ -205,67 +196,30 @@ class AgentDashboard {
         return card;
     }
 
-    showAgentDetails(id, agent) {
+    showAgentDetails(agentId) {
+        const agent = this.agents.get(agentId);
+        if (!agent) return;
+        
+        this.selectedAgent = agentId;
+        
         const modal = document.getElementById('agentModal');
         const modalTitle = document.getElementById('modalTitle');
         const modalBody = document.getElementById('modalBody');
         
-        modalTitle.textContent = `Agent: ${id}`;
+        modalTitle.textContent = `Agent Details: ${agent.hostname}`;
         
-        const isActive = this.isAgentActive(agent);
-        const uptime = this.formatUptime(agent.uptime);
+        const isOnline = this.isAgentActive(agent);
         
         modalBody.innerHTML = `
-            <div class="agent-details">
-                <div class="detail-section">
-                    <h4>Basic Information</h4>
-                    <div class="detail-grid">
-                        <div class="detail-item">
-                            <span class="detail-label">Agent ID:</span>
-                            <span class="detail-value">${id}</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">Hostname:</span>
-                            <span class="detail-value">${agent.hostname || 'Unknown'}</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">Status:</span>
-                            <span class="detail-value">
-                                <span class="status-indicator-small ${isActive ? 'active' : 'inactive'}"></span>
-                                ${isActive ? 'Active' : 'Inactive'}
-                            </span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">Uptime:</span>
-                            <span class="detail-value">${uptime}</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="detail-section">
-                    <h4>Connection Information</h4>
-                    <div class="detail-grid">
-                        <div class="detail-item">
-                            <span class="detail-label">Last Heartbeat:</span>
-                            <span class="detail-value">${this.formatLastSeen(agent.last_seen)}</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">Connection Time:</span>
-                            <span class="detail-value">${new Date(agent.last_seen).toLocaleString()}</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="detail-actions">
-                    <button class="btn btn-secondary" onclick="dashboard.sendCommand('${id}', 'status')">
-                        <i data-feather="terminal"></i>
-                        Send Status Command
-                    </button>
-                    <button class="btn btn-secondary" onclick="dashboard.sendCommand('${id}', 'restart')">
-                        <i data-feather="refresh-cw"></i>
-                        Restart Agent
-                    </button>
-                </div>
+            <div style="display: grid; gap: 1rem;">
+                <div><strong>Agent ID:</strong> ${agentId}</div>
+                <div><strong>Hostname:</strong> ${agent.hostname}</div>
+                <div><strong>Status:</strong> <span class="agent-status ${isOnline ? 'online' : 'offline'}">${isOnline ? 'Online' : 'Offline'}</span></div>
+                <div><strong>Uptime:</strong> ${agent.uptime ? this.formatUptime(agent.uptime) : 'N/A'}</div>
+                <div><strong>CPU Usage:</strong> ${agent.cpu ? agent.cpu.toFixed(1) + '%' : 'N/A'}</div>
+                <div><strong>RAM Usage:</strong> ${agent.ram ? agent.ram.toFixed(1) + '%' : 'N/A'}</div>
+                <div><strong>Disk Usage:</strong> ${agent.disk ? agent.disk.toFixed(1) + '%' : 'N/A'}</div>
+                <div><strong>Last Seen:</strong> ${new Date(agent.last_seen).toLocaleString()}</div>
             </div>
         `;
         
@@ -278,51 +232,136 @@ class AgentDashboard {
         modal.classList.remove('active');
     }
 
-    async sendCommand(agentId, command) {
+    showCustomCommandDialog() {
+        if (!this.selectedAgent) {
+            this.showError('Please select an agent first');
+            return;
+        }
+        
+        const modal = document.getElementById('customCommandModal');
+        modal.classList.add('active');
+    }
+
+    closeCustomCommandDialog() {
+        const modal = document.getElementById('customCommandModal');
+        modal.classList.remove('active');
+    }
+
+    async executeCustomCommand() {
+        const commandInput = document.getElementById('customCommand');
+        const command = commandInput.value.trim();
+        
+        if (!command) {
+            this.showError('Please enter a command');
+            return;
+        }
+        
+        if (!this.selectedAgent) {
+            this.showError('Please select an agent first');
+            return;
+        }
+        
+        await this.sendCommandToAgent('Exec', { cmd: command });
+        this.closeCustomCommandDialog();
+        commandInput.value = '';
+    }
+
+    async sendCommand(commandType) {
+        if (!this.selectedAgent) {
+            this.showError('Please select an agent first');
+            return;
+        }
+        
+        let commandData;
+        
+        switch (commandType) {
+            case 'GetSystemInfo':
+                commandData = { type: 'GetSystemInfo' };
+                break;
+            case 'GetProcesses':
+                commandData = { type: 'GetProcesses' };
+                break;
+            default:
+                commandData = { type: 'Exec', data: { cmd: commandType } };
+        }
+        
+        await this.sendCommandToAgent(commandData.type, commandData.data || {});
+    }
+
+    async sendCommandToAgent(type, data = {}) {
+        if (!this.selectedAgent) {
+            this.showError('Please select an agent first');
+            return;
+        }
+        
         try {
-            let commandData;
-            
-            switch (command) {
-                case 'status':
-                    commandData = {
-                        type: "GetSystemInfo"
-                    };
-                    break;
-                case 'restart':
-                    commandData = {
-                        type: "Exec",
-                        data: {
-                            cmd: "echo 'Restart command received' && sleep 1"
-                        }
-                    };
-                    break;
-                default:
-                    commandData = {
-                        type: "Exec",
-                        data: {
-                            cmd: command
-                        }
-                    };
+            const commandPayload = { type };
+            if (Object.keys(data).length > 0) {
+                commandPayload.data = data;
             }
             
-            const response = await fetch(`/agents/${agentId}/command`, {
+            const response = await fetch(`/agents/${this.selectedAgent}/command`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(commandData)
+                body: JSON.stringify(commandPayload)
             });
             
             if (response.ok) {
-                this.showSuccess(`Command sent to agent ${agentId}`);
+                const result = await response.json();
+                console.log('Command sent:', result);
+                this.showSuccess(`Command sent to ${this.selectedAgent}`);
             } else {
-                const errorText = await response.text();
-                throw new Error(`Failed to send command: ${errorText}`);
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
         } catch (error) {
-            console.error('Error sending command:', error);
+            console.error('Failed to send command:', error);
             this.showError(`Failed to send command: ${error.message}`);
         }
+    }
+
+    updateCommandResponses() {
+        const container = document.getElementById('responsesContainer');
+        
+        if (this.commandResponses.length === 0) {
+            container.innerHTML = '<p class="no-responses">No commands executed yet</p>';
+            return;
+        }
+        
+        container.innerHTML = this.commandResponses.map(response => `
+            <div class="response-item">
+                <div class="response-header">
+                    <div class="response-command">${this.formatCommandDisplay(response.command)}</div>
+                    <div class="response-timestamp">${response.timestamp}</div>
+                </div>
+                <div class="response-status ${response.status}">
+                    ${response.status}
+                </div>
+                ${response.data ? `<div class="response-content">${this.formatResponseData(response.data)}</div>` : ''}
+            </div>
+        `).join('');
+    }
+
+    formatCommandDisplay(command) {
+        if (typeof command === 'string') return command;
+        if (command.type) {
+            switch (command.type) {
+                case 'GetSystemInfo': return 'Get System Info';
+                case 'GetProcesses': return 'Get Processes';
+                case 'Exec': return `Exec: ${command.data?.cmd || 'Unknown'}`;
+                default: return command.type;
+            }
+        }
+        return JSON.stringify(command);
+    }
+
+    formatResponseData(data) {
+        if (typeof data === 'string') return data;
+        if (data.output) return data.output;
+        if (data.processes) return `${data.processes.length} processes`;
+        if (data.error) return `Error: ${data.error}`;
+        return JSON.stringify(data, null, 2);
     }
 
     updateAgentHeartbeat(agentId, data) {
@@ -331,26 +370,13 @@ class AgentDashboard {
             agent.last_seen = Date.now();
             if (data.uptime) agent.uptime = data.uptime;
             if (data.hostname) agent.hostname = data.hostname;
+            if (data.cpu) agent.cpu = data.cpu;
+            if (data.ram) agent.ram = data.ram;
+            if (data.disk) agent.disk = data.disk;
             
-            this.agents.set(agentId, agent);
             this.updateAgentsDisplay();
             this.updateStats();
         }
-    }
-
-    addAgent(agentData) {
-        this.agents.set(agentData.id, {
-            ...agentData,
-            last_seen: Date.now()
-        });
-        this.updateAgentsDisplay();
-        this.updateStats();
-    }
-
-    removeAgent(agentId) {
-        this.agents.delete(agentId);
-        this.updateAgentsDisplay();
-        this.updateStats();
     }
 
     updateStats() {
@@ -376,11 +402,12 @@ class AgentDashboard {
     isAgentActive(agent) {
         const now = Date.now();
         const lastSeen = agent.last_seen || 0;
-        return (now - lastSeen) < 120000; // 2 minutes
+        const threshold = 60000; // 1 minute
+        return (now - lastSeen) < threshold;
     }
 
     formatUptime(seconds) {
-        if (!seconds) return 'Unknown';
+        if (!seconds) return 'N/A';
         
         const days = Math.floor(seconds / 86400);
         const hours = Math.floor((seconds % 86400) / 3600);
@@ -395,94 +422,70 @@ class AgentDashboard {
         }
     }
 
-    formatLastSeen(timestamp) {
-        if (!timestamp) return 'Never';
+    setupEventListeners() {
+        // Modal close events
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal')) {
+                e.target.classList.remove('active');
+            }
+        });
         
-        const now = Date.now();
-        const diff = now - timestamp;
-        
-        if (diff < 60000) {
-            return 'Just now';
-        } else if (diff < 3600000) {
-            const minutes = Math.floor(diff / 60000);
-            return `${minutes} min ago`;
-        } else if (diff < 86400000) {
-            const hours = Math.floor(diff / 3600000);
-            return `${hours} hours ago`;
-        } else {
-            return new Date(timestamp).toLocaleDateString();
-        }
-    }
-
-    showError(message) {
-        // Simple error notification - could be enhanced with a toast library
-        console.error(message);
-        alert(`Error: ${message}`);
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.closeModal();
+                this.closeCustomCommandDialog();
+            }
+        });
     }
 
     showSuccess(message) {
-        // Simple success notification - could be enhanced with a toast library
-        console.log(message);
-        alert(`Success: ${message}`);
+        this.showNotification(message, 'success');
+    }
+
+    showError(message) {
+        this.showNotification(message, 'error');
+    }
+
+    showNotification(message, type) {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 1rem 1.5rem;
+            background: ${type === 'success' ? '#10b981' : '#ef4444'};
+            color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            z-index: 10000;
+            font-weight: 600;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        `;
+        notification.textContent = message;
+        
+        document.body.appendChild(notification);
+        
+        // Animate in
+        setTimeout(() => {
+            notification.style.transform = 'translateX(0)';
+        }, 100);
+        
+        // Remove after 3 seconds
+        setTimeout(() => {
+            notification.style.transform = 'translateX(100%)';
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 300);
+        }, 3000);
     }
 }
 
-// Initialize dashboard when DOM is ready
+// Initialize dashboard when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.dashboard = new AgentDashboard();
 });
-
-// Add some CSS for the modal details
-const additionalStyles = `
-.detail-section {
-    margin-bottom: 25px;
-}
-
-.detail-section h4 {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: #1f2937;
-    margin-bottom: 15px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid #e5e7eb;
-}
-
-.detail-grid {
-    display: grid;
-    gap: 12px;
-}
-
-.detail-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 0;
-}
-
-.detail-label {
-    font-weight: 500;
-    color: #6b7280;
-}
-
-.detail-value {
-    color: #1f2937;
-    font-weight: 500;
-}
-
-.detail-actions {
-    display: flex;
-    gap: 12px;
-    margin-top: 20px;
-    padding-top: 20px;
-    border-top: 1px solid #e5e7eb;
-}
-
-.status-indicator-small.inactive {
-    background: #ef4444;
-}
-`;
-
-// Inject additional styles
-const styleSheet = document.createElement('style');
-styleSheet.textContent = additionalStyles;
-document.head.appendChild(styleSheet);

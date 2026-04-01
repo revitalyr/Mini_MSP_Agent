@@ -9,104 +9,151 @@
 </head>
 <body>
     <div class="container">
-        <!-- Header -->
-        <header class="header">
-            <div class="header-content">
-                <div class="logo">
-                    <i data-feather="cpu"></i>
-                    <h1>Mini MSP Agent Dashboard</h1>
-                </div>
-                <div class="status-indicator">
-                    <span class="status-dot" id="connectionStatus"></span>
-                    <span id="statusText">Connecting...</span>
-                </div>
+        <header>
+            <h1>Mini MSP Agent Dashboard</h1>
+            <div class="status-indicator">
+                <span class="status-dot" id="connectionStatus"></span>
+                <span id="connectionText">Connecting...</span>
             </div>
         </header>
 
-        <!-- Main Content -->
-        <main class="main-content">
-            <!-- Stats Cards -->
+        <main>
             <section class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-icon">
                         <i data-feather="server"></i>
                     </div>
-                    <div class="stat-content">
-                        <h3>Total Agents</h3>
-                        <p class="stat-number" id="totalAgents">0</p>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">
-                        <i data-feather="check-circle"></i>
-                    </div>
-                    <div class="stat-content">
-                        <h3>Active Agents</h3>
-                        <p class="stat-number" id="activeAgents">0</p>
+                    <div class="stat-info">
+                        <h3 id="totalAgents">0</h3>
+                        <p>Total Agents</p>
                     </div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-icon">
                         <i data-feather="activity"></i>
                     </div>
-                    <div class="stat-content">
-                        <h3>System Status</h3>
-                        <p class="stat-number" id="systemStatus">Healthy</p>
+                    <div class="stat-info">
+                        <h3 id="activeAgents">0</h3>
+                        <p>Active Agents</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i data-feather="check-circle"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="systemStatus">Checking</h3>
+                        <p>System Status</p>
                     </div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-icon">
                         <i data-feather="clock"></i>
                     </div>
-                    <div class="stat-content">
-                        <h3>Last Update</h3>
-                        <p class="stat-number" id="lastUpdate">Never</p>
+                    <div class="stat-info">
+                        <h3 id="lastUpdate">Never</h3>
+                        <p>Last Update</p>
                     </div>
                 </div>
             </section>
 
-            <!-- Agents List -->
             <section class="agents-section">
-                <div class="section-header">
-                    <h2>Connected Agents</h2>
-                    <button class="btn btn-primary" id="refreshBtn">
-                        <i data-feather="refresh-cw"></i>
-                        Refresh
-                    </button>
-                </div>
-                
+                <h2>Connected Agents</h2>
                 <div class="agents-grid" id="agentsGrid">
-                    <!-- Agent cards will be dynamically added here -->
-                </div>
-
-                <div class="empty-state" id="emptyState">
-                    <i data-feather="inbox"></i>
-                    <h3>No agents connected</h3>
-                    <p>Waiting for agents to connect to the server...</p>
+                    <!-- Agents will be populated here -->
                 </div>
             </section>
 
-            <!-- Agent Details Modal -->
-            <div class="modal" id="agentModal">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h3 id="modalTitle">Agent Details</h3>
-                        <button class="modal-close" id="modalClose">
-                            <i data-feather="x"></i>
+            <section class="command-panel">
+                <h2>Command Center</h2>
+                <div class="command-controls">
+                    <div class="agent-selector">
+                        <label for="agentSelect">Select Agent:</label>
+                        <select id="agentSelect">
+                            <option value="">Choose an agent...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="command-buttons">
+                        <button class="btn btn-primary" onclick="dashboard.sendCommand('GetSystemInfo')">
+                            <i data-feather="info"></i>
+                            Get System Info
+                        </button>
+                        <button class="btn btn-primary" onclick="dashboard.sendCommand('GetProcesses')">
+                            <i data-feather="list"></i>
+                            Get Processes
+                        </button>
+                        <button class="btn btn-secondary" onclick="dashboard.showCustomCommandDialog()">
+                            <i data-feather="terminal"></i>
+                            Custom Command
                         </button>
                     </div>
-                    <div class="modal-body" id="modalBody">
-                        <!-- Agent details will be dynamically added here -->
+                </div>
+
+                <div class="command-responses" id="commandResponses">
+                    <h3>Command Responses</h3>
+                    <div class="responses-container" id="responsesContainer">
+                        <p class="no-responses">No commands executed yet</p>
                     </div>
                 </div>
-            </div>
+            </section>
         </main>
-
-        <!-- Footer -->
-        <footer class="footer">
-            <p>&copy; 2026 Mini MSP Agent. Built with Rust & WebSockets.</p>
-        </footer>
     </div>
+
+    <!-- Agent Details Modal -->
+    <div class="modal" id="agentModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Agent Details</h2>
+                <button class="modal-close" onclick="dashboard.closeModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Agent details will be populated here -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="dashboard.sendCommand('GetSystemInfo')">
+                    <i data-feather="info"></i>
+                    Get System Info
+                </button>
+                <button class="btn btn-primary" onclick="dashboard.sendCommand('GetProcesses')">
+                    <i data-feather="list"></i>
+                    Get Processes
+                </button>
+                <button class="btn btn-secondary" onclick="dashboard.showCustomCommandDialog()">
+                    <i data-feather="terminal"></i>
+                    Custom Command
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Command Dialog -->
+    <div class="modal" id="customCommandModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Execute Custom Command</h2>
+                <button class="modal-close" onclick="dashboard.closeCustomCommandDialog()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="customCommand">Command:</label>
+                    <input type="text" id="customCommand" placeholder="e.g., ps aux, df -h, free -m">
+                    <small>Allowed commands: ps, top, df, free, uptime, whoami, id, uname, date, ls, cat, grep, find, wc, head, tail, sort, uniq, netstat, ss, ip, ifconfig, ping, systemctl, service, echo, sleep</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="dashboard.executeCustomCommand()">
+                    <i data-feather="play"></i>
+                    Execute
+                </button>
+                <button class="btn btn-secondary" onclick="dashboard.closeCustomCommandDialog()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2026 Mini MSP Agent Dashboard. Built with Rust, Axum, and WebSockets.</p>
+    </footer>
 
     <script src="/static/app.js"></script>
 </body>
