@@ -1,66 +1,29 @@
 // Directory Info Display Component
 const DirectoryInfoDisplay = {
-    props: ['agentId', 'pluginConfig'], // agentId to know which agent to query, pluginConfig for current settings
-    data() {
-        return {
-            liveData: null,
-            pollingInterval: null,
-            error: null,
-        };
-    },
+    mixins: [SharedDisplayMixin],
+    props: ['pluginConfig'], 
     async mounted() {
-        // Initial fetch
         await this.fetchDirectoryInfo();
-        // Start polling
-        this.pollingInterval = setInterval(this.fetchDirectoryInfo, 5000); // Poll every 5 seconds
-    },
-    beforeUnmount() {
-        clearInterval(this.pollingInterval);
+        this.pollingInterval = setInterval(this.fetchDirectoryInfo, 5000);
     },
     methods: {
         async fetchDirectoryInfo() {
-            if (!this.agentId || !this.pluginConfig || !this.pluginConfig.targetPath) {
-                this.error = "Agent ID or target path not available.";
+            if (!this.pluginConfig?.targetPath) {
                 this.liveData = null;
                 return;
             }
-            try {
-                const params = new URLSearchParams({
-                    path: this.pluginConfig.targetPath,
-                    include_subdirs: this.pluginConfig.includeSubdirs || false,
-                    show_hidden: this.pluginConfig.showHidden || false,
-                    max_depth: this.pluginConfig.maxDepth || 1,
-                }).toString();
 
-                const token = localStorage.getItem('token');
-                const response = await fetch(`/agents/${this.agentId}/data/directory_info?${params}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Accept': 'application/json'
-                    }
-                });
+            const params = new URLSearchParams({
+                path: this.pluginConfig.targetPath,
+                include_subdirs: this.pluginConfig.includeSubdirs || false,
+                show_hidden: this.pluginConfig.showHidden || false,
+                max_depth: this.pluginConfig.maxDepth || 1,
+            }).toString();
 
-                if (!response.ok) {
-                    if (response.status === 401) {
-                        this.error = "Session expired. Please login again.";
-                        return;
-                    }
-                    const errorText = await response.text();
-                    throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
-                }
-                const data = await response.json();
-                if (data.DirectoryInfo) { // Assuming CommandResponse is wrapped
-                    this.liveData = data.DirectoryInfo;
-                    this.error = null;
-                } else {
-                    this.error = "Unexpected response format or no DirectoryInfo data.";
-                    this.liveData = null;
-                }
-            } catch (e) {
-                console.error("Failed to fetch directory info:", e);
-                this.error = e.message;
-                this.liveData = null;
-            }
+            await this.fetchData(
+                `/agents/${this.agentId}/data/directory_info?${params}`, 
+                'DirectoryInfo'
+            );
         },
     },
     template: `

@@ -1,24 +1,17 @@
 const EventDataDisplay = {
-    props: ['agentId', 'pluginConfig'],
-    data() {
-        return { liveData: null, pollingInterval: null, error: null };
-    },
+    mixins: [SharedDisplayMixin],
+    props: ['pluginConfig'],
     async mounted() {
-        await this.fetchData();
-        this.pollingInterval = setInterval(this.fetchData, 5000);
+        await this.fetchEventData();
+        this.pollingInterval = setInterval(this.fetchEventData, 5000);
     },
-    beforeUnmount() { clearInterval(this.pollingInterval); },
     methods: {
-        async fetchData() {
-            if (!this.agentId || !this.pluginConfig?.monitorPath) return;
-            try {
-                const token = localStorage.getItem('token');
-                const response = await fetch(`/agents/${this.agentId}/data/event_data?path=${encodeURIComponent(this.pluginConfig.monitorPath)}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                const data = await response.json();
-                this.liveData = data.EventData;
-            } catch (e) { this.error = e.message; }
+        async fetchEventData() {
+            if (!this.pluginConfig?.monitorPath) return;
+            await this.fetchData(
+                `/agents/${this.agentId}/data/event_data?path=${encodeURIComponent(this.pluginConfig.monitorPath)}`,
+                'EventData'
+            );
         }
     },
     template: `
