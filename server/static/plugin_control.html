@@ -140,19 +140,26 @@
                         <h4>📁 Directory Info Settings</h4>
                         <div class="config-item">
                             <label>Target Directory:</label>
-                            <input type="text" v-model="configPlugin.targetPath" placeholder="/path/to/directory">
+                            <div class="path-input-group">
+                                <input type="text" v-model="configPlugin.targetPath" placeholder="Click Browse to select directory">
+                                <button class="btn btn-small btn-secondary" @click="browseDirectory('directory_info')">Browse</button>
+                            </div>
+                            <small class="hint">Select a directory to analyze its contents and statistics</small>
                         </div>
                         <div class="config-item">
                             <label>Include Subdirectories:</label>
                             <input type="checkbox" v-model="configPlugin.includeSubdirs">
+                            <small class="hint">Analyze all subdirectories recursively</small>
                         </div>
                         <div class="config-item">
                             <label>Show Hidden Files:</label>
                             <input type="checkbox" v-model="configPlugin.showHidden">
+                            <small class="hint">Include hidden and system files in analysis</small>
                         </div>
                         <div class="config-item">
                             <label>Max Depth:</label>
                             <input type="number" v-model="configPlugin.maxDepth" min="1" max="10">
+                            <small class="hint">Maximum directory depth to analyze (1-10)</small>
                         </div>
                     </div>
 
@@ -162,21 +169,34 @@
                         <div class="config-item">
                             <label>Events to Monitor:</label>
                             <div class="checkbox-group">
-                                <label><input type="checkbox" v-model="configPlugin.events.fileCreated"> File Created</label>
-                                <label><input type="checkbox" v-model="configPlugin.events.fileDeleted"> File Deleted</label>
-                                <label><input type="checkbox" v-model="configPlugin.events.fileModified"> File Modified</label>
-                                <label><input type="checkbox" v-model="configPlugin.events.fileRenamed"> File Renamed</label>
-                                <label><input type="checkbox" v-model="configPlugin.events.directoryCreated"> Directory Created</label>
-                                <label><input type="checkbox" v-model="configPlugin.events.directoryDeleted"> Directory Deleted</label>
+                                <label><input type="checkbox" v-model="configPlugin.events.fileCreated"> 📄 File Created</label>
+                                <label><input type="checkbox" v-model="configPlugin.events.fileDeleted"> 🗑️ File Deleted</label>
+                                <label><input type="checkbox" v-model="configPlugin.events.fileModified"> ✏️ File Modified</label>
+                                <label><input type="checkbox" v-model="configPlugin.events.fileRenamed"> 🏷️ File Renamed</label>
+                                <label><input type="checkbox" v-model="configPlugin.events.fileAccessed"> 👁️ File Accessed</label>
+                                <label><input type="checkbox" v-model="configPlugin.events.filePermissionsChanged"> 🔐 Permissions Changed</label>
+                                <label><input type="checkbox" v-model="configPlugin.events.directoryCreated"> 📁 Directory Created</label>
+                                <label><input type="checkbox" v-model="configPlugin.events.directoryDeleted"> 🗂️ Directory Deleted</label>
+                                <label><input type="checkbox" v-model="configPlugin.events.directoryModified"> 📝 Directory Modified</label>
+                                <label><input type="checkbox" v-model="configPlugin.events.volumeMounted"> 💾 Volume Mounted</label>
+                                <label><input type="checkbox" v-model="configPlugin.events.volumeUnmounted"> 💿 Volume Unmounted</label>
+                                <label><input type="checkbox" v-model="configPlugin.events.diskSpaceLow"> ⚠️ Disk Space Low</label>
+                                <label><input type="checkbox" v-model="configPlugin.events.networkDriveConnected"> 🌐 Network Drive Connected</label>
+                                <label><input type="checkbox" v-model="configPlugin.events.networkDriveDisconnected"> 📡 Network Drive Disconnected</label>
                             </div>
                         </div>
                         <div class="config-item">
                             <label>Monitor Path:</label>
-                            <input type="text" v-model="configPlugin.monitorPath" placeholder="/path/to/monitor">
+                            <div class="path-input-group">
+                                <input type="text" v-model="configPlugin.monitorPath" placeholder="Click Browse to select directory">
+                                <button class="btn btn-small btn-secondary" @click="browseDirectory('event_data')">Browse</button>
+                            </div>
+                            <small class="hint">Directory to monitor for system events</small>
                         </div>
                         <div class="config-item">
                             <label>Buffer Size:</label>
                             <input type="number" v-model="configPlugin.bufferSize" min="100" max="10000">
+                            <small class="hint">Number of events to keep in memory (100-10000)</small>
                         </div>
                     </div>
 
@@ -185,16 +205,23 @@
                         <h4>📄 File Reader Settings</h4>
                         <div class="config-item">
                             <label>Target File:</label>
-                            <input type="text" v-model="configPlugin.targetFile" placeholder="/path/to/file.txt">
+                            <div class="path-input-group">
+                                <input type="text" v-model="configPlugin.targetFile" placeholder="Click Browse to select file">
+                                <button class="btn btn-small btn-secondary" @click="browseFile('file_reader')">Browse</button>
+                            </div>
+                            <small class="hint">Select a file to read and monitor</small>
                         </div>
                         <div class="config-item">
                             <label>File Encoding:</label>
                             <select v-model="configPlugin.encoding">
-                                <option value="utf-8">UTF-8</option>
+                                <option value="utf-8">UTF-8 (Recommended)</option>
                                 <option value="utf-16">UTF-16</option>
                                 <option value="ascii">ASCII</option>
                                 <option value="latin1">Latin-1</option>
+                                <option value="cp1252">Windows-1252</option>
+                                <option value="cp437">IBM PC (Code Page 437)</option>
                             </select>
+                            <small class="hint">Character encoding for file reading</small>
                         </div>
                         <div class="config-item">
                             <label>Read Mode:</label>
@@ -202,39 +229,132 @@
                                 <option value="text">Text Mode</option>
                                 <option value="binary">Binary Mode</option>
                                 <option value="lines">Line by Line</option>
+                                <option value="chunks">Fixed Size Chunks</option>
                             </select>
+                            <small class="hint">How to read the file content</small>
                         </div>
                         <div class="config-item">
                             <label>Auto Reload:</label>
                             <input type="checkbox" v-model="configPlugin.autoReload">
+                            <small class="hint">Automatically reload file when changes are detected</small>
                         </div>
                     </div>
 
-                    <!-- Watchers Manager Plugin Configuration -->
-                    <div v-if="configPlugin.name === 'watchers_manager'" class="config-section">
-                        <h4>�️ Watchers Manager Settings</h4>
+                    <!-- Folder Watcher Plugin Configuration -->
+                    <div v-if="configPlugin.name === 'folder_watcher'" class="config-section">
+                        <h4>📁 Folder Watcher Settings</h4>
                         <div class="config-item">
-                            <label>Watch Directories:</label>
-                            <div class="path-list">
-                                <div v-for="(path, index) in configPlugin.watchPaths" :key="index" class="path-item">
-                                    <input type="text" v-model="configPlugin.watchPaths[index]" placeholder="/path/to/watch">
-                                    <button class="btn btn-small btn-danger" @click="removeWatchPath(index)">×</button>
-                                </div>
-                                <button class="btn btn-small btn-secondary" @click="addWatchPath">+ Add Path</button>
+                            <label>Target Directory:</label>
+                            <div class="path-input-group">
+                                <input type="text" v-model="configPlugin.targetPath" placeholder="Click Browse to select directory">
+                                <button class="btn btn-small btn-secondary" @click="browseDirectory('folder_watcher')">Browse</button>
                             </div>
+                            <small class="hint">Directory to watch for changes</small>
                         </div>
                         <div class="config-item">
                             <label>Watch Events:</label>
                             <div class="checkbox-group">
-                                <label><input type="checkbox" v-model="configPlugin.watchEvents.create"> Create</label>
-                                <label><input type="checkbox" v-model="configPlugin.watchEvents.modify"> Modify</label>
-                                <label><input type="checkbox" v-model="configPlugin.watchEvents.delete"> Delete</label>
-                                <label><input type="checkbox" v-model="configPlugin.watchEvents.move"> Move/Rename</label>
+                                <label><input type="checkbox" v-model="configPlugin.events.fileCreated"> 📄 File Created</label>
+                                <label><input type="checkbox" v-model="configPlugin.events.fileDeleted"> 🗑️ File Deleted</label>
+                                <label><input type="checkbox" v-model="configPlugin.events.fileModified"> ✏️ File Modified</label>
+                                <label><input type="checkbox" v-model="configPlugin.events.fileRenamed"> 🏷️ File Renamed</label>
+                                <label><input type="checkbox" v-model="configPlugin.events.directoryCreated"> 📁 Directory Created</label>
+                                <label><input type="checkbox" v-model="configPlugin.events.directoryDeleted"> 🗂️ Directory Deleted</label>
                             </div>
                         </div>
                         <div class="config-item">
                             <label>Recursive:</label>
                             <input type="checkbox" v-model="configPlugin.recursive">
+                            <small class="hint">Watch subdirectories recursively</small>
+                        </div>
+                    </div>
+
+                    <!-- File Signature Plugin Configuration -->
+                    <div v-if="configPlugin.name === 'file_signature'" class="config-section">
+                        <h4>🔐 File Signature Settings</h4>
+                        <div class="config-item">
+                            <label>Target File/Directory:</label>
+                            <div class="path-input-group">
+                                <input type="text" v-model="configPlugin.targetPath" placeholder="Click Browse to select file or directory">
+                                <button class="btn btn-small btn-secondary" @click="browsePath('file_signature')">Browse</button>
+                            </div>
+                            <small class="hint">File or directory to generate signatures for</small>
+                        </div>
+                        <div class="config-item">
+                            <label>Hash Algorithm:</label>
+                            <select v-model="configPlugin.hashAlgorithm">
+                                <option value="sha256">SHA-256 (Recommended)</option>
+                                <option value="sha512">SHA-512</option>
+                                <option value="md5">MD5 (Legacy)</option>
+                                <option value="sha1">SHA-1 (Legacy)</option>
+                            </select>
+                            <small class="hint">Cryptographic hash algorithm for file signatures</small>
+                        </div>
+                        <div class="config-item">
+                            <label>Include Metadata:</label>
+                            <input type="checkbox" v-model="configPlugin.includeMetadata">
+                            <small class="hint">Include file metadata (timestamps, size, etc.)</small>
+                        </div>
+                    </div>
+
+                    <!-- Watchers Manager Plugin Configuration -->
+                    <div v-if="configPlugin.name === 'watchers_manager'" class="config-section">
+                        <h4>👁️ Watchers Manager Settings</h4>
+                        <div class="config-item">
+                            <label>Watch Directories:</label>
+                            <div class="path-list">
+                                <div v-for="(path, index) in configPlugin.watchPaths" :key="index" class="path-item">
+                                    <input type="text" v-model="configPlugin.watchPaths[index]" placeholder="Click Browse to select directory">
+                                    <button class="btn btn-small btn-secondary" @click="browseDirectoryForPath(index)">Browse</button>
+                                    <button class="btn btn-small btn-danger" @click="removeWatchPath(index)">×</button>
+                                </div>
+                                <button class="btn btn-small btn-secondary" @click="addWatchPath">+ Add Path</button>
+                            </div>
+                            <small class="hint">Directories to monitor for changes</small>
+                        </div>
+                        <div class="config-item">
+                            <label>Watch Events:</label>
+                            <div class="checkbox-group">
+                                <label><input type="checkbox" v-model="configPlugin.watchEvents.create"> 📄 Create</label>
+                                <label><input type="checkbox" v-model="configPlugin.watchEvents.modify"> ✏️ Modify</label>
+                                <label><input type="checkbox" v-model="configPlugin.watchEvents.delete"> 🗑️ Delete</label>
+                                <label><input type="checkbox" v-model="configPlugin.watchEvents.move"> 🏷️ Move/Rename</label>
+                                <label><input type="checkbox" v-model="configPlugin.watchEvents.access"> 👁️ Access</label>
+                                <label><input type="checkbox" v-model="configPlugin.watchEvents.permission"> 🔐 Permission Change</label>
+                            </div>
+                        </div>
+                        <div class="config-item">
+                            <label>Recursive:</label>
+                            <input type="checkbox" v-model="configPlugin.recursive">
+                            <small class="hint">Monitor subdirectories recursively</small>
+                        </div>
+                    </div>
+
+                    <!-- Plugin Registry Configuration -->
+                    <div v-if="configPlugin.name === 'plugin_registry'" class="config-section">
+                        <h4>📋 Plugin Registry Settings</h4>
+                        <div class="config-item">
+                            <label>Plugin Directory:</label>
+                            <div class="path-input-group">
+                                <input type="text" v-model="configPlugin.pluginDirectory" placeholder="Click Browse to select plugin directory">
+                                <button class="btn btn-small btn-secondary" @click="browseDirectory('plugin_registry')">Browse</button>
+                            </div>
+                            <small class="hint">Directory containing plugin files</small>
+                        </div>
+                        <div class="config-item">
+                            <label>Auto Scan:</label>
+                            <input type="checkbox" v-model="configPlugin.autoScan">
+                            <small class="hint">Automatically scan for new plugins</small>
+                        </div>
+                        <div class="config-item">
+                            <label>Scan Interval (seconds):</label>
+                            <input type="number" v-model="configPlugin.scanInterval" min="1" max="3600">
+                            <small class="hint">How often to scan for new plugins (1-3600 seconds)</small>
+                        </div>
+                        <div class="config-item">
+                            <label>Enable Hot Reload:</label>
+                            <input type="checkbox" v-model="configPlugin.hotReload">
+                            <small class="hint">Reload plugins automatically when files change</small>
                         </div>
                     </div>
 
@@ -318,7 +438,8 @@
                             loadTime: null,
                             callsMade: 0,
                             showInfo: false,
-                            targetPath: '/home/user/documents',
+                            // Plugin-specific configuration
+                            targetPath: 'C:\\Users\\Public\\Documents',
                             includeSubdirs: true,
                             showHidden: false,
                             maxDepth: 5
@@ -332,15 +453,24 @@
                             loadTime: null,
                             callsMade: 0,
                             showInfo: false,
-                            monitorPath: '/var/log',
+                            // Plugin-specific configuration
+                            monitorPath: 'C:\\Windows\\System32\\LogFiles',
                             bufferSize: 1000,
                             events: {
                                 fileCreated: true,
                                 fileDeleted: true,
                                 fileModified: true,
                                 fileRenamed: false,
+                                fileAccessed: false,
+                                filePermissionsChanged: true,
                                 directoryCreated: false,
-                                directoryDeleted: false
+                                directoryDeleted: false,
+                                directoryModified: false,
+                                volumeMounted: true,
+                                volumeUnmounted: true,
+                                diskSpaceLow: true,
+                                networkDriveConnected: false,
+                                networkDriveDisconnected: false
                             }
                         },
                         {
@@ -352,7 +482,8 @@
                             loadTime: null,
                             callsMade: 0,
                             showInfo: false,
-                            targetFile: '/home/user/config.txt',
+                            // Plugin-specific configuration
+                            targetFile: 'C:\\Users\\Public\\Documents\\config.txt',
                             encoding: 'utf-8',
                             readMode: 'text',
                             autoReload: false
@@ -366,12 +497,15 @@
                             loadTime: null,
                             callsMade: 0,
                             showInfo: false,
-                            watchPaths: ['/home/user/documents', '/home/user/downloads'],
+                            // Plugin-specific configuration
+                            watchPaths: ['C:\\Users\\Public\\Documents', 'C:\\Users\\Public\\Downloads'],
                             watchEvents: {
                                 create: true,
                                 modify: true,
                                 delete: true,
-                                move: false
+                                move: false,
+                                access: false,
+                                permission: true
                             },
                             recursive: true
                         },
@@ -383,17 +517,32 @@
                             version: '1.0.0',
                             loadTime: null,
                             callsMade: 0,
-                            showInfo: false
+                            showInfo: false,
+                            // Plugin-specific configuration
+                            targetPath: 'C:\\Users\\Public\\Documents',
+                            hashAlgorithm: 'sha256',
+                            includeMetadata: true
                         },
                         {
                             name: 'folder_watcher',
-                            displayName: '� Folder Watcher',
+                            displayName: '📁 Folder Watcher',
                             description: 'Watches folders for changes and events',
                             status: 'inactive',
                             version: '1.0.0',
                             loadTime: null,
                             callsMade: 0,
-                            showInfo: false
+                            showInfo: false,
+                            // Plugin-specific configuration
+                            targetPath: 'C:\\Users\\Public\\Documents',
+                            events: {
+                                fileCreated: true,
+                                fileDeleted: true,
+                                fileModified: true,
+                                fileRenamed: false,
+                                directoryCreated: false,
+                                directoryDeleted: false
+                            },
+                            recursive: true
                         },
                         {
                             name: 'file_listener',
@@ -433,7 +582,12 @@
                             version: '1.0.0',
                             loadTime: Date.now() - 5000,
                             callsMade: 42,
-                            showInfo: false
+                            showInfo: false,
+                            // Plugin-specific configuration
+                            pluginDirectory: 'C:\\Program Files\\Mini MSP Agent\\plugins',
+                            autoScan: true,
+                            scanInterval: 30,
+                            hotReload: false
                         }
                     ],
                 };
@@ -529,8 +683,16 @@
                                 fileDeleted: true,
                                 fileModified: true,
                                 fileRenamed: false,
+                                fileAccessed: false,
+                                filePermissionsChanged: true,
                                 directoryCreated: false,
-                                directoryDeleted: false
+                                directoryDeleted: false,
+                                directoryModified: false,
+                                volumeMounted: true,
+                                volumeUnmounted: true,
+                                diskSpaceLow: true,
+                                networkDriveConnected: false,
+                                networkDriveDisconnected: false
                             },
                             
                             // File Reader specific
@@ -545,12 +707,96 @@
                                 create: true,
                                 modify: true,
                                 delete: true,
-                                move: false
+                                move: false,
+                                access: false,
+                                permission: true
                             },
-                            recursive: plugin.recursive !== undefined ? plugin.recursive : true
+                            recursive: plugin.recursive !== undefined ? plugin.recursive : true,
+                            
+                            // File Signature specific
+                            hashAlgorithm: plugin.hashAlgorithm || 'sha256',
+                            includeMetadata: plugin.includeMetadata !== undefined ? plugin.includeMetadata : true,
+                            
+                            // Folder Watcher specific
+                            events: plugin.events || {
+                                fileCreated: true,
+                                fileDeleted: true,
+                                fileModified: true,
+                                fileRenamed: false,
+                                directoryCreated: false,
+                                directoryDeleted: false
+                            },
+                            
+                            // Plugin Registry specific
+                            pluginDirectory: plugin.pluginDirectory || '',
+                            autoScan: plugin.autoScan !== undefined ? plugin.autoScan : true,
+                            scanInterval: plugin.scanInterval || 30,
+                            hotReload: plugin.hotReload !== undefined ? plugin.hotReload : false
                         };
                         this.showConfigModal = true;
                     }
+                },
+
+                browseDirectory(pluginName) {
+                    // Simulate directory browsing - in real app would use file dialog
+                    const plugin = this.plugins.find(p => p.name === pluginName);
+                    if (plugin) {
+                        // For demo purposes, set some common Windows directories
+                        const commonDirs = [
+                            'C:\\Users\\Public\\Documents',
+                            'C:\\Users\\Public\\Downloads',
+                            'C:\\Program Files',
+                            'C:\\Program Files (x86)',
+                            'C:\\Windows\\System32',
+                            'C:\\Windows\\Temp',
+                            'D:\\'
+                        ];
+                        
+                        // Set a default based on plugin type
+                        if (pluginName === 'directory_info' || pluginName === 'folder_watcher') {
+                            this.configPlugin.targetPath = commonDirs[0];
+                        } else if (pluginName === 'event_data') {
+                            this.configPlugin.monitorPath = commonDirs[5];
+                        } else if (pluginName === 'plugin_registry') {
+                            this.configPlugin.pluginDirectory = commonDirs[2] + '\\Mini MSP Agent\\plugins';
+                        }
+                        
+                        this.showSuccess(`Directory selected: ${this.configPlugin.targetPath || this.configPlugin.monitorPath || this.configPlugin.pluginDirectory}`);
+                    }
+                },
+
+                browseFile(pluginName) {
+                    // Simulate file browsing
+                    const plugin = this.plugins.find(p => p.name === pluginName);
+                    if (plugin) {
+                        const commonFiles = [
+                            'C:\\Users\\Public\\Documents\\config.txt',
+                            'C:\\Users\\Public\\Documents\\data.csv',
+                            'C:\\Windows\\System32\\drivers\\etc\\hosts',
+                            'C:\\ProgramData\\log.txt'
+                        ];
+                        
+                        this.configPlugin.targetFile = commonFiles[0];
+                        this.showSuccess(`File selected: ${this.configPlugin.targetFile}`);
+                    }
+                },
+
+                browsePath(pluginName) {
+                    // For file signature plugin - can be file or directory
+                    this.browseDirectory(pluginName);
+                },
+
+                browseDirectoryForPath(index) {
+                    // Browse for specific path in watchers manager
+                    const commonDirs = [
+                        'C:\\Users\\Public\\Documents',
+                        'C:\\Users\\Public\\Downloads',
+                        'C:\\Program Files',
+                        'C:\\Windows\\Temp'
+                    ];
+                    
+                    this.configPlugin.watchPaths[index] = commonDirs[index % commonDirs.length];
+                    this.showSuccess(`Directory ${index + 1} selected: ${this.configPlugin.watchPaths[index]}`);
                 },
 
                 closeConfigModal() {
