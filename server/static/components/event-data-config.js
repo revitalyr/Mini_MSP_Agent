@@ -55,6 +55,12 @@ const EventDataConfig = {
         
         emitUpdate() {
             this.$emit('update', this.config);
+        },
+        
+        getHint(key) {
+            return (typeof window !== 'undefined' && window.platformManager) 
+                ? window.platformManager.getHint(key) 
+                : '';
         }
     },
     template: `
@@ -100,13 +106,20 @@ const EventDataConfig = {
                            @input="emitUpdate">
                     <button class="btn btn-small btn-secondary" @click="browseDirectory">Browse</button>
                 </div>
-                <small class="hint">{{ window.platformManager.getHint('monitorPath') }}</small>
+                <small class="hint">{{ getHint('monitorPath') }}</small>
             </div>
             <div class="config-item">
                 <label>Buffer Size:</label>
                 <input type="number" v-model="config.bufferSize" min="100" max="10000" @input="emitUpdate">
-                <small class="hint">{{ window.platformManager.getHint('bufferSize') }}</small>
+                <small class="hint">{{ getHint('bufferSize') }}</small>
             </div>
         </div>
     `
 };
+
+// Export for use in other modules
+if (typeof window !== 'undefined') {
+    window.EventDataConfig = EventDataConfig;
+} else if (typeof module !== 'undefined' && module.exports) {
+    module.exports = EventDataConfig;
+}

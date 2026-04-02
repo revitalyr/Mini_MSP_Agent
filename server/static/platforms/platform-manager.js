@@ -2,22 +2,24 @@
 class PlatformManager {
     constructor() {
         this.platform = this.detectPlatform();
-        this.configs = null;
-        this.events = null;
-        this.encodings = null;
-        this.hints = null;
+        this.configs = {};
+        this.events = {};
+        this.encodings = [];
+        this.hints = {};
+        
+        console.log(`Platform detected: ${this.platform}`);
         this.loadPlatformConfig();
     }
 
     detectPlatform() {
-        const userAgent = navigator.userAgent;
-        const platform = navigator.platform;
+        const userAgent = navigator.userAgent.toLowerCase();
+        const platform = navigator.platform.toLowerCase();
         
-        if (platform.includes('Win') || userAgent.includes('Windows')) {
+        if (userAgent.includes('win') || platform.includes('win')) {
             return 'windows';
-        } else if (platform.includes('Mac') || userAgent.includes('Mac')) {
+        } else if (userAgent.includes('mac') || platform.includes('mac')) {
             return 'macos';
-        } else if (platform.includes('Linux') || userAgent.includes('Linux')) {
+        } else if (userAgent.includes('linux') || platform.includes('linux')) {
             return 'linux';
         } else {
             // Fallback to Windows if detection fails
@@ -37,23 +39,18 @@ class PlatformManager {
             
             const configText = await response.text();
             
-            // Safer approach: import the module dynamically
+            // Safer approach: use eval to load configuration
             try {
-                const module = await import(`./${this.platform}/plugin-configs.js`);
-                this.configs = module[`${this.platform}PluginConfigs`] || {};
-                this.events = module[`${this.platform}SystemEvents`] || {};
-                this.encodings = module[`${this.platform}Encodings`] || [];
-                this.hints = module[`${this.platform}Hints`] || {};
-                
+                this.loadConfigFromText(configText);
                 console.log(`Successfully loaded ${this.platform} configurations:`, {
                     configs: Object.keys(this.configs),
                     events: Object.keys(this.events),
                     encodings: this.encodings.length,
                     hints: Object.keys(this.hints)
                 });
-            } catch (importError) {
-                console.warn('Dynamic import failed, falling back to eval:', importError.message);
-                this.loadConfigFromText(configText);
+            } catch (evalError) {
+                console.error('Failed to load configuration with eval:', evalError);
+                this.loadFallbackConfig();
             }
             
             console.log(`Loaded ${this.platform} platform configuration`);
@@ -66,30 +63,32 @@ class PlatformManager {
 
     loadConfigFromText(configText) {
         try {
+            // Remove export statements and evaluate
+            const cleanText = configText
+                .replace(/export\s+const\s+/g, 'const ')
+                .replace(/export\s+{/g, '{');
+            
             // Create a safe evaluation context
-            const safeEval = (text) => {
-                const exports = {};
-                const module = { exports };
-                const evalInContext = eval;
-                evalInContext(text);
-                return module.exports;
-            };
+            const exports = {};
+            const module = { exports };
+            const evalInContext = eval;
+            evalInContext(cleanText);
             
-            const allConfigs = safeEval(configText);
-            
-            // Load platform-specific configurations
-            const configKey = `${this.platform}PluginConfigs`;
+            // Extract configurations from module exports
+            const platformKey = `${this.platform}PluginConfigs`;
             const eventsKey = `${this.platform}SystemEvents`;
             const encodingsKey = `${this.platform}Encodings`;
             const hintsKey = `${this.platform}Hints`;
             
-            this.configs = allConfigs[configKey] || {};
-            this.events = allConfigs[eventsKey] || {};
-            this.encodings = allConfigs[encodingsKey] || [];
-            this.hints = allConfigs[hintsKey] || {};
+            this.configs = module.exports[platformKey] || {};
+            this.events = module.exports[eventsKey] || {};
+            this.encodings = module.exports[encodingsKey] || [];
+            this.hints = module.exports[hintsKey] || {};
+            
+            console.log(`Loaded ${this.platform} configuration from eval`);
         } catch (error) {
-            console.error('Failed to parse config text:', error);
-            this.loadFallbackConfig();
+            console.error('Failed to evaluate configuration:', error);
+            throw error;
         }
     }
 
@@ -126,8 +125,14 @@ class PlatformManager {
     }
 
     getDefaultPaths(pluginName) {
+        console.log(`Getting default paths for plugin: ${pluginName}`);
+        console.log('Available configs:', Object.keys(this.configs));
+        console.log('Config for plugin:', this.configs[pluginName]);
+        
         const config = this.getPluginConfig(pluginName);
-        return config.defaultPaths || [];
+        const paths = config.defaultPaths || [];
+        console.log(`Default paths for ${pluginName}:`, paths);
+        return paths;
     }
 
     getSystemEvents() {
@@ -182,7 +187,9 @@ class PlatformManager {
 }
 
 // Global platform manager instance
-window.platformManager = new PlatformManager();
+if (typeof window !== 'undefined') {
+    window.platformManager = new PlatformManager();
+}
 
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {

@@ -21,16 +21,25 @@ const DirectoryInfoConfig = {
         },
         
         browseDirectory() {
+            console.log('browseDirectory called');
+            console.log('window:', typeof window);
+            console.log('window.platformManager:', typeof window !== 'undefined' ? window.platformManager : 'undefined');
+            
             if (typeof window !== 'undefined' && window.platformManager) {
+                console.log('Getting default paths for directory_info...');
                 const defaultPaths = window.platformManager.getDefaultPaths('directory_info');
+                console.log('Default paths received:', defaultPaths);
+                
                 const selectedPath = defaultPaths[0] || defaultPaths[1];
+                console.log('Selected path:', selectedPath);
+                
                 this.config.targetPath = selectedPath;
                 this.emitUpdate();
                 
                 // Show success message
-                if (window.platformManager) {
-                    console.log(`Directory selected: ${selectedPath}`);
-                }
+                console.log(`Directory selected: ${selectedPath}`);
+            } else {
+                console.error('Window or platformManager not available');
             }
         },
         
@@ -73,3 +82,10 @@ const DirectoryInfoConfig = {
         </div>
     `
 };
+
+// Export for use in other modules
+if (typeof window !== 'undefined') {
+    window.DirectoryInfoConfig = DirectoryInfoConfig;
+} else if (typeof module !== 'undefined' && module.exports) {
+    module.exports = DirectoryInfoConfig;
+}
