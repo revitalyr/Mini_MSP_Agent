@@ -29,6 +29,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include "semantic_types.h"
 
 #ifdef _WIN32
     #define PLUGIN_EXPORT __declspec(dllexport)
@@ -165,6 +166,10 @@ typedef bool (PLUGIN_CALL *get_processes_fn_t)(process_info_t** processes, size_
 typedef bool (PLUGIN_CALL *execute_command_fn_t)(const char* command, command_result_t* result);
 typedef bool (PLUGIN_CALL *read_file_fn_t)(const char* path, file_content_t* content);
 typedef bool (PLUGIN_CALL *get_system_info_fn_t)(system_info_t* info);
+typedef directory_info_data_t* (PLUGIN_CALL *get_directory_info_data_fn_t)(const char* path, bool recursive, bool show_hidden, uint32_t max_depth);
+typedef event_data_t* (PLUGIN_CALL *get_event_data_fn_t)(const char* path);
+typedef watchers_data_t* (PLUGIN_CALL *get_watchers_data_fn_t)(void);
+typedef file_reader_data_t* (PLUGIN_CALL *get_file_reader_data_fn_t)(const char* path);
 typedef void (PLUGIN_CALL *free_memory_fn_t)(void* ptr);
 
 // Plugin interface structure
@@ -177,6 +182,10 @@ typedef struct {
     execute_command_fn_t execute_command;
     read_file_fn_t read_file;
     get_system_info_fn_t get_system_info;
+    get_directory_info_data_fn_t get_directory_info_data;
+    get_event_data_fn_t get_event_data;
+    get_watchers_data_fn_t get_watchers_data;
+    get_file_reader_data_fn_t get_file_reader_data;
     free_memory_fn_t free_memory;
 } plugin_interface_t;
 

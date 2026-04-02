@@ -65,6 +65,29 @@ typedef struct {
 } directory_info_data_t;
 
 typedef struct {
+    path_string_t m_path;
+    uint64_t m_events_count;
+    percentage_t m_buffer_usage;
+    char m_last_event[64];
+    timestamp_t m_timestamp;
+} event_data_t;
+
+typedef struct {
+    uint32_t m_active_watchers;
+    uint64_t m_total_notifications;
+    float m_cpu_usage;
+    uint64_t m_memory_usage_kb;
+} watchers_data_t;
+
+typedef struct {
+    path_string_t m_path;
+    file_size_t m_size;
+    char m_encoding[32];
+    bool m_is_locked;
+    timestamp_t m_last_access;
+} file_reader_data_t;
+
+typedef struct {
     plugin_name_t m_plugin_name;      // Имя плагина
     call_count_t m_successful_calls;  // Успешные вызовы
     error_count_t m_failed_calls;     // Неудачные вызовы
