@@ -34,61 +34,42 @@ target_include_directories(system_plugin PUBLIC
 set_target_properties(system_plugin PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
     ARCHIVE_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
-    RUNTIME_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
 )
 
-# Platform-specific linking and libraries
-if(WIN32)
-    target_link_libraries(system_plugin psapi kernel32)
-    target_compile_definitions(system_plugin PRIVATE WIN32_LEAN_AND_MEAN)
-elseif(APPLE)
-    find_library(COREFOUNDATION_LIBRARY CoreFoundation)
-    find_library(IOKIT_LIBRARY IOKit)
-    find_library(MACH_LIBRARY mach)
-    target_link_libraries(system_plugin ${COREFOUNDATION_LIBRARY} ${IOKIT_LIBRARY} ${MACH_LIBRARY})
-else()
-    target_link_libraries(system_plugin)
-endif()
-
-# Add all new plugins
-set(NEW_PLUGIN_SOURCES
-    src/directory_info_plugin.c
-    src/event_data_plugin.c
-    src/file_reader_plugin.c
-    src/file_signature_plugin.c
-    src/folder_watcher_plugin.c
-    src/file_listener_plugin.c
-    src/root_directory_info_plugin.c
-    src/scanner_plugin.c
-    src/watchers_manager_plugin.c
-    src/plugin_registry.c
+# Plugin sources
+set(PLUGIN_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/directory_info_plugin.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/event_data_plugin.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/file_reader_plugin.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/file_signature_plugin.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/folder_watcher_plugin.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/file_listener_plugin.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/root_directory_info_plugin.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/scanner_plugin.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/watchers_manager_plugin.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/plugin_registry.c
 )
 
-# Build each new plugin
-foreach(PLUGIN_SOURCE ${NEW_PLUGIN_SOURCES})
+# Create shared library for each plugin
+foreach(PLUGIN_SOURCE ${PLUGIN_SOURCES})
     get_filename_component(PLUGIN_NAME ${PLUGIN_SOURCE} NAME_WE)
     
-    add_library(${PLUGIN_NAME} SHARED ${PLUGIN_SOURCE})
-    
-    target_include_directories(${PLUGIN_NAME} PUBLIC 
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    add_library(${PLUGIN_NAME} SHARED
+        ${PLUGIN_SOURCE}
+        ${COMMON_SOURCES}
+        ${PLATFORM_SOURCES}
     )
     
+    target_compile_definitions(${PLUGIN_NAME} PRIVATE ${PLATFORM_DEFINES})
+    target_link_libraries(${PLUGIN_NAME} PRIVATE ${PLATFORM_LIBS})
+    
+    # Set output name
     set_target_properties(${PLUGIN_NAME} PROPERTIES
-        LIBRARY_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
-        ARCHIVE_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
-        RUNTIME_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
+        OUTPUT_NAME "${PLUGIN_NAME}"
+        PREFIX ""
     )
     
-    # Platform-specific linking for new plugins
-    if(WIN32)
-        target_link_libraries(${PLUGIN_NAME} kernel32 user32 shell32 advapi32)
-    else()
-        target_link_libraries(${PLUGIN_NAME} pthread dl)
-        # Try to find and link OpenSSL for crypto plugins
-        if(PLUGIN_NAME MATCHES "file_signature")
-            find_package(PkgConfig REQUIRED)
-            pkg_check_modules(OPENSSL REQUIRED openssl)
+    # Copy to agent directory
             target_link_libraries(${PLUGIN_NAME} ${OPENSSL_LIBRARIES})
             target_include_directories(${PLUGIN_NAME} PUBLIC ${OPENSSL_INCLUDE_DIRS})
         endif()
