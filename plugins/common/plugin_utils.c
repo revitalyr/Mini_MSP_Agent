@@ -40,9 +40,9 @@ static plugin_result_t safe_strcat(char* dest, size_t dest_size, const char* src
         return PLUGIN_RESULT_INVALID_PARAM; // Buffer too small
     }
     
-    strncat(dest, src, dest_size - dest_len - 1);
-    
-    return PLUGIN_RESULT_SUCCESS;
+    // Use safe_strcat instead of strncat
+    plugin_result_t result = safe_strcat(dest, dest_size, src);
+    return result;
 }
 
 // Safe formatted string with bounds checking
