@@ -178,7 +178,15 @@
     <script>
         const { createApp } = Vue;
 
-        createApp({
+        // Register components globally
+        const app = createApp({
+            components: {
+                'directory-info-config': DirectoryInfoConfig,
+                'event-data-config': EventDataConfig,
+                'file-reader-config': FileReaderConfig,
+                'watchers-manager-config': WatchersManagerConfig,
+                'generic-config': GenericConfig
+            },
             data() {
                 return {
                     loading: true,
@@ -277,7 +285,7 @@
             methods: {
                 async initializePlatform() {
                     // Wait for platform manager to load
-                    if (window.platformManager) {
+                    if (typeof window !== 'undefined' && window.platformManager) {
                         await window.platformManager.loadPlatformConfig();
                         this.platformInfo = window.platformManager.getPlatformInfo();
                     } else {
@@ -328,7 +336,10 @@
                     const plugin = this.plugins.find(p => p.name === pluginName);
                     if (plugin) {
                         // Load platform-specific configuration
-                        const platformConfig = window.platformManager.getPluginConfig(pluginName);
+                        let platformConfig = {};
+                        if (typeof window !== 'undefined' && window.platformManager) {
+                            platformConfig = window.platformManager.getPluginConfig(pluginName);
+                        }
                         
                         this.configPlugin = {
                             ...plugin,
@@ -428,7 +439,9 @@
                     // For now, just log it - the status is already updated in the UI
                 }
             }
-        }).mount('#app');
+        });
+        
+        app.mount('#app');
     </script>
 </body>
 </html>

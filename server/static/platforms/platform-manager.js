@@ -39,7 +39,7 @@ class PlatformManager {
             
             // Safer approach: import the module dynamically
             try {
-                const module = await import(`./platforms/${this.platform}/plugin-configs.js`);
+                const module = await import(`./${this.platform}/plugin-configs.js`);
                 this.configs = module[`${this.platform}PluginConfigs`] || {};
                 this.events = module[`${this.platform}SystemEvents`] || {};
                 this.encodings = module[`${this.platform}Encodings`] || [];

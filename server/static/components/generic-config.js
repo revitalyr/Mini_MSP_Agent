@@ -13,53 +13,62 @@ const GenericConfig = {
     methods: {
         loadPlatformDefaults() {
             const pluginName = this.plugin.name;
-            const platformConfig = window.platformManager.getPluginConfig(pluginName);
-            
-            // Load platform-specific defaults based on plugin type
-            if (pluginName === 'file_signature') {
-                if (!this.config.targetPath) {
-                    this.config.targetPath = platformConfig.targetPath || '';
-                }
-                if (!this.config.hashAlgorithm) {
-                    this.config.hashAlgorithm = platformConfig.hashAlgorithm || 'sha256';
-                }
-            } else if (pluginName === 'folder_watcher') {
-                if (!this.config.targetPath) {
-                    this.config.targetPath = platformConfig.targetPath || '';
-                }
-            } else if (pluginName === 'plugin_registry') {
-                if (!this.config.pluginDirectory) {
-                    this.config.pluginDirectory = platformConfig.pluginDirectory || '';
-                }
-                if (!this.config.scanInterval) {
-                    this.config.scanInterval = platformConfig.scanInterval || 30;
+            if (typeof window !== 'undefined' && window.platformManager) {
+                const platformConfig = window.platformManager.getPluginConfig(pluginName);
+                
+                // Load platform-specific defaults based on plugin type
+                if (pluginName === 'file_signature') {
+                    if (!this.config.targetPath) {
+                        this.config.targetPath = platformConfig.targetPath || '';
+                    }
+                    if (!this.config.hashAlgorithm) {
+                        this.config.hashAlgorithm = platformConfig.hashAlgorithm || 'sha256';
+                    }
+                } else if (pluginName === 'folder_watcher') {
+                    if (!this.config.targetPath) {
+                        this.config.targetPath = platformConfig.targetPath || '';
+                    }
+                } else if (pluginName === 'plugin_registry') {
+                    if (!this.config.pluginDirectory) {
+                        this.config.pluginDirectory = platformConfig.pluginDirectory || '';
+                    }
+                    if (!this.config.scanInterval) {
+                        this.config.scanInterval = platformConfig.scanInterval || 30;
+                    }
                 }
             }
         },
         
         browseDirectory() {
             const pluginName = this.plugin.name;
-            const defaultPaths = window.platformManager.getDefaultPaths(pluginName);
-            const selectedPath = defaultPaths[0] || defaultPaths[1];
-            
-            if (pluginName === 'file_signature' || pluginName === 'folder_watcher') {
-                this.config.targetPath = selectedPath;
-            } else if (pluginName === 'plugin_registry') {
-                this.config.pluginDirectory = selectedPath;
+            if (typeof window !== 'undefined' && window.platformManager) {
+                const defaultPaths = window.platformManager.getDefaultPaths(pluginName);
+                const selectedPath = defaultPaths[0] || defaultPaths[1];
+                
+                if (pluginName === 'file_signature' || pluginName === 'folder_watcher') {
+                    this.config.targetPath = selectedPath;
+                } else if (pluginName === 'plugin_registry') {
+                    this.config.pluginDirectory = selectedPath;
+                }
+                
+                this.emitUpdate();
             }
-            
-            this.emitUpdate();
         },
         
         emitUpdate() {
             this.$emit('update', this.config);
+        },
+        
+        getHint(key) {
+            return (typeof window !== 'undefined' && window.platformManager) 
+                ? window.platformManager.getHint(key) 
+                : '';
         }
     },
     template: `
         <div class="config-section">
             <h4>⚙️ {{ plugin.displayName }} Settings</h4>
             
-            <!-- File Signature Specific -->
             <template v-if="plugin.name === 'file_signature'">
                 <div class="config-item">
                     <label>Target File/Directory:</label>
@@ -69,7 +78,7 @@ const GenericConfig = {
                                @input="emitUpdate">
                         <button class="btn btn-small btn-secondary" @click="browseDirectory">Browse</button>
                     </div>
-                    <small class="hint">{{ window.platformManager.getHint('targetDirectory') }}</small>
+                    <small class="hint">{{ getHint('targetDirectory') }}</small>
                 </div>
                 <div class="config-item">
                     <label>Hash Algorithm:</label>
@@ -98,7 +107,7 @@ const GenericConfig = {
                                @input="emitUpdate">
                         <button class="btn btn-small btn-secondary" @click="browseDirectory">Browse</button>
                     </div>
-                    <small class="hint">{{ window.platformManager.getHint('targetDirectory') }}</small>
+                    <small class="hint">{{ getHint('targetDirectory') }}</small>
                 </div>
                 <div class="config-item">
                     <label>Recursive:</label>
@@ -117,7 +126,7 @@ const GenericConfig = {
                                @input="emitUpdate">
                         <button class="btn btn-small btn-secondary" @click="browseDirectory">Browse</button>
                     </div>
-                    <small class="hint">{{ window.platformManager.getHint('pluginDirectory') }}</small>
+                    <small class="hint">{{ getHint('pluginDirectory') }}</small>
                 </div>
                 <div class="config-item">
                     <label>Auto Scan:</label>
@@ -127,7 +136,7 @@ const GenericConfig = {
                 <div class="config-item">
                     <label>Scan Interval (seconds):</label>
                     <input type="number" v-model="config.scanInterval" min="1" max="3600" @input="emitUpdate">
-                    <small class="hint">{{ window.platformManager.getHint('scanInterval') }}</small>
+                    <small class="hint">{{ getHint('scanInterval') }}</small>
                 </div>
                 <div class="config-item">
                     <label>Enable Hot Reload:</label>
@@ -174,7 +183,7 @@ const GenericConfig = {
             <div class="config-item">
                 <label>Timeout (seconds):</label>
                 <input type="number" v-model="config.timeout" min="1" max="300" @input="emitUpdate">
-                <small class="hint">{{ window.platformManager.getHint('timeout') }}</small>
+                <small class="hint">{{ getHint('timeout') }}</small>
             </div>
         </div>
     `

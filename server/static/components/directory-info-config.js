@@ -12,21 +12,29 @@ const DirectoryInfoConfig = {
     },
     methods: {
         loadPlatformDefaults() {
-            const platformConfig = window.platformManager.getPluginConfig('directory_info');
-            if (!this.config.targetPath) {
-                this.config.targetPath = platformConfig.targetPath || '';
+            if (window.platformManager) {
+                const platformConfig = window.platformManager.getPluginConfig('directory_info');
+                if (!this.config.targetPath) {
+                    this.config.targetPath = platformConfig.targetPath || '';
+                }
             }
         },
         
         browseDirectory() {
-            const defaultPaths = window.platformManager.getDefaultPaths('directory_info');
-            const selectedPath = defaultPaths[0] || defaultPaths[1];
-            this.config.targetPath = selectedPath;
-            this.emitUpdate();
+            if (window.platformManager) {
+                const defaultPaths = window.platformManager.getDefaultPaths('directory_info');
+                const selectedPath = defaultPaths[0] || defaultPaths[1];
+                this.config.targetPath = selectedPath;
+                this.emitUpdate();
+            }
         },
         
         emitUpdate() {
             this.$emit('update', this.config);
+        },
+        
+        getHint(key) {
+            return window.platformManager ? window.platformManager.getHint(key) : '';
         }
     },
     template: `
@@ -40,22 +48,22 @@ const DirectoryInfoConfig = {
                            @input="emitUpdate">
                     <button class="btn btn-small btn-secondary" @click="browseDirectory">Browse</button>
                 </div>
-                <small class="hint">{{ window.platformManager.getHint('targetDirectory') }}</small>
+                <small class="hint">{{ getHint('targetDirectory') }}</small>
             </div>
             <div class="config-item">
                 <label>Include Subdirectories:</label>
                 <input type="checkbox" v-model="config.includeSubdirs" @change="emitUpdate">
-                <small class="hint">{{ window.platformManager.getHint('includeSubdirs') }}</small>
+                <small class="hint">{{ getHint('includeSubdirs') }}</small>
             </div>
             <div class="config-item">
                 <label>Show Hidden Files:</label>
                 <input type="checkbox" v-model="config.showHidden" @change="emitUpdate">
-                <small class="hint">{{ window.platformManager.getHint('showHidden') }}</small>
+                <small class="hint">{{ getHint('showHidden') }}</small>
             </div>
             <div class="config-item">
                 <label>Max Depth:</label>
                 <input type="number" v-model="config.maxDepth" min="1" max="10" @input="emitUpdate">
-                <small class="hint">{{ window.platformManager.getHint('maxDepth') }}</small>
+                <small class="hint">{{ getHint('maxDepth') }}</small>
             </div>
         </div>
     `
