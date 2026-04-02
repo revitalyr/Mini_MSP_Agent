@@ -126,6 +126,167 @@
                 </div>
             </div>
         </div>
+
+        <!-- Configuration Modal -->
+        <div v-if="showConfigModal" class="modal-overlay" @click="closeConfigModal">
+            <div class="modal-content" @click.stop>
+                <div class="modal-header">
+                    <h2>⚙️ Configure {{ configPlugin.displayName }}</h2>
+                    <button class="close-btn" @click="closeConfigModal">×</button>
+                </div>
+                <div class="modal-body">
+                    <!-- Directory Info Plugin Configuration -->
+                    <div v-if="configPlugin.name === 'directory_info'" class="config-section">
+                        <h4>📁 Directory Info Settings</h4>
+                        <div class="config-item">
+                            <label>Target Directory:</label>
+                            <input type="text" v-model="configPlugin.targetPath" placeholder="/path/to/directory">
+                        </div>
+                        <div class="config-item">
+                            <label>Include Subdirectories:</label>
+                            <input type="checkbox" v-model="configPlugin.includeSubdirs">
+                        </div>
+                        <div class="config-item">
+                            <label>Show Hidden Files:</label>
+                            <input type="checkbox" v-model="configPlugin.showHidden">
+                        </div>
+                        <div class="config-item">
+                            <label>Max Depth:</label>
+                            <input type="number" v-model="configPlugin.maxDepth" min="1" max="10">
+                        </div>
+                    </div>
+
+                    <!-- Event Data Plugin Configuration -->
+                    <div v-if="configPlugin.name === 'event_data'" class="config-section">
+                        <h4>📋 Event Data Settings</h4>
+                        <div class="config-item">
+                            <label>Events to Monitor:</label>
+                            <div class="checkbox-group">
+                                <label><input type="checkbox" v-model="configPlugin.events.fileCreated"> File Created</label>
+                                <label><input type="checkbox" v-model="configPlugin.events.fileDeleted"> File Deleted</label>
+                                <label><input type="checkbox" v-model="configPlugin.events.fileModified"> File Modified</label>
+                                <label><input type="checkbox" v-model="configPlugin.events.fileRenamed"> File Renamed</label>
+                                <label><input type="checkbox" v-model="configPlugin.events.directoryCreated"> Directory Created</label>
+                                <label><input type="checkbox" v-model="configPlugin.events.directoryDeleted"> Directory Deleted</label>
+                            </div>
+                        </div>
+                        <div class="config-item">
+                            <label>Monitor Path:</label>
+                            <input type="text" v-model="configPlugin.monitorPath" placeholder="/path/to/monitor">
+                        </div>
+                        <div class="config-item">
+                            <label>Buffer Size:</label>
+                            <input type="number" v-model="configPlugin.bufferSize" min="100" max="10000">
+                        </div>
+                    </div>
+
+                    <!-- File Reader Plugin Configuration -->
+                    <div v-if="configPlugin.name === 'file_reader'" class="config-section">
+                        <h4>📄 File Reader Settings</h4>
+                        <div class="config-item">
+                            <label>Target File:</label>
+                            <input type="text" v-model="configPlugin.targetFile" placeholder="/path/to/file.txt">
+                        </div>
+                        <div class="config-item">
+                            <label>File Encoding:</label>
+                            <select v-model="configPlugin.encoding">
+                                <option value="utf-8">UTF-8</option>
+                                <option value="utf-16">UTF-16</option>
+                                <option value="ascii">ASCII</option>
+                                <option value="latin1">Latin-1</option>
+                            </select>
+                        </div>
+                        <div class="config-item">
+                            <label>Read Mode:</label>
+                            <select v-model="configPlugin.readMode">
+                                <option value="text">Text Mode</option>
+                                <option value="binary">Binary Mode</option>
+                                <option value="lines">Line by Line</option>
+                            </select>
+                        </div>
+                        <div class="config-item">
+                            <label>Auto Reload:</label>
+                            <input type="checkbox" v-model="configPlugin.autoReload">
+                        </div>
+                    </div>
+
+                    <!-- Watchers Manager Plugin Configuration -->
+                    <div v-if="configPlugin.name === 'watchers_manager'" class="config-section">
+                        <h4>�️ Watchers Manager Settings</h4>
+                        <div class="config-item">
+                            <label>Watch Directories:</label>
+                            <div class="path-list">
+                                <div v-for="(path, index) in configPlugin.watchPaths" :key="index" class="path-item">
+                                    <input type="text" v-model="configPlugin.watchPaths[index]" placeholder="/path/to/watch">
+                                    <button class="btn btn-small btn-danger" @click="removeWatchPath(index)">×</button>
+                                </div>
+                                <button class="btn btn-small btn-secondary" @click="addWatchPath">+ Add Path</button>
+                            </div>
+                        </div>
+                        <div class="config-item">
+                            <label>Watch Events:</label>
+                            <div class="checkbox-group">
+                                <label><input type="checkbox" v-model="configPlugin.watchEvents.create"> Create</label>
+                                <label><input type="checkbox" v-model="configPlugin.watchEvents.modify"> Modify</label>
+                                <label><input type="checkbox" v-model="configPlugin.watchEvents.delete"> Delete</label>
+                                <label><input type="checkbox" v-model="configPlugin.watchEvents.move"> Move/Rename</label>
+                            </div>
+                        </div>
+                        <div class="config-item">
+                            <label>Recursive:</label>
+                            <input type="checkbox" v-model="configPlugin.recursive">
+                        </div>
+                    </div>
+
+                    <!-- Generic Plugin Configuration (fallback) -->
+                    <div v-if="!['directory_info', 'event_data', 'file_reader', 'watchers_manager'].includes(configPlugin.name)" class="config-section">
+                        <h4>� Generic Plugin Settings</h4>
+                        <div class="config-item">
+                            <label>Plugin Name:</label>
+                            <input type="text" v-model="configPlugin.name" readonly>
+                        </div>
+                        <div class="config-item">
+                            <label>Status:</label>
+                            <select v-model="configPlugin.status">
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                                <option value="error">Error</option>
+                            </select>
+                        </div>
+                        <div class="config-item">
+                            <label>Auto-start:</label>
+                            <input type="checkbox" v-model="configPlugin.autoStart">
+                        </div>
+                        <div class="config-item">
+                            <label>Log Level:</label>
+                            <select v-model="configPlugin.logLevel">
+                                <option value="debug">Debug</option>
+                                <option value="info">Info</option>
+                                <option value="warning">Warning</option>
+                                <option value="error">Error</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Common Performance Settings -->
+                    <div class="config-section">
+                        <h4>📊 Performance Settings</h4>
+                        <div class="config-item">
+                            <label>Max Calls per Minute:</label>
+                            <input type="number" v-model="configPlugin.maxCallsPerMinute" min="1" max="1000">
+                        </div>
+                        <div class="config-item">
+                            <label>Timeout (seconds):</label>
+                            <input type="number" v-model="configPlugin.timeout" min="1" max="300">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @click="closeConfigModal">Cancel</button>
+                    <button class="btn btn-primary" @click="savePluginConfig">Save Configuration</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -137,6 +298,16 @@
                     loading: true,
                     error: null,
                     success: null,
+                    showConfigModal: false,
+                    configPlugin: {
+                        name: '',
+                        displayName: '',
+                        status: 'inactive',
+                        autoStart: false,
+                        logLevel: 'info',
+                        maxCallsPerMinute: 100,
+                        timeout: 30
+                    },
                     plugins: [
                         {
                             name: 'directory_info',
@@ -146,7 +317,11 @@
                             version: '1.0.0',
                             loadTime: null,
                             callsMade: 0,
-                            showInfo: false
+                            showInfo: false,
+                            targetPath: '/home/user/documents',
+                            includeSubdirs: true,
+                            showHidden: false,
+                            maxDepth: 5
                         },
                         {
                             name: 'event_data',
@@ -156,7 +331,17 @@
                             version: '1.0.0',
                             loadTime: null,
                             callsMade: 0,
-                            showInfo: false
+                            showInfo: false,
+                            monitorPath: '/var/log',
+                            bufferSize: 1000,
+                            events: {
+                                fileCreated: true,
+                                fileDeleted: true,
+                                fileModified: true,
+                                fileRenamed: false,
+                                directoryCreated: false,
+                                directoryDeleted: false
+                            }
                         },
                         {
                             name: 'file_reader',
@@ -166,12 +351,34 @@
                             version: '1.0.0',
                             loadTime: null,
                             callsMade: 0,
-                            showInfo: false
+                            showInfo: false,
+                            targetFile: '/home/user/config.txt',
+                            encoding: 'utf-8',
+                            readMode: 'text',
+                            autoReload: false
+                        },
+                        {
+                            name: 'watchers_manager',
+                            displayName: '👁️ Watchers Manager',
+                            description: 'Manages file system watchers and monitors changes',
+                            status: 'inactive',
+                            version: '1.0.0',
+                            loadTime: null,
+                            callsMade: 0,
+                            showInfo: false,
+                            watchPaths: ['/home/user/documents', '/home/user/downloads'],
+                            watchEvents: {
+                                create: true,
+                                modify: true,
+                                delete: true,
+                                move: false
+                            },
+                            recursive: true
                         },
                         {
                             name: 'file_signature',
                             displayName: '🔐 File Signature',
-                            description: 'Calculates and verifies file signatures and hashes',
+                            description: 'Generates and verifies file signatures and checksums',
                             status: 'inactive',
                             version: '1.0.0',
                             loadTime: null,
@@ -180,8 +387,8 @@
                         },
                         {
                             name: 'folder_watcher',
-                            displayName: '👁️ Folder Watcher',
-                            description: 'Monitors folder changes and events in real-time',
+                            displayName: '� Folder Watcher',
+                            description: 'Watches folders for changes and events',
                             status: 'inactive',
                             version: '1.0.0',
                             loadTime: null,
@@ -190,8 +397,8 @@
                         },
                         {
                             name: 'file_listener',
-                            displayName: '🎧 File Listener',
-                            description: 'Monitors file content changes and append operations',
+                            displayName: '👂 File Listener',
+                            description: 'Listens for file system events and notifications',
                             status: 'inactive',
                             version: '1.0.0',
                             loadTime: null,
@@ -200,8 +407,8 @@
                         },
                         {
                             name: 'root_directory_info',
-                            displayName: '💾 Root Directory',
-                            description: 'Provides root directory and volume information',
+                            displayName: '🏠 Root Directory Info',
+                            description: 'Provides information about root and system directories',
                             status: 'inactive',
                             version: '1.0.0',
                             loadTime: null,
@@ -209,9 +416,9 @@
                             showInfo: false
                         },
                         {
-                            name: 'scanner',
-                            displayName: '🔍 Scanner',
-                            description: 'Provides comprehensive file and directory scanning capabilities',
+                            name: 'scanner_plugin',
+                            displayName: '🔍 Scanner Plugin',
+                            description: 'Scans directories and files for analysis',
                             status: 'inactive',
                             version: '1.0.0',
                             loadTime: null,
@@ -219,13 +426,13 @@
                             showInfo: false
                         },
                         {
-                            name: 'watchers_manager',
-                            displayName: '🎛️ Watchers Manager',
-                            description: 'Centralized management for file and folder watchers',
-                            status: 'inactive',
+                            name: 'plugin_registry',
+                            displayName: '📋 Plugin Registry',
+                            description: 'Manages plugin registration and metadata',
+                            status: 'active',
                             version: '1.0.0',
-                            loadTime: null,
-                            callsMade: 0,
+                            loadTime: Date.now() - 5000,
+                            callsMade: 42,
                             showInfo: false
                         }
                     ],
@@ -297,8 +504,110 @@
                 configurePlugin(pluginName) {
                     const plugin = this.plugins.find(p => p.name === pluginName);
                     if (plugin) {
-                        this.showSuccess(`Configuration dialog for ${plugin.displayName} would open here`);
+                        // Initialize config with plugin-specific defaults
+                        this.configPlugin = {
+                            // Common fields
+                            name: plugin.name,
+                            displayName: plugin.displayName,
+                            status: plugin.status,
+                            autoStart: plugin.autoStart || false,
+                            logLevel: plugin.logLevel || 'info',
+                            maxCallsPerMinute: plugin.maxCallsPerMinute || 100,
+                            timeout: plugin.timeout || 30,
+                            
+                            // Directory Info specific
+                            targetPath: plugin.targetPath || '',
+                            includeSubdirs: plugin.includeSubdirs !== undefined ? plugin.includeSubdirs : true,
+                            showHidden: plugin.showHidden !== undefined ? plugin.showHidden : false,
+                            maxDepth: plugin.maxDepth || 5,
+                            
+                            // Event Data specific
+                            monitorPath: plugin.monitorPath || '',
+                            bufferSize: plugin.bufferSize || 1000,
+                            events: plugin.events || {
+                                fileCreated: true,
+                                fileDeleted: true,
+                                fileModified: true,
+                                fileRenamed: false,
+                                directoryCreated: false,
+                                directoryDeleted: false
+                            },
+                            
+                            // File Reader specific
+                            targetFile: plugin.targetFile || '',
+                            encoding: plugin.encoding || 'utf-8',
+                            readMode: plugin.readMode || 'text',
+                            autoReload: plugin.autoReload !== undefined ? plugin.autoReload : false,
+                            
+                            // Watchers Manager specific
+                            watchPaths: plugin.watchPaths ? [...plugin.watchPaths] : [''],
+                            watchEvents: plugin.watchEvents || {
+                                create: true,
+                                modify: true,
+                                delete: true,
+                                move: false
+                            },
+                            recursive: plugin.recursive !== undefined ? plugin.recursive : true
+                        };
+                        this.showConfigModal = true;
                     }
+                },
+
+                closeConfigModal() {
+                    this.showConfigModal = false;
+                },
+
+                savePluginConfig() {
+                    const plugin = this.plugins.find(p => p.name === this.configPlugin.name);
+                    if (plugin) {
+                        // Update plugin with new configuration
+                        plugin.status = this.configPlugin.status;
+                        plugin.autoStart = this.configPlugin.autoStart;
+                        plugin.logLevel = this.configPlugin.logLevel;
+                        plugin.maxCallsPerMinute = this.configPlugin.maxCallsPerMinute;
+                        plugin.timeout = this.configPlugin.timeout;
+                        
+                        // Update plugin-specific configuration
+                        if (plugin.name === 'directory_info') {
+                            plugin.targetPath = this.configPlugin.targetPath;
+                            plugin.includeSubdirs = this.configPlugin.includeSubdirs;
+                            plugin.showHidden = this.configPlugin.showHidden;
+                            plugin.maxDepth = this.configPlugin.maxDepth;
+                        }
+                        
+                        if (plugin.name === 'event_data') {
+                            plugin.monitorPath = this.configPlugin.monitorPath;
+                            plugin.bufferSize = this.configPlugin.bufferSize;
+                            plugin.events = {...this.configPlugin.events};
+                        }
+                        
+                        if (plugin.name === 'file_reader') {
+                            plugin.targetFile = this.configPlugin.targetFile;
+                            plugin.encoding = this.configPlugin.encoding;
+                            plugin.readMode = this.configPlugin.readMode;
+                            plugin.autoReload = this.configPlugin.autoReload;
+                        }
+                        
+                        if (plugin.name === 'watchers_manager') {
+                            plugin.watchPaths = [...this.configPlugin.watchPaths];
+                            plugin.watchEvents = {...this.configPlugin.watchEvents};
+                            plugin.recursive = this.configPlugin.recursive;
+                        }
+                        
+                        this.showSuccess(`Configuration saved for ${plugin.displayName}`);
+                        this.closeConfigModal();
+                        
+                        // If plugin was started/stopped via config, update server
+                        this.updatePluginStatus(plugin.name, plugin.status);
+                    }
+                },
+
+                addWatchPath() {
+                    this.configPlugin.watchPaths.push('');
+                },
+
+                removeWatchPath(index) {
+                    this.configPlugin.watchPaths.splice(index, 1);
                 },
 
                 getPluginInfo(pluginName) {
