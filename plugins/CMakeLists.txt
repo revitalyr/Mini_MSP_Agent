@@ -36,6 +36,12 @@ set_target_properties(system_plugin PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
 )
 
+# Common sources (shared across all platforms)
+set(COMMON_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/common/plugin_utils.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/common/safe_functions.c
+)
+
 # Plugin sources
 set(PLUGIN_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/directory_info_plugin.c
