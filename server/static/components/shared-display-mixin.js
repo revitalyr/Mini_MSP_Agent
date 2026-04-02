@@ -14,12 +14,12 @@ const SharedDisplayMixin = {
         }
     },
     methods: {
-        async fetchData(endpoint, dataKey) {
+        async fetchData(endpoint, dataKey, isRetry = false) {
             if (!this.agentId) return;
             
             try {
                 const token = localStorage.getItem('token');
-                const response = await fetch(endpoint, {
+                let response = await fetch(endpoint, {
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Accept': 'application/json'
@@ -27,7 +27,11 @@ const SharedDisplayMixin = {
                 });
 
                 if (!response.ok) {
-                    if (response.status === 401) {
+                    if (response.status === 401 && !isRetry) {
+                        const refreshed = await this.refreshAccessToken();
+                        if (refreshed) {
+                            return this.fetchData(endpoint, dataKey, true);
+                        }
                         throw new Error("Session expired. Please login again.");
                     }
                     const errorText = await response.text();
@@ -42,6 +46,32 @@ const SharedDisplayMixin = {
                 console.error(`Failed to fetch data for ${endpoint}:`, e);
                 this.error = e.message;
             }
+        },
+
+        async refreshAccessToken() {
+            const refreshToken = localStorage.getItem('refreshToken');
+            if (!refreshToken) return false;
+
+            try {
+                const response = await fetch('/refresh', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ refresh_token: refreshToken })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    localStorage.setItem('token', data.token);
+                    console.log("Access token refreshed successfully");
+                    return true;
+                }
+            } catch (e) {
+                console.error("Token refresh failed", e);
+            }
+
+            localStorage.removeItem('token');
+            localStorage.removeItem('refreshToken');
+            return false;
         }
     }
 };

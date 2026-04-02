@@ -21,6 +21,12 @@ pub struct Claims {
     pub exp: usize,  // Expiration time
 }
 
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct RefreshClaims {
+    pub sub: String,
+    pub exp: usize,
+}
+
 #[derive(serde::Deserialize)]
 pub struct LoginRequest {
     pub username: String,
@@ -32,29 +38,56 @@ pub async fn login(
 ) -> impl IntoResponse {
     // В реальном приложении здесь должна быть проверка хеша пароля из БД
     if payload.username == "admin" && payload.password == "password" {
-        let expiration = std::time::SystemTime::now()
+        let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs() as usize
-            + 3600; // Токен на 1 час
+            .unwrap().as_secs() as usize;
 
-        let claims = Claims {
-            sub: payload.username,
-            exp: expiration,
-        };
+        // Access Token на 15 минут
+        let access_claims = Claims { sub: payload.username.clone(), exp: now + 900 };
+        // Refresh Token на 7 дней
+        let refresh_claims = RefreshClaims { sub: payload.username, exp: now + 604800 };
 
-        let token = encode(
-            &Header::default(),
-            &claims,
-            &EncodingKey::from_secret(JWT_SECRET),
-        );
+        let token = encode(&Header::default(), &access_claims, &EncodingKey::from_secret(JWT_SECRET));
+        let refresh_token = encode(&Header::default(), &refresh_claims, &EncodingKey::from_secret(JWT_SECRET));
 
-        match token {
-            Ok(t) => (StatusCode::OK, Json(json!({ "token": t }))).into_response(),
-            Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Failed to generate token").into_response(),
+        match (token, refresh_token) {
+            (Ok(t), Ok(rt)) => (StatusCode::OK, Json(json!({ "token": t, "refreshToken": rt }))).into_response(),
+            _ => (StatusCode::INTERNAL_SERVER_ERROR, "Failed to generate tokens").into_response(),
         }
     } else {
         (StatusCode::UNAUTHORIZED, Json(json!({ "error": "Invalid credentials" }))).into_response()
+    }
+}
+
+#[derive(serde::Deserialize)]
+pub struct RefreshRequest {
+    pub refresh_token: String,
+}
+
+pub async fn refresh(
+    Json(payload): Json<RefreshRequest>,
+) -> impl IntoResponse {
+    let token_data = decode::<RefreshClaims>(
+        &payload.refresh_token,
+        &DecodingKey::from_secret(JWT_SECRET),
+        &Validation::new(Algorithm::HS256),
+    );
+
+    match token_data {
+        Ok(data) => {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap().as_secs() as usize;
+
+            let access_claims = Claims { sub: data.claims.sub, exp: now + 900 };
+            let new_token = encode(&Header::default(), &access_claims, &EncodingKey::from_secret(JWT_SECRET));
+
+            match new_token {
+                Ok(t) => (StatusCode::OK, Json(json!({ "token": t }))).into_response(),
+                Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Token generation failed").into_response(),
+            }
+        }
+        Err(_) => (StatusCode::UNAUTHORIZED, Json(json!({ "error": "Invalid refresh token" }))).into_response(),
     }
 }
 
