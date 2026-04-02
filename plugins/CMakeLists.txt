@@ -105,9 +105,9 @@ foreach(PLUGIN_SOURCE ${PLUGIN_SOURCES})
     )
     
     # Copy to agent directory
-            target_link_libraries(${PLUGIN_NAME} ${OPENSSL_LIBRARIES})
-            target_include_directories(${PLUGIN_NAME} PUBLIC ${OPENSSL_INCLUDE_DIRS})
-        endif()
+    if(OPENSSL_FOUND)
+        target_link_libraries(${PLUGIN_NAME} ${OPENSSL_LIBRARIES})
+        target_include_directories(${PLUGIN_NAME} PUBLIC ${OPENSSL_INCLUDE_DIRS})
     endif()
     
     message(STATUS "Added plugin: ${PLUGIN_NAME}")
