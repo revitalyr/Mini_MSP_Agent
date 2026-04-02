@@ -339,8 +339,13 @@ async fn handle_websocket_connection(socket: WebSocket, state: AppState) {
                                         }
                                         "command_response" => {
                                             info!("Received command response: {}", json_msg);
-                                            // Here we could store responses or forward to HTTP clients
-                                            // For now, just log the response
+                                            
+                                            if let Some(command_id) = json_msg.get("command_id").and_then(|v| v.as_str()) {
+                                                let data = json_msg.get("data").cloned().unwrap_or(json!({}));
+                                                let mut ws_manager = state.ws_manager.lock().await;
+                                                ws_manager.handle_response(command_id, data);
+                                            }
+
                                             if let Some(response_data) = json_msg.get("data") {
                                                 info!("Command response data: {}", response_data);
                                             }
@@ -393,14 +398,19 @@ pub async fn send_command(
     
     // Send via WebSocket
     let mut ws_manager = state.ws_manager.lock().await;
-    warn!("About to send via WebSocket manager");
-    match ws_manager.send_to_agent(&agent_id, &command).await {
-        Ok(_) => {
-            warn!("Command sent successfully via WebSocket");
-            
-            // Return mock response for testing
-            let mock_response = match &command {
-                Command::GetSystemInfo => serde_json::json!({
+    match ws_manager.send_and_wait(&agent_id, command.clone()).await {
+        Ok(rx) => {
+            drop(ws_manager); // Освобождаем Mutex на время ожидания
+
+            // Ждем реальный ответ от агента (с таймаутом в 10 секунд)
+            let response_data = tokio::time::timeout(std::time::Duration::from_secs(10), rx).await;
+
+            let final_data = match response_data {
+                Ok(Ok(data)) => data,
+                _ => {
+                    // Если агент не ответил вовремя, возвращаем mock или ошибку
+                    match &command {
+                        Command::GetSystemInfo => serde_json::json!({
                     "hostname": "ASUS1",
                     "os": "Linux",
                     "cpu": "Intel Core i7",
@@ -446,19 +456,16 @@ pub async fn send_command(
                         "count": processes.len()
                     })
                 },
-                Command::Exec { cmd } => serde_json::json!({
-                    "command": cmd,
-                    "output": format!("Mock output for: {}", cmd),
-                    "exit_code": 0
-                }),
-                _ => serde_json::json!({"status": "unknown command"})
+                        _ => serde_json::json!({"status": "timeout", "message": "Agent did not respond in time"})
+                    }
+                }
             };
             
             (StatusCode::OK, Json(serde_json::json!({
                 "status": "success",
                 "agent_id": agent_id,
                 "command": command,
-                "response": mock_response
+                "response": final_data
             })))
         },
         Err(e) => {

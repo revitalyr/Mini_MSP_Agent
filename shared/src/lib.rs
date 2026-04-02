@@ -88,6 +88,13 @@ pub enum Command {
     GetFileReaderData { path: String },
 }
 
+/// Обертка для отправки команды с уникальным идентификатором
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CommandRequest {
+    pub command_id: String,
+    pub command: Command,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CommandResponse {
     pub command_id: Option<String>,

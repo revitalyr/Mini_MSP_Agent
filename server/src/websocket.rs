@@ -1,13 +1,15 @@
 use axum::extract::ws::{WebSocket, Message};
 use futures_util::{SinkExt, StreamExt};
-use mini_msp_shared::Command;
-use serde_json;
+use mini_msp_shared::{Command, CommandRequest};
+use serde_json::{self, json};
 use std::collections::HashMap;
 use std::time::Instant;
+use tokio::sync::oneshot;
 use tracing::{debug, info, warn};
 
 pub struct WebSocketManager {
     agents: HashMap<String, AgentConnection>,
+    pending_responses: HashMap<String, oneshot::Sender<serde_json::Value>>,
 }
 
 #[derive(Debug)]
@@ -20,6 +22,7 @@ impl WebSocketManager {
     pub fn new() -> Self {
         Self {
             agents: HashMap::new(),
+            pending_responses: HashMap::new(),
         }
     }
 
@@ -43,14 +46,23 @@ impl WebSocketManager {
         }
     }
 
-    pub async fn send_to_agent(&mut self, agent_id: &str, command: &Command) -> Result<(), String> {
+    pub async fn send_and_wait(&mut self, agent_id: &str, command: Command) -> Result<oneshot::Receiver<serde_json::Value>, String> {
         println!("WS: Attempting to send to agent: {}", agent_id);
+        
+        let command_id = uuid::Uuid::new_v4().to_string();
+        let request = CommandRequest {
+            command_id: command_id.clone(),
+            command: command.clone(),
+        };
+
         if let Some(connection) = self.agents.get_mut(agent_id) {
-            println!("WS: Found agent connection");
-            let command_json = serde_json::to_string(command)
+            let command_json = serde_json::to_string(&request)
                 .map_err(|e| format!("Failed to serialize command: {}", e))?;
             
-            println!("WS: Sending JSON: {}", command_json);
+            // Создаем канал для ожидания ответа
+            let (tx, rx) = oneshot::channel();
+            self.pending_responses.insert(command_id, tx);
+
             connection
                 .sender
                 .send(Message::Text(command_json))
@@ -59,13 +71,26 @@ impl WebSocketManager {
             
             connection.last_activity = std::time::Instant::now();
             info!("Command sent to agent {}: {:?}", agent_id, command);
-            println!("WS: Command sent successfully");
             
-            Ok(())
+            Ok(rx)
         } else {
-            println!("WS: Agent {} not found in connections", agent_id);
             Err(format!("Agent {} not connected", agent_id))
         }
+    }
+
+    pub fn handle_response(&mut self, command_id: &str, data: serde_json::Value) {
+        if let Some(tx) = self.pending_responses.remove(command_id) {
+            let _ = tx.send(data);
+            debug!("Response delivered for command ID: {}", command_id);
+        } else {
+            warn!("Received response for unknown command ID: {}", command_id);
+        }
+    }
+
+    // Существующий метод для обратной совместимости или fire-and-forget
+    pub async fn send_to_agent(&mut self, agent_id: &str, command: &Command) -> Result<(), String> {
+        let _ = self.send_and_wait(agent_id, command.clone()).await?;
+        Ok(())
     }
 
     pub fn get_connected_agents(&self) -> Vec<String> {
