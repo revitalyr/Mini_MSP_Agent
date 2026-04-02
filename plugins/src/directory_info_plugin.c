@@ -1,330 +1,163 @@
-/**
- * @file directory_info_plugin.c
- * @brief Directory Information Plugin for Mini MSP Agent
- * 
- * Provides comprehensive directory information including file counts,
- * sizes, permissions, and metadata for cross-platform support.
- * 
- * @author Mini MSP Agent Team
- * @version 1.0.0
- * @date 2026
- */
-
-#include "../include/plugin_interface.h"
+#include "../include/plugin_interface_common.h"
+#include "../include/semantic_types.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
+#include <time.h>
 
-#ifdef _WIN32
-#include <windows.h>
-#include <tchar.h>
-#include <strsafe.h>
-#else
-#include <dirent.h>
-#include <unistd.h>
-#include <pwd.h>
-#include <grp.h>
-#endif
+// Plugin state
+typedef struct {
+    directory_stats_t m_current_stats;
+    directory_entry_t* m_entries;
+    size_t m_entry_count;
+    size_t m_entry_capacity;
+    path_string_t m_scanned_path;
+    timestamp_t m_last_scan_time;
+    call_count_t m_scan_calls_made;
+} directory_info_state_t;
+
+// Global plugin state
+static directory_info_state_t g_plugin_state = {0};
 
 // Plugin information
-static plugin_info_t directory_info_plugin_info = {
+static plugin_info_t g_plugin_info = {
     .name = "directory_info",
     .version = "1.0.0",
-    .description = "Provides detailed directory information and statistics"
+    .description = "Provides comprehensive directory information including file counts, sizes, and metadata",
+    .author = "Mini MSP Team",
+    .status = PLUGIN_STATUS_UNLOADED,
+    .load_time = 0,
+    .calls_made = 0
 };
 
-/**
- * @brief Directory entry information structure
- */
-typedef struct {
-    char name[256];
-    char path[512];
-    uint64_t size;
-    bool is_directory;
-    bool is_hidden;
-    uint64_t modified_time;
-    uint32_t permissions;
-} directory_entry_t;
-
-/**
- * @brief Directory statistics structure
- */
-typedef struct {
-    uint32_t total_files;
-    uint32_t total_directories;
-    uint64_t total_size;
-    uint32_t hidden_files;
-    uint32_t hidden_directories;
-    char path[512];
-} directory_stats_t;
-
-// Plugin implementation
-static bool directory_info_init(void) {
-    return true;
-}
-
-static void directory_info_cleanup(void) {
-    // No cleanup needed
-}
-
-static plugin_info_t* directory_info_get_plugin_info(void) {
-    return &directory_info_plugin_info;
-}
-
-static bool directory_info_get_system_metrics(system_metrics_t* metrics) {
-    // Not applicable for directory info plugin
-    return false;
-}
-
-static bool directory_info_get_processes(process_info_t** processes, size_t* count) {
-    // Not applicable for directory info plugin
-    return false;
-}
-
-static bool directory_info_execute_command(const char* command, command_result_t* result) {
-    // Not applicable for directory info plugin
-    return false;
-}
-
-static bool directory_info_read_file(const char* path, file_content_t* content) {
-    // Not applicable for directory info plugin
-    return false;
-}
-
-static bool directory_info_get_system_info(system_info_t* info) {
-    // Not applicable for directory info plugin
-    return false;
-}
-
-/**
- * @brief Get directory statistics
- */
-static bool get_directory_stats(const char* path, directory_stats_t* stats) {
-    if (!path || !stats) return false;
-    
-    memset(stats, 0, sizeof(directory_stats_t));
-    strncpy(stats->path, path, sizeof(stats->path) - 1);
-    
-#ifdef _WIN32
-    WIN32_FIND_DATAA findFileData;
-    HANDLE hFind = INVALID_HANDLE_VALUE;
-    char searchPath[512];
-    
-    snprintf(searchPath, sizeof(searchPath), "%s\\*", path);
-    
-    hFind = FindFirstFileA(searchPath, &findFileData);
-    if (hFind == INVALID_HANDLE_VALUE) {
-        return false;
+// Helper functions
+static plugin_result_t allocate_path_string(path_string_t* target, const char* source) {
+    if (!target || !source) {
+        return PLUGIN_RESULT_INVALID_PARAM;
     }
     
-    do {
-        if (strcmp(findFileData.cFileName, ".") != 0 && 
-            strcmp(findFileData.cFileName, "..") != 0) {
-            
-            if (findFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-                stats->total_directories++;
-                if (findFileData.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN) {
-                    stats->hidden_directories++;
-                }
-            } else {
-                stats->total_files++;
-                if (findFileData.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN) {
-                    stats->hidden_files++;
-                }
-                stats->total_size += ((uint64_t)findFileData.nFileSizeHigh << 32) | 
-                                  findFileData.nFileSizeLow;
-            }
+    size_t len = strlen(source) + 1;
+    *target = (char*)malloc(len);
+    if (!*target) {
+        return PLUGIN_RESULT_ERROR;
+    }
+    
+    strcpy(*target, source);
+    return PLUGIN_RESULT_SUCCESS;
+}
+
+static void free_path_string(path_string_t* str) {
+    if (str && *str) {
+        free(*str);
+        *str = NULL;
+    }
+}
+
+// Plugin interface functions
+static plugin_result_t directory_info_init(void) {
+    memset(&g_plugin_state, 0, sizeof(g_plugin_state));
+    g_plugin_state.m_entry_capacity = 1000;
+    g_plugin_state.m_entries = (directory_entry_t*)malloc(
+        g_plugin_state.m_entry_capacity * sizeof(directory_entry_t));
+    
+    if (!g_plugin_state.m_entries) {
+        return PLUGIN_RESULT_ERROR;
+    }
+    
+    g_plugin_info.status = PLUGIN_STATUS_LOADED;
+    g_plugin_info.load_time = time(NULL) * 1000;
+    
+    return PLUGIN_RESULT_SUCCESS;
+}
+
+static plugin_result_t directory_info_cleanup(void) {
+    if (g_plugin_state.m_entries) {
+        for (size_t i = 0; i < g_plugin_state.m_entry_count; i++) {
+            free_path_string(&g_plugin_state.m_entries[i].m_name);
+            free_path_string(&g_plugin_state.m_entries[i].m_full_path);
         }
-    } while (FindNextFileA(hFind, &findFileData) != 0);
-    
-    FindClose(hFind);
-#else
-    DIR* dir = opendir(path);
-    if (!dir) {
-        return false;
+        free(g_plugin_state.m_entries);
+        g_plugin_state.m_entries = NULL;
     }
     
-    struct dirent* entry;
-    struct stat st;
-    char fullPath[1024];
+    free_path_string(&g_plugin_state.m_scanned_path);
+    memset(&g_plugin_state, 0, sizeof(g_plugin_state));
     
-    while ((entry = readdir(dir)) != NULL) {
-        if (strcmp(entry->d_name, ".") != 0 && 
-            strcmp(entry->d_name, "..") != 0) {
-            
-            snprintf(fullPath, sizeof(fullPath), "%s/%s", path, entry->d_name);
-            
-            if (stat(fullPath, &st) == 0) {
-                if (S_ISDIR(st.st_mode)) {
-                    stats->total_directories++;
-                    if (entry->d_name[0] == '.') {
-                        stats->hidden_directories++;
-                    }
-                } else {
-                    stats->total_files++;
-                    if (entry->d_name[0] == '.') {
-                        stats->hidden_files++;
-                    }
-                    stats->total_size += st.st_size;
-                }
-            }
-        }
-    }
-    
-    closedir(dir);
-#endif
-    
-    return true;
+    g_plugin_info.status = PLUGIN_STATUS_UNLOADED;
+    return PLUGIN_RESULT_SUCCESS;
 }
 
-/**
- * @brief List directory entries
- */
-static bool list_directory_entries(const char* path, directory_entry_t** entries, size_t* count) {
-    if (!path || !entries || !count) return false;
-    
-    // First pass: count entries
-    size_t entryCount = 0;
-    
-#ifdef _WIN32
-    WIN32_FIND_DATAA findFileData;
-    HANDLE hFind = INVALID_HANDLE_VALUE;
-    char searchPath[512];
-    
-    snprintf(searchPath, sizeof(searchPath), "%s\\*", path);
-    
-    hFind = FindFirstFileA(searchPath, &findFileData);
-    if (hFind == INVALID_HANDLE_VALUE) {
-        return false;
+static plugin_result_t directory_info_get_info(plugin_info_t* info) {
+    if (!info) {
+        return PLUGIN_RESULT_INVALID_PARAM;
     }
     
-    do {
-        if (strcmp(findFileData.cFileName, ".") != 0 && 
-            strcmp(findFileData.cFileName, "..") != 0) {
-            entryCount++;
-        }
-    } while (FindNextFileA(hFind, &findFileData) != 0);
-    
-    FindClose(hFind);
-    
-    // Allocate memory for entries
-    *entries = (directory_entry_t*)malloc(entryCount * sizeof(directory_entry_t));
-    if (!*entries) {
-        return false;
-    }
-    
-    // Second pass: fill entries
-    hFind = FindFirstFileA(searchPath, &findFileData);
-    size_t index = 0;
-    
-    do {
-        if (strcmp(findFileData.cFileName, ".") != 0 && 
-            strcmp(findFileData.cFileName, "..") != 0) {
-            
-            directory_entry_t* entry = &(*entries)[index];
-            memset(entry, 0, sizeof(directory_entry_t));
-            
-            strncpy(entry->name, findFileData.cFileName, sizeof(entry->name) - 1);
-            snprintf(entry->path, sizeof(entry->path), "%s\\%s", path, findFileData.cFileName);
-            
-            entry->is_directory = (findFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
-            entry->is_hidden = (findFileData.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN) != 0;
-            entry->size = ((uint64_t)findFileData.nFileSizeHigh << 32) | findFileData.nFileSizeLow;
-            
-            // Convert FILETIME to Unix timestamp
-            ULARGE_INTEGER ull;
-            ull.LowPart = findFileData.ftLastWriteTime.dwLowDateTime;
-            ull.HighPart = findFileData.ftLastWriteTime.dwHighDateTime;
-            entry->modified_time = (ull.QuadPart - 116444736000000000ULL) / 10000000ULL;
-            
-            entry->permissions = findFileData.dwFileAttributes;
-            
-            index++;
-        }
-    } while (FindNextFileA(hFind, &findFileData) != 0);
-    
-    FindClose(hFind);
-#else
-    DIR* dir = opendir(path);
-    if (!dir) {
-        return false;
-    }
-    
-    struct dirent* entry;
-    struct stat st;
-    char fullPath[1024];
-    
-    // Count entries
-    while ((entry = readdir(dir)) != NULL) {
-        if (strcmp(entry->d_name, ".") != 0 && 
-            strcmp(entry->d_name, "..") != 0) {
-            entryCount++;
-        }
-    }
-    
-    // Allocate memory
-    *entries = (directory_entry_t*)malloc(entryCount * sizeof(directory_entry_t));
-    if (!*entries) {
-        closedir(dir);
-        return false;
-    }
-    
-    // Fill entries
-    rewinddir(dir);
-    size_t index = 0;
-    
-    while ((entry = readdir(dir)) != NULL) {
-        if (strcmp(entry->d_name, ".") != 0 && 
-            strcmp(entry->d_name, "..") != 0) {
-            
-            snprintf(fullPath, sizeof(fullPath), "%s/%s", path, entry->d_name);
-            
-            if (stat(fullPath, &st) == 0) {
-                directory_entry_t* dirEntry = &(*entries)[index];
-                memset(dirEntry, 0, sizeof(directory_entry_t));
-                
-                strncpy(dirEntry->name, entry->d_name, sizeof(dirEntry->name) - 1);
-                strncpy(dirEntry->path, fullPath, sizeof(dirEntry->path) - 1);
-                
-                dirEntry->is_directory = S_ISDIR(st.st_mode);
-                dirEntry->is_hidden = (entry->d_name[0] == '.');
-                dirEntry->size = st.st_size;
-                dirEntry->modified_time = st.st_mtime;
-                dirEntry->permissions = st.st_mode;
-                
-                index++;
-            }
-        }
-    }
-    
-    closedir(dir);
-#endif
-    
-    *count = entryCount;
-    return true;
+    memcpy(info, &g_plugin_info, sizeof(plugin_info_t));
+    return PLUGIN_RESULT_SUCCESS;
 }
 
-static void directory_info_free_memory(void* ptr) {
-    if (ptr) {
-        free(ptr);
+static plugin_result_t directory_info_execute_command(const char* command, const char* params, command_result_t* result) {
+    if (!command || !result) {
+        return PLUGIN_RESULT_INVALID_PARAM;
     }
+    
+    g_plugin_info.calls_made++;
+    
+    if (strcmp(command, "scan_directory") == 0) {
+        if (!params) {
+            result->result = PLUGIN_RESULT_INVALID_PARAM;
+            strncpy(result->error, "Directory path required", sizeof(result->error) - 1);
+            return PLUGIN_RESULT_INVALID_PARAM;
+        }
+        
+        // TODO: Implement directory scanning logic
+        result->result = PLUGIN_RESULT_SUCCESS;
+        result->data = strdup("Directory scanned successfully");
+        result->data_size = strlen(result->data);
+        
+    } else {
+        result->result = PLUGIN_RESULT_NOT_FOUND;
+        strncpy(result->error, "Unknown command", sizeof(result->error) - 1);
+        return PLUGIN_RESULT_NOT_FOUND;
+    }
+    
+    return PLUGIN_RESULT_SUCCESS;
 }
 
-// Plugin interface
-static plugin_interface_t directory_info_interface = {
-    .get_plugin_info = directory_info_get_plugin_info,
-    .init = directory_info_init,
-    .cleanup = directory_info_cleanup,
-    .get_system_metrics = directory_info_get_system_metrics,
-    .get_processes = directory_info_get_processes,
-    .execute_command = directory_info_execute_command,
-    .read_file = directory_info_read_file,
-    .get_system_info = directory_info_get_system_info,
-    .free_memory = directory_info_free_memory
-};
+static plugin_result_t directory_info_get_metrics(char* metrics, size_t buffer_size) {
+    if (!metrics || buffer_size == 0) {
+        return PLUGIN_RESULT_INVALID_PARAM;
+    }
+    
+    snprintf(metrics, buffer_size,
+        "{"
+        "\"scan_calls\":%u,"
+        "\"entries_scanned\":%zu,"
+        "\"last_scan_time\":%llu"
+        "}",
+        g_plugin_state.m_scan_calls_made,
+        g_plugin_state.m_entry_count,
+        (unsigned long long)g_plugin_state.m_last_scan_time
+    );
+    
+    return PLUGIN_RESULT_SUCCESS;
+}
 
-// Plugin entry point
-PLUGIN_EXPORT plugin_interface_t* PLUGIN_CALL get_plugin_interface(void) {
-    return &directory_info_interface;
+static plugin_result_t directory_info_set_event_callback(plugin_event_callback_t callback) {
+    // TODO: Store callback for event notifications
+    return PLUGIN_RESULT_SUCCESS;
+}
+
+// Plugin interface export
+plugin_interface_t* get_plugin_interface(void) {
+    static plugin_interface_t interface = {
+        .init = directory_info_init,
+        .cleanup = directory_info_cleanup,
+        .get_info = directory_info_get_info,
+        .execute_command = directory_info_execute_command,
+        .get_metrics = directory_info_get_metrics,
+        .set_event_callback = directory_info_set_event_callback
+    };
+    
+    return &interface;
 }

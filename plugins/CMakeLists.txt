@@ -87,7 +87,7 @@ add_custom_target(copy_all_plugins ALL
 )
 
 # Copy all new plugins
-foreach(PLUGIN_SOURCE ${NEW_PLUGIN_SOURCES})
+foreach(PLUGIN_SOURCE ${PLUGIN_SOURCES})
     get_filename_component(PLUGIN_NAME ${PLUGIN_SOURCE} NAME_WE)
     add_custom_command(TARGET ${PLUGIN_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -99,7 +99,7 @@ endforeach()
 
 # Make copy_plugins run after building all plugins
 add_dependencies(copy_all_plugins system_plugin)
-foreach(PLUGIN_SOURCE ${NEW_PLUGIN_SOURCES})
+foreach(PLUGIN_SOURCE ${PLUGIN_SOURCES})
     get_filename_component(PLUGIN_NAME ${PLUGIN_SOURCE} NAME_WE)
     add_dependencies(copy_all_plugins ${PLUGIN_NAME})
 endforeach()
@@ -112,7 +112,7 @@ if(CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
         -O2
         -fPIC
     )
-    foreach(PLUGIN_SOURCE ${NEW_PLUGIN_SOURCES})
+    foreach(PLUGIN_SOURCE ${PLUGIN_SOURCES})
         get_filename_component(PLUGIN_NAME ${PLUGIN_SOURCE} NAME_WE)
         target_compile_options(${PLUGIN_NAME} PRIVATE
             -Wall
@@ -127,7 +127,7 @@ elseif(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
         /O2
         /MD
     )
-    foreach(PLUGIN_SOURCE ${NEW_PLUGIN_SOURCES})
+    foreach(PLUGIN_SOURCE ${PLUGIN_SOURCES})
         get_filename_component(PLUGIN_NAME ${PLUGIN_SOURCE} NAME_WE)
         target_compile_options(${PLUGIN_NAME} PRIVATE
             /W4
@@ -144,7 +144,7 @@ install(TARGETS system_plugin
     RUNTIME DESTINATION plugins
 )
 
-foreach(PLUGIN_SOURCE ${NEW_PLUGIN_SOURCES})
+foreach(PLUGIN_SOURCE ${PLUGIN_SOURCES})
     get_filename_component(PLUGIN_NAME ${PLUGIN_SOURCE} NAME_WE)
     install(TARGETS ${PLUGIN_NAME}
         LIBRARY DESTINATION plugins
@@ -158,5 +158,5 @@ message(STATUS "Plugin configuration:")
 message(STATUS "  Platform: ${PLATFORM}")
 message(STATUS "  Output directory: ${PLUGIN_OUTPUT_DIR}")
 message(STATUS "  System plugin: src/${PLATFORM}/system_plugin_${PLATFORM}.c")
-message(STATUS "  New plugins: ${NEW_PLUGIN_SOURCES}")
+message(STATUS "  New plugins: ${PLUGIN_SOURCES}")
 message(STATUS "")
