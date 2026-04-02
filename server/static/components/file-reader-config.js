@@ -1,6 +1,6 @@
 // File Reader Configuration Component
 const FileReaderConfig = {
-    props: ['plugin'],
+    props: ['plugin', 'agentId'],
     emits: ['update'],
     data() {
         return {
@@ -92,6 +92,10 @@ const FileReaderConfig = {
                 <input type="checkbox" v-model="config.autoReload" @change="emitUpdate">
                 <small class="hint">Automatically reload file when changes are detected</small>
             </div>
+            
+            <!-- Live Data Monitor -->
+            <hr>
+            <file-reader-display :agent-id="agentId" :plugin-config="config" />
         </div>
     `
 };

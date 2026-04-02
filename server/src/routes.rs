@@ -220,6 +220,52 @@ pub async fn get_directory_info_data(
     }
 }
 
+pub async fn get_event_data_endpoint(
+    State(state): State<AppState>,
+    _claims: Claims,
+    Path(agent_id): Path<String>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    let path = params.get("path").cloned().unwrap_or_default();
+    let command = Command::GetEventData { path };
+
+    let mut ws_manager = state.ws_manager.lock().await;
+    match ws_manager.send_to_agent(&agent_id, &command).await {
+        Ok(_) => (StatusCode::OK, Json(json!({"status": "sent", "agent_id": agent_id}))).into_response(),
+        Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))).into_response(),
+    }
+}
+
+pub async fn get_watchers_data_endpoint(
+    State(state): State<AppState>,
+    _claims: Claims,
+    Path(agent_id): Path<String>,
+) -> impl IntoResponse {
+    let command = Command::GetWatchersData;
+
+    let mut ws_manager = state.ws_manager.lock().await;
+    match ws_manager.send_to_agent(&agent_id, &command).await {
+        Ok(_) => (StatusCode::OK, Json(json!({"status": "sent", "agent_id": agent_id}))).into_response(),
+        Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))).into_response(),
+    }
+}
+
+pub async fn get_file_reader_data_endpoint(
+    State(state): State<AppState>,
+    _claims: Claims,
+    Path(agent_id): Path<String>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    let path = params.get("path").cloned().unwrap_or_default();
+    let command = Command::GetFileReaderData { path };
+
+    let mut ws_manager = state.ws_manager.lock().await;
+    match ws_manager.send_to_agent(&agent_id, &command).await {
+        Ok(_) => (StatusCode::OK, Json(json!({"status": "sent", "agent_id": agent_id}))).into_response(),
+        Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))).into_response(),
+    }
+}
+
 pub async fn get_plugin_registry_data(
     State(state): State<AppState>,
     _claims: Claims,

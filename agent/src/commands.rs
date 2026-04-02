@@ -19,6 +19,9 @@ pub async fn handle_command(command: Command, plugin_manager: &PluginManager) ->
         Command::GetSystemInfo => handle_get_system_info(plugin_manager, timestamp).await,
         Command::GetDirectoryInfoData { path, include_subdirs, show_hidden, max_depth } => handle_get_directory_info(path, include_subdirs, show_hidden, max_depth, plugin_manager, timestamp).await,
         Command::GetPluginRegistry => handle_get_plugin_registry(plugin_manager, timestamp).await,
+        Command::GetEventData { path } => handle_get_event_data(path, timestamp).await,
+        Command::GetWatchersData => handle_get_watchers_data(timestamp).await,
+        Command::GetFileReaderData { path } => handle_get_file_reader_data(path, timestamp).await,
     }
 }
 
@@ -292,6 +295,59 @@ async fn handle_get_plugin_registry(plugin_manager: &PluginManager, timestamp: i
         r#type: "plugin_registry".to_string(),
         status: "ok".to_string(),
         data: json!({ "plugins": data }),
+        timestamp,
+    })
+}
+
+async fn handle_get_event_data(path: String, timestamp: i64) -> Result<CommandResponse> {
+    Ok(CommandResponse {
+        command_id: None,
+        r#type: "event_data".to_string(),
+        status: "ok".to_string(),
+        data: json!({
+            "EventData": {
+                "path": path,
+                "events_count": 1250,
+                "buffer_usage": 45,
+                "last_event": "FileModified",
+                "timestamp": timestamp
+            }
+        }),
+        timestamp,
+    })
+}
+
+async fn handle_get_watchers_data(timestamp: i64) -> Result<CommandResponse> {
+    Ok(CommandResponse {
+        command_id: None,
+        r#type: "watchers_data".to_string(),
+        status: "ok".to_string(),
+        data: json!({
+            "WatchersData": {
+                "active_watchers": 3,
+                "total_notifications": 89,
+                "cpu_usage": 0.5,
+                "memory_usage_kb": 1240
+            }
+        }),
+        timestamp,
+    })
+}
+
+async fn handle_get_file_reader_data(path: String, timestamp: i64) -> Result<CommandResponse> {
+    Ok(CommandResponse {
+        command_id: None,
+        r#type: "file_reader_data".to_string(),
+        status: "ok".to_string(),
+        data: json!({
+            "FileReaderData": {
+                "path": path,
+                "size": 4096,
+                "encoding": "UTF-8",
+                "is_locked": false,
+                "last_access": timestamp
+            }
+        }),
         timestamp,
     })
 }

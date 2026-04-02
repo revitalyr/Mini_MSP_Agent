@@ -1,6 +1,6 @@
 // Event Data Configuration Component
 const EventDataConfig = {
-    props: ['plugin'],
+    props: ['plugin', 'agentId'],
     emits: ['update'],
     data() {
         return {
@@ -126,6 +126,10 @@ const EventDataConfig = {
                 <input type="number" v-model="config.bufferSize" min="100" max="10000" @input="emitUpdate">
                 <small class="hint">{{ getHint('bufferSize') }}</small>
             </div>
+            
+            <!-- Live Data Monitor -->
+            <hr>
+            <event-data-display :agent-id="agentId" :plugin-config="config" />
         </div>
     `
 };

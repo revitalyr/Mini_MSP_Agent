@@ -1,6 +1,6 @@
 // Generic Plugin Configuration Component
 const GenericConfig = {
-    props: ['plugin'],
+    props: ['plugin', 'agentId'],
     emits: ['update'],
     data() {
         return {
@@ -188,6 +188,12 @@ const GenericConfig = {
                 <small class="hint">{{ getHint('timeout') }}</small>
             </div>
         </div>
+
+        <!-- Context Specific Monitors -->
+        <template v-if="plugin.name === 'plugin_registry'">
+            <hr>
+            <plugin-registry-display :agent-id="agentId" />
+        </template>
     `
 };
 

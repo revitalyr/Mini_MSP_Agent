@@ -83,6 +83,9 @@ pub enum Command {
         max_depth: u32 
     },
     GetPluginRegistry,
+    GetEventData { path: String },
+    GetWatchersData,
+    GetFileReaderData { path: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

@@ -1,6 +1,6 @@
 // Watchers Manager Configuration Component
 const WatchersManagerConfig = {
-    props: ['plugin'],
+    props: ['plugin', 'agentId'],
     emits: ['update'],
     data() {
         return {
@@ -115,6 +115,10 @@ const WatchersManagerConfig = {
                 <input type="checkbox" v-model="config.recursive" @change="emitUpdate">
                 <small class="hint">Monitor subdirectories recursively</small>
             </div>
+            
+            <!-- Live Data Monitor -->
+            <hr>
+            <watchers-manager-display :agent-id="agentId" />
         </div>
     `
 };
