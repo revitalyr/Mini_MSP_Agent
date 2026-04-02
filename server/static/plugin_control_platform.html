@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mini MSP Agent - Plugin Control Panel</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script src="platforms/platform-manager.js"></script>
+    <script src="components/directory-info-config.js"></script>
+    <script src="components/event-data-config.js"></script>
+    <script src="components/file-reader-config.js"></script>
+    <script src="components/watchers-manager-config.js"></script>
+    <script src="components/generic-config.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <div class="container">
+            <div class="header">
+                <h1>🔧 Mini MSP Agent</h1>
+                <p>Plugin Control Panel & Management System</p>
+                <div class="platform-info">
+                    <span class="platform-badge">{{ platformInfo.icon }} {{ platformInfo.name }}</span>
+                    <span class="version">v1.0.0</span>
+                </div>
+            </div>
+
+            <div v-if="loading" class="loading">
+                <div class="spinner"></div>
+                Loading plugins...
+            </div>
+
+            <div v-if="error" class="error-message">
+                {{ error }}
+            </div>
+
+            <div v-if="success" class="success-message">
+                {{ success }}
+            </div>
+
+            <div v-if="!loading && !error" class="stats-bar">
+                <h3 style="margin-bottom: 20px; color: #333;">📊 System Statistics</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value">{{ pluginStats.totalPlugins }}</div>
+                        <div class="stat-label">Total Plugins</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">{{ pluginStats.activePlugins }}</div>
+                        <div class="stat-label">Active</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">{{ pluginStats.inactivePlugins }}</div>
+                        <div class="stat-label">Inactive</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">{{ pluginStats.errorPlugins }}</div>
+                        <div class="stat-label">Errors</div>
+                    </div>
+                </div>
+            </div>
+
+            <div v-if="!loading && !error" class="plugins-grid">
+                <div v-for="plugin in plugins" :key="plugin.name" 
+                     class="plugin-card" 
+                     :class="{
+                         'active': plugin.status === 'active',
+                         'error': plugin.status === 'error'
+                     }">
+                    
+                    <div class="plugin-header">
+                        <div class="plugin-icon">
+                            {{ getPluginIcon(plugin.name) }}
+                        </div>
+                        <div class="plugin-title">
+                            <h3>{{ plugin.displayName }}</h3>
+                            <p>{{ plugin.description }}</p>
+                        </div>
+                        <div class="plugin-status" :class="getStatusClass(plugin.status)">
+                            {{ plugin.status }}
+                        </div>
+                    </div>
+
+                    <div class="plugin-controls">
+                        <button v-if="plugin.status === 'inactive'" 
+                                class="btn btn-success" 
+                                @click="startPlugin(plugin.name)">
+                            ▶️ Start
+                        </button>
+                        
+                        <button v-if="plugin.status === 'active'" 
+                                class="btn btn-warning" 
+                                @click="stopPlugin(plugin.name)">
+                            ⏸️ Stop
+                        </button>
+                        
+                        <button v-if="plugin.status === 'error'" 
+                                class="btn btn-danger" 
+                                @click="restartPlugin(plugin.name)">
+                            🔄 Restart
+                        </button>
+                        
+                        <button v-if="plugin.status === 'active'" 
+                                class="btn btn-primary" 
+                                @click="configurePlugin(plugin.name)">
+                            ⚙️ Configure
+                        </button>
+                        
+                        <button class="btn btn-info" 
+                                @click="getPluginInfo(plugin.name)">
+                            ℹ️ Info
+                        </button>
+                    </div>
+
+                    <div v-if="plugin.showInfo" class="plugin-info">
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <span class="info-label">Version:</span>
+                                <span class="info-value">{{ plugin.version }}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Load Time:</span>
+                                <span class="info-value">{{ formatLoadTime(plugin.loadTime) }}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Calls:</span>
+                                <span class="info-value">{{ plugin.callsMade }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Configuration Modal -->
+        <div v-if="showConfigModal" class="modal-overlay" @click="closeConfigModal">
+            <div class="modal-content" @click.stop>
+                <div class="modal-header">
+                    <h2>⚙️ Configure {{ configPlugin.displayName }}</h2>
+                    <button class="close-btn" @click="closeConfigModal">×</button>
+                </div>
+                <div class="modal-body">
+                    <!-- Dynamic plugin configuration component -->
+                    <directory-info-config v-if="configPlugin.name === 'directory_info'" 
+                                          :plugin="configPlugin" 
+                                          @update="updateConfig">
+                    </directory-info-config>
+                    
+                    <event-data-config v-if="configPlugin.name === 'event_data'" 
+                                      :plugin="configPlugin" 
+                                      @update="updateConfig">
+                    </event-data-config>
+                    
+                    <file-reader-config v-if="configPlugin.name === 'file_reader'" 
+                                       :plugin="configPlugin" 
+                                       @update="updateConfig">
+                    </file-reader-config>
+                    
+                    <watchers-manager-config v-if="configPlugin.name === 'watchers_manager'" 
+                                            :plugin="configPlugin" 
+                                            @update="updateConfig">
+                    </watchers-manager-config>
+                    
+                    <generic-config v-else 
+                                   :plugin="configPlugin" 
+                                   @update="updateConfig">
+                    </generic-config>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @click="closeConfigModal">Cancel</button>
+                    <button class="btn btn-primary" @click="savePluginConfig">Save Configuration</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    loading: true,
+                    error: null,
+                    success: null,
+                    showConfigModal: false,
+                    configPlugin: {},
+                    platformInfo: {},
+                    plugins: [
+                        {
+                            name: 'directory_info',
+                            displayName: '📁 Directory Info',
+                            description: 'Provides detailed directory information and statistics',
+                            status: 'inactive',
+                            version: '1.0.0',
+                            loadTime: null,
+                            callsMade: 0,
+                            showInfo: false
+                        },
+                        {
+                            name: 'event_data',
+                            displayName: '📋 Event Data',
+                            description: 'Monitors and collects system event data',
+                            status: 'inactive',
+                            version: '1.0.0',
+                            loadTime: null,
+                            callsMade: 0,
+                            showInfo: false
+                        },
+                        {
+                            name: 'file_reader',
+                            displayName: '📄 File Reader',
+                            description: 'Reads files with support for various encodings and formats',
+                            status: 'inactive',
+                            version: '1.0.0',
+                            loadTime: null,
+                            callsMade: 0,
+                            showInfo: false
+                        },
+                        {
+                            name: 'watchers_manager',
+                            displayName: '👁️ Watchers Manager',
+                            description: 'Manages file system watchers and monitors changes',
+                            status: 'inactive',
+                            version: '1.0.0',
+                            loadTime: null,
+                            callsMade: 0,
+                            showInfo: false
+                        },
+                        {
+                            name: 'file_signature',
+                            displayName: '🔐 File Signature',
+                            description: 'Generates and verifies file signatures and checksums',
+                            status: 'inactive',
+                            version: '1.0.0',
+                            loadTime: null,
+                            callsMade: 0,
+                            showInfo: false
+                        },
+                        {
+                            name: 'folder_watcher',
+                            displayName: '📁 Folder Watcher',
+                            description: 'Watches folders for changes and events',
+                            status: 'inactive',
+                            version: '1.0.0',
+                            loadTime: null,
+                            callsMade: 0,
+                            showInfo: false
+                        },
+                        {
+                            name: 'plugin_registry',
+                            displayName: '📋 Plugin Registry',
+                            description: 'Manages plugin registration and metadata',
+                            status: 'active',
+                            version: '1.0.0',
+                            loadTime: Date.now() - 5000,
+                            callsMade: 42,
+                            showInfo: false
+                        }
+                    ]
+                };
+            },
+            computed: {
+                pluginStats() {
+                    const total = this.plugins.length;
+                    const active = this.plugins.filter(p => p.status === 'active').length;
+                    const inactive = this.plugins.filter(p => p.status === 'inactive').length;
+                    const error = this.plugins.filter(p => p.status === 'error').length;
+                    return { total, active, inactive, error };
+                }
+            },
+            async mounted() {
+                await this.initializePlatform();
+                this.loadPlugins();
+            },
+            methods: {
+                async initializePlatform() {
+                    // Wait for platform manager to load
+                    if (window.platformManager) {
+                        await window.platformManager.loadPlatformConfig();
+                        this.platformInfo = window.platformManager.getPlatformInfo();
+                    } else {
+                        console.error('Platform manager not found');
+                        this.showError('Platform manager not available');
+                    }
+                },
+
+                loadPlugins() {
+                    setTimeout(() => {
+                        this.loading = false;
+                        this.showSuccess('Plugin system loaded successfully');
+                    }, 1000);
+                },
+
+                startPlugin(pluginName) {
+                    const plugin = this.plugins.find(p => p.name === pluginName);
+                    if (plugin) {
+                        plugin.status = 'loading';
+                        setTimeout(() => {
+                            plugin.status = 'active';
+                            plugin.loadTime = Date.now();
+                            this.showSuccess(`${plugin.displayName} started successfully`);
+                        }, 1000);
+                    }
+                },
+
+                stopPlugin(pluginName) {
+                    const plugin = this.plugins.find(p => p.name === pluginName);
+                    if (plugin) {
+                        plugin.status = 'inactive';
+                        plugin.loadTime = null;
+                        this.showSuccess(`${plugin.displayName} stopped`);
+                    }
+                },
+
+                restartPlugin(pluginName) {
+                    const plugin = this.plugins.find(p => p.name === pluginName);
+                    if (plugin) {
+                        this.stopPlugin(pluginName);
+                        setTimeout(() => {
+                            this.startPlugin(pluginName);
+                        }, 1000);
+                    }
+                },
+
+                configurePlugin(pluginName) {
+                    const plugin = this.plugins.find(p => p.name === pluginName);
+                    if (plugin) {
+                        // Load platform-specific configuration
+                        const platformConfig = window.platformManager.getPluginConfig(pluginName);
+                        
+                        this.configPlugin = {
+                            ...plugin,
+                            ...platformConfig,
+                            // Common fields
+                            autoStart: plugin.autoStart || false,
+                            logLevel: plugin.logLevel || 'info',
+                            maxCallsPerMinute: plugin.maxCallsPerMinute || 100,
+                            timeout: plugin.timeout || 30
+                        };
+                        
+                        this.showConfigModal = true;
+                    }
+                },
+
+                closeConfigModal() {
+                    this.showConfigModal = false;
+                },
+
+                savePluginConfig() {
+                    const plugin = this.plugins.find(p => p.name === this.configPlugin.name);
+                    if (plugin) {
+                        // Update plugin with new configuration
+                        Object.assign(plugin, this.configPlugin);
+                        
+                        this.showSuccess(`Configuration saved for ${plugin.displayName}`);
+                        this.closeConfigModal();
+                    }
+                },
+
+                getPluginInfo(pluginName) {
+                    const plugin = this.plugins.find(p => p.name === pluginName);
+                    if (plugin) {
+                        plugin.showInfo = !plugin.showInfo;
+                        plugin.callsMade++;
+                    }
+                },
+
+                getPluginIcon(pluginName) {
+                    const icons = {
+                        'directory_info': '📁',
+                        'event_data': '📋',
+                        'file_reader': '📄',
+                        'watchers_manager': '👁️',
+                        'file_signature': '🔐',
+                        'folder_watcher': '📁',
+                        'file_listener': '👂',
+                        'root_directory_info': '🏠',
+                        'scanner_plugin': '🔍',
+                        'plugin_registry': '📋'
+                    };
+                    return icons[pluginName] || '🔌';
+                },
+
+                getStatusClass(status) {
+                    return {
+                        'status-active': status === 'active',
+                        'status-inactive': status === 'inactive',
+                        'status-error': status === 'error'
+                    };
+                },
+
+                formatLoadTime(loadTime) {
+                    if (!loadTime) return 'Not loaded';
+                    const seconds = Math.floor((Date.now() - loadTime) / 1000);
+                    if (seconds < 60) return `${seconds}s ago`;
+                    const minutes = Math.floor(seconds / 60);
+                    if (minutes < 60) return `${minutes}m ago`;
+                    const hours = Math.floor(minutes / 60);
+                    return `${hours}h ago`;
+                },
+
+                showSuccess(message) {
+                    this.success = message;
+                    setTimeout(() => {
+                        this.success = null;
+                    }, 3000);
+                },
+
+                showError(message) {
+                    this.error = message;
+                    setTimeout(() => {
+                        this.error = null;
+                    }, 5000);
+                },
+
+                updateConfig(newConfig) {
+                    this.configPlugin = { ...this.configPlugin, ...newConfig };
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
