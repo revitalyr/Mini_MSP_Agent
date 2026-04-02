@@ -36,6 +36,35 @@ set_target_properties(system_plugin PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY ${PLUGIN_OUTPUT_DIR}
 )
 
+# Platform-specific sources
+set(PLATFORM_SOURCES)
+set(PLATFORM_LIBS)
+set(PLATFORM_DEFINES)
+
+if(WIN32)
+    list(APPEND PLATFORM_SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/platform/windows/file_reader_plugin_windows.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/platform/windows/watchers_manager_windows.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/platform/windows/plugin_loader_windows.c
+    )
+    list(APPEND PLATFORM_LIBS kernel32 user32)
+    list(APPEND PLATFORM_DEFINES _WIN32)
+elseif(APPLE)
+    list(APPEND PLATFORM_SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/platform/macos/file_reader_plugin_macos.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/platform/macos/watchers_manager_macos.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/platform/macos/plugin_loader_macos.c
+    )
+    list(APPEND PLATFORM_LIBS pthread)
+else()
+    list(APPEND PLATFORM_SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/platform/linux/file_reader_plugin_linux.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/platform/linux/watchers_manager_linux.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/platform/linux/plugin_loader_linux.c
+    )
+    list(APPEND PLATFORM_LIBS pthread)
+endif()
+
 # Common sources (shared across all platforms)
 set(COMMON_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/common/plugin_utils.c
