@@ -1,5 +1,5 @@
 // Windows-specific plugin configurations
-const windowsPluginConfigs = {
+export const windowsPluginConfigs = {
     directory_info: {
         targetPath: 'C:\\Users\\Public\\Documents',
         defaultPaths: [
@@ -71,8 +71,7 @@ const windowsPluginConfigs = {
     }
 };
 
-// Windows-specific system events
-const windowsSystemEvents = {
+export const windowsSystemEvents = {
     fileEvents: [
         { key: 'fileCreated', label: '📄 File Created', enabled: true },
         { key: 'fileDeleted', label: '🗑️ File Deleted', enabled: true },
@@ -102,8 +101,7 @@ const windowsSystemEvents = {
     ]
 };
 
-// Windows-specific encodings
-const windowsEncodings = [
+export const windowsEncodings = [
     { value: 'utf-8', label: 'UTF-8 (Recommended)' },
     { value: 'utf-16', label: 'UTF-16' },
     { value: 'ascii', label: 'ASCII' },
@@ -113,8 +111,7 @@ const windowsEncodings = [
     { value: 'cp850', label: 'Code Page 850 (Multilingual)' }
 ];
 
-// Windows-specific file system hints
-const windowsHints = {
+export const windowsHints = {
     targetDirectory: 'Select a Windows directory to analyze its contents and statistics',
     targetFile: 'Select a Windows file to read and monitor',
     monitorPath: 'Windows directory to monitor for system events',

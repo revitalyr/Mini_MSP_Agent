@@ -1,5 +1,5 @@
 // Linux-specific plugin configurations
-const linuxPluginConfigs = {
+export const linuxPluginConfigs = {
     directory_info: {
         targetPath: '/home/user/documents',
         defaultPaths: [
@@ -74,8 +74,7 @@ const linuxPluginConfigs = {
     }
 };
 
-// Linux-specific system events
-const linuxSystemEvents = {
+export const linuxSystemEvents = {
     fileEvents: [
         { key: 'fileCreated', label: '📄 File Created', enabled: true },
         { key: 'fileDeleted', label: '🗑️ File Deleted', enabled: true },
@@ -109,8 +108,7 @@ const linuxSystemEvents = {
     ]
 };
 
-// Linux-specific encodings
-const linuxEncodings = [
+export const linuxEncodings = [
     { value: 'utf-8', label: 'UTF-8 (Recommended)' },
     { value: 'utf-16', label: 'UTF-16' },
     { value: 'ascii', label: 'ASCII' },
@@ -120,8 +118,7 @@ const linuxEncodings = [
     { value: 'koi8-u', label: 'KOI8-U (Ukrainian)' }
 ];
 
-// Linux-specific file system hints
-const linuxHints = {
+export const linuxHints = {
     targetDirectory: 'Select a Linux directory to analyze its contents and statistics',
     targetFile: 'Select a Linux file to read and monitor',
     monitorPath: 'Linux directory to monitor for system events',

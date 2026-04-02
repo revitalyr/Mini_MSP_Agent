@@ -1,5 +1,5 @@
 // macOS-specific plugin configurations
-const macosPluginConfigs = {
+export const macosPluginConfigs = {
     directory_info: {
         targetPath: '/Users/Shared/Documents',
         defaultPaths: [
@@ -74,8 +74,7 @@ const macosPluginConfigs = {
     }
 };
 
-// macOS-specific system events
-const macosSystemEvents = {
+export const macosSystemEvents = {
     fileEvents: [
         { key: 'fileCreated', label: '📄 File Created', enabled: true },
         { key: 'fileDeleted', label: '🗑️ File Deleted', enabled: true },
@@ -112,8 +111,7 @@ const macosSystemEvents = {
     ]
 };
 
-// macOS-specific encodings
-const macosEncodings = [
+export const macosEncodings = [
     { value: 'utf-8', label: 'UTF-8 (Recommended)' },
     { value: 'utf-16', label: 'UTF-16' },
     { value: 'ascii', label: 'ASCII' },
@@ -123,8 +121,7 @@ const macosEncodings = [
     { value: 'utf-32', label: 'UTF-32' }
 ];
 
-// macOS-specific file system hints
-const macosHints = {
+export const macosHints = {
     targetDirectory: 'Select a macOS directory to analyze its contents and statistics',
     targetFile: 'Select a macOS file to read and monitor',
     monitorPath: 'macOS directory to monitor for system events',

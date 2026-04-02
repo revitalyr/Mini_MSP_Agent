@@ -44,6 +44,13 @@ class PlatformManager {
                 this.events = module[`${this.platform}SystemEvents`] || {};
                 this.encodings = module[`${this.platform}Encodings`] || [];
                 this.hints = module[`${this.platform}Hints`] || {};
+                
+                console.log(`Successfully loaded ${this.platform} configurations:`, {
+                    configs: Object.keys(this.configs),
+                    events: Object.keys(this.events),
+                    encodings: this.encodings.length,
+                    hints: Object.keys(this.hints)
+                });
             } catch (importError) {
                 console.warn('Dynamic import failed, falling back to eval:', importError.message);
                 this.loadConfigFromText(configText);
