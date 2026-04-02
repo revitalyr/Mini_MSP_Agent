@@ -6,6 +6,12 @@
     <title>Mini MSP Agent - Plugin Control Panel</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script src="platforms/platform-manager.js"></script>
+    <script src="components/directory-info-config.js"></script>
+    <script src="components/event-data-config.js"></script>
+    <script src="components/file-reader-config.js"></script>
+    <script src="components/watchers-manager-config.js"></script>
+    <script src="components/generic-config.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -14,9 +20,14 @@
             <div class="header">
                 <h1>🔧 Mini MSP Agent</h1>
                 <p>Plugin Control Panel & Management System</p>
+                <div class="platform-info">
+                    <span class="platform-badge">{{ platformInfo.icon }} {{ platformInfo.name }}</span>
+                    <span class="version">v1.0.0</span>
+                </div>
             </div>
 
             <div v-if="loading" class="loading">
+                <div class="spinner"></div>
                 Loading plugins...
             </div>
 
@@ -84,38 +95,33 @@
                             ⏸️ Stop
                         </button>
                         
+                        <button v-if="plugin.status === 'error'" 
+                                class="btn btn-danger" 
+                                @click="restartPlugin(plugin.name)">
+                            🔄 Restart
+                        </button>
+                        
                         <button v-if="plugin.status === 'active'" 
                                 class="btn btn-primary" 
                                 @click="configurePlugin(plugin.name)">
                             ⚙️ Configure
                         </button>
                         
-                        <button v-if="plugin.status === 'active'" 
-                                class="btn btn-primary" 
+                        <button class="btn btn-info" 
                                 @click="getPluginInfo(plugin.name)">
-                            📊 Info
-                        </button>
-                        
-                        <button class="btn btn-danger" 
-                                @click="restartPlugin(plugin.name)">
-                            🔄 Restart
+                            ℹ️ Info
                         </button>
                     </div>
 
                     <div v-if="plugin.showInfo" class="plugin-info">
-                        <h4>📋 Plugin Information</h4>
                         <div class="info-grid">
                             <div class="info-item">
                                 <span class="info-label">Version:</span>
                                 <span class="info-value">{{ plugin.version }}</span>
                             </div>
                             <div class="info-item">
-                                <span class="info-label">Status:</span>
-                                <span class="info-value">{{ plugin.status }}</span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Loaded:</span>
-                                <span class="info-value">{{ formatTime(plugin.loadTime) }}</span>
+                                <span class="info-label">Load Time:</span>
+                                <span class="info-value">{{ formatLoadTime(plugin.loadTime) }}</span>
                             </div>
                             <div class="info-item">
                                 <span class="info-label">Calls:</span>
@@ -135,271 +141,31 @@
                     <button class="close-btn" @click="closeConfigModal">×</button>
                 </div>
                 <div class="modal-body">
-                    <!-- Directory Info Plugin Configuration -->
-                    <div v-if="configPlugin.name === 'directory_info'" class="config-section">
-                        <h4>📁 Directory Info Settings</h4>
-                        <div class="config-item">
-                            <label>Target Directory:</label>
-                            <div class="path-input-group">
-                                <input type="text" v-model="configPlugin.targetPath" placeholder="Click Browse to select directory">
-                                <button class="btn btn-small btn-secondary" @click="browseDirectory('directory_info')">Browse</button>
-                            </div>
-                            <small class="hint">Select a directory to analyze its contents and statistics</small>
-                        </div>
-                        <div class="config-item">
-                            <label>Include Subdirectories:</label>
-                            <input type="checkbox" v-model="configPlugin.includeSubdirs">
-                            <small class="hint">Analyze all subdirectories recursively</small>
-                        </div>
-                        <div class="config-item">
-                            <label>Show Hidden Files:</label>
-                            <input type="checkbox" v-model="configPlugin.showHidden">
-                            <small class="hint">Include hidden and system files in analysis</small>
-                        </div>
-                        <div class="config-item">
-                            <label>Max Depth:</label>
-                            <input type="number" v-model="configPlugin.maxDepth" min="1" max="10">
-                            <small class="hint">Maximum directory depth to analyze (1-10)</small>
-                        </div>
-                    </div>
-
-                    <!-- Event Data Plugin Configuration -->
-                    <div v-if="configPlugin.name === 'event_data'" class="config-section">
-                        <h4>📋 Event Data Settings</h4>
-                        <div class="config-item">
-                            <label>Events to Monitor:</label>
-                            <div class="checkbox-group">
-                                <label><input type="checkbox" v-model="configPlugin.events.fileCreated"> 📄 File Created</label>
-                                <label><input type="checkbox" v-model="configPlugin.events.fileDeleted"> 🗑️ File Deleted</label>
-                                <label><input type="checkbox" v-model="configPlugin.events.fileModified"> ✏️ File Modified</label>
-                                <label><input type="checkbox" v-model="configPlugin.events.fileRenamed"> 🏷️ File Renamed</label>
-                                <label><input type="checkbox" v-model="configPlugin.events.fileAccessed"> 👁️ File Accessed</label>
-                                <label><input type="checkbox" v-model="configPlugin.events.filePermissionsChanged"> 🔐 Permissions Changed</label>
-                                <label><input type="checkbox" v-model="configPlugin.events.directoryCreated"> 📁 Directory Created</label>
-                                <label><input type="checkbox" v-model="configPlugin.events.directoryDeleted"> 🗂️ Directory Deleted</label>
-                                <label><input type="checkbox" v-model="configPlugin.events.directoryModified"> 📝 Directory Modified</label>
-                                <label><input type="checkbox" v-model="configPlugin.events.volumeMounted"> 💾 Volume Mounted</label>
-                                <label><input type="checkbox" v-model="configPlugin.events.volumeUnmounted"> 💿 Volume Unmounted</label>
-                                <label><input type="checkbox" v-model="configPlugin.events.diskSpaceLow"> ⚠️ Disk Space Low</label>
-                                <label><input type="checkbox" v-model="configPlugin.events.networkDriveConnected"> 🌐 Network Drive Connected</label>
-                                <label><input type="checkbox" v-model="configPlugin.events.networkDriveDisconnected"> 📡 Network Drive Disconnected</label>
-                            </div>
-                        </div>
-                        <div class="config-item">
-                            <label>Monitor Path:</label>
-                            <div class="path-input-group">
-                                <input type="text" v-model="configPlugin.monitorPath" placeholder="Click Browse to select directory">
-                                <button class="btn btn-small btn-secondary" @click="browseDirectory('event_data')">Browse</button>
-                            </div>
-                            <small class="hint">Directory to monitor for system events</small>
-                        </div>
-                        <div class="config-item">
-                            <label>Buffer Size:</label>
-                            <input type="number" v-model="configPlugin.bufferSize" min="100" max="10000">
-                            <small class="hint">Number of events to keep in memory (100-10000)</small>
-                        </div>
-                    </div>
-
-                    <!-- File Reader Plugin Configuration -->
-                    <div v-if="configPlugin.name === 'file_reader'" class="config-section">
-                        <h4>📄 File Reader Settings</h4>
-                        <div class="config-item">
-                            <label>Target File:</label>
-                            <div class="path-input-group">
-                                <input type="text" v-model="configPlugin.targetFile" placeholder="Click Browse to select file">
-                                <button class="btn btn-small btn-secondary" @click="browseFile('file_reader')">Browse</button>
-                            </div>
-                            <small class="hint">Select a file to read and monitor</small>
-                        </div>
-                        <div class="config-item">
-                            <label>File Encoding:</label>
-                            <select v-model="configPlugin.encoding">
-                                <option value="utf-8">UTF-8 (Recommended)</option>
-                                <option value="utf-16">UTF-16</option>
-                                <option value="ascii">ASCII</option>
-                                <option value="latin1">Latin-1</option>
-                                <option value="cp1252">Windows-1252</option>
-                                <option value="cp437">IBM PC (Code Page 437)</option>
-                            </select>
-                            <small class="hint">Character encoding for file reading</small>
-                        </div>
-                        <div class="config-item">
-                            <label>Read Mode:</label>
-                            <select v-model="configPlugin.readMode">
-                                <option value="text">Text Mode</option>
-                                <option value="binary">Binary Mode</option>
-                                <option value="lines">Line by Line</option>
-                                <option value="chunks">Fixed Size Chunks</option>
-                            </select>
-                            <small class="hint">How to read the file content</small>
-                        </div>
-                        <div class="config-item">
-                            <label>Auto Reload:</label>
-                            <input type="checkbox" v-model="configPlugin.autoReload">
-                            <small class="hint">Automatically reload file when changes are detected</small>
-                        </div>
-                    </div>
-
-                    <!-- Folder Watcher Plugin Configuration -->
-                    <div v-if="configPlugin.name === 'folder_watcher'" class="config-section">
-                        <h4>📁 Folder Watcher Settings</h4>
-                        <div class="config-item">
-                            <label>Target Directory:</label>
-                            <div class="path-input-group">
-                                <input type="text" v-model="configPlugin.targetPath" placeholder="Click Browse to select directory">
-                                <button class="btn btn-small btn-secondary" @click="browseDirectory('folder_watcher')">Browse</button>
-                            </div>
-                            <small class="hint">Directory to watch for changes</small>
-                        </div>
-                        <div class="config-item">
-                            <label>Watch Events:</label>
-                            <div class="checkbox-group">
-                                <label><input type="checkbox" v-model="configPlugin.events.fileCreated"> 📄 File Created</label>
-                                <label><input type="checkbox" v-model="configPlugin.events.fileDeleted"> 🗑️ File Deleted</label>
-                                <label><input type="checkbox" v-model="configPlugin.events.fileModified"> ✏️ File Modified</label>
-                                <label><input type="checkbox" v-model="configPlugin.events.fileRenamed"> 🏷️ File Renamed</label>
-                                <label><input type="checkbox" v-model="configPlugin.events.directoryCreated"> 📁 Directory Created</label>
-                                <label><input type="checkbox" v-model="configPlugin.events.directoryDeleted"> 🗂️ Directory Deleted</label>
-                            </div>
-                        </div>
-                        <div class="config-item">
-                            <label>Recursive:</label>
-                            <input type="checkbox" v-model="configPlugin.recursive">
-                            <small class="hint">Watch subdirectories recursively</small>
-                        </div>
-                    </div>
-
-                    <!-- File Signature Plugin Configuration -->
-                    <div v-if="configPlugin.name === 'file_signature'" class="config-section">
-                        <h4>🔐 File Signature Settings</h4>
-                        <div class="config-item">
-                            <label>Target File/Directory:</label>
-                            <div class="path-input-group">
-                                <input type="text" v-model="configPlugin.targetPath" placeholder="Click Browse to select file or directory">
-                                <button class="btn btn-small btn-secondary" @click="browsePath('file_signature')">Browse</button>
-                            </div>
-                            <small class="hint">File or directory to generate signatures for</small>
-                        </div>
-                        <div class="config-item">
-                            <label>Hash Algorithm:</label>
-                            <select v-model="configPlugin.hashAlgorithm">
-                                <option value="sha256">SHA-256 (Recommended)</option>
-                                <option value="sha512">SHA-512</option>
-                                <option value="md5">MD5 (Legacy)</option>
-                                <option value="sha1">SHA-1 (Legacy)</option>
-                            </select>
-                            <small class="hint">Cryptographic hash algorithm for file signatures</small>
-                        </div>
-                        <div class="config-item">
-                            <label>Include Metadata:</label>
-                            <input type="checkbox" v-model="configPlugin.includeMetadata">
-                            <small class="hint">Include file metadata (timestamps, size, etc.)</small>
-                        </div>
-                    </div>
-
-                    <!-- Watchers Manager Plugin Configuration -->
-                    <div v-if="configPlugin.name === 'watchers_manager'" class="config-section">
-                        <h4>👁️ Watchers Manager Settings</h4>
-                        <div class="config-item">
-                            <label>Watch Directories:</label>
-                            <div class="path-list">
-                                <div v-for="(path, index) in configPlugin.watchPaths" :key="index" class="path-item">
-                                    <input type="text" v-model="configPlugin.watchPaths[index]" placeholder="Click Browse to select directory">
-                                    <button class="btn btn-small btn-secondary" @click="browseDirectoryForPath(index)">Browse</button>
-                                    <button class="btn btn-small btn-danger" @click="removeWatchPath(index)">×</button>
-                                </div>
-                                <button class="btn btn-small btn-secondary" @click="addWatchPath">+ Add Path</button>
-                            </div>
-                            <small class="hint">Directories to monitor for changes</small>
-                        </div>
-                        <div class="config-item">
-                            <label>Watch Events:</label>
-                            <div class="checkbox-group">
-                                <label><input type="checkbox" v-model="configPlugin.watchEvents.create"> 📄 Create</label>
-                                <label><input type="checkbox" v-model="configPlugin.watchEvents.modify"> ✏️ Modify</label>
-                                <label><input type="checkbox" v-model="configPlugin.watchEvents.delete"> 🗑️ Delete</label>
-                                <label><input type="checkbox" v-model="configPlugin.watchEvents.move"> 🏷️ Move/Rename</label>
-                                <label><input type="checkbox" v-model="configPlugin.watchEvents.access"> 👁️ Access</label>
-                                <label><input type="checkbox" v-model="configPlugin.watchEvents.permission"> 🔐 Permission Change</label>
-                            </div>
-                        </div>
-                        <div class="config-item">
-                            <label>Recursive:</label>
-                            <input type="checkbox" v-model="configPlugin.recursive">
-                            <small class="hint">Monitor subdirectories recursively</small>
-                        </div>
-                    </div>
-
-                    <!-- Plugin Registry Configuration -->
-                    <div v-if="configPlugin.name === 'plugin_registry'" class="config-section">
-                        <h4>📋 Plugin Registry Settings</h4>
-                        <div class="config-item">
-                            <label>Plugin Directory:</label>
-                            <div class="path-input-group">
-                                <input type="text" v-model="configPlugin.pluginDirectory" placeholder="Click Browse to select plugin directory">
-                                <button class="btn btn-small btn-secondary" @click="browseDirectory('plugin_registry')">Browse</button>
-                            </div>
-                            <small class="hint">Directory containing plugin files</small>
-                        </div>
-                        <div class="config-item">
-                            <label>Auto Scan:</label>
-                            <input type="checkbox" v-model="configPlugin.autoScan">
-                            <small class="hint">Automatically scan for new plugins</small>
-                        </div>
-                        <div class="config-item">
-                            <label>Scan Interval (seconds):</label>
-                            <input type="number" v-model="configPlugin.scanInterval" min="1" max="3600">
-                            <small class="hint">How often to scan for new plugins (1-3600 seconds)</small>
-                        </div>
-                        <div class="config-item">
-                            <label>Enable Hot Reload:</label>
-                            <input type="checkbox" v-model="configPlugin.hotReload">
-                            <small class="hint">Reload plugins automatically when files change</small>
-                        </div>
-                    </div>
-
-                    <!-- Generic Plugin Configuration (fallback) -->
-                    <div v-if="!['directory_info', 'event_data', 'file_reader', 'watchers_manager'].includes(configPlugin.name)" class="config-section">
-                        <h4>� Generic Plugin Settings</h4>
-                        <div class="config-item">
-                            <label>Plugin Name:</label>
-                            <input type="text" v-model="configPlugin.name" readonly>
-                        </div>
-                        <div class="config-item">
-                            <label>Status:</label>
-                            <select v-model="configPlugin.status">
-                                <option value="active">Active</option>
-                                <option value="inactive">Inactive</option>
-                                <option value="error">Error</option>
-                            </select>
-                        </div>
-                        <div class="config-item">
-                            <label>Auto-start:</label>
-                            <input type="checkbox" v-model="configPlugin.autoStart">
-                        </div>
-                        <div class="config-item">
-                            <label>Log Level:</label>
-                            <select v-model="configPlugin.logLevel">
-                                <option value="debug">Debug</option>
-                                <option value="info">Info</option>
-                                <option value="warning">Warning</option>
-                                <option value="error">Error</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Common Performance Settings -->
-                    <div class="config-section">
-                        <h4>📊 Performance Settings</h4>
-                        <div class="config-item">
-                            <label>Max Calls per Minute:</label>
-                            <input type="number" v-model="configPlugin.maxCallsPerMinute" min="1" max="1000">
-                        </div>
-                        <div class="config-item">
-                            <label>Timeout (seconds):</label>
-                            <input type="number" v-model="configPlugin.timeout" min="1" max="300">
-                        </div>
-                    </div>
+                    <!-- Dynamic plugin configuration component -->
+                    <directory-info-config v-if="configPlugin.name === 'directory_info'" 
+                                          :plugin="configPlugin" 
+                                          @update="updateConfig">
+                    </directory-info-config>
+                    
+                    <event-data-config v-if="configPlugin.name === 'event_data'" 
+                                      :plugin="configPlugin" 
+                                      @update="updateConfig">
+                    </event-data-config>
+                    
+                    <file-reader-config v-if="configPlugin.name === 'file_reader'" 
+                                       :plugin="configPlugin" 
+                                       @update="updateConfig">
+                    </file-reader-config>
+                    
+                    <watchers-manager-config v-if="configPlugin.name === 'watchers_manager'" 
+                                            :plugin="configPlugin" 
+                                            @update="updateConfig">
+                    </watchers-manager-config>
+                    
+                    <generic-config v-else 
+                                   :plugin="configPlugin" 
+                                   @update="updateConfig">
+                    </generic-config>
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" @click="closeConfigModal">Cancel</button>
@@ -419,15 +185,8 @@
                     error: null,
                     success: null,
                     showConfigModal: false,
-                    configPlugin: {
-                        name: '',
-                        displayName: '',
-                        status: 'inactive',
-                        autoStart: false,
-                        logLevel: 'info',
-                        maxCallsPerMinute: 100,
-                        timeout: 30
-                    },
+                    configPlugin: {},
+                    platformInfo: {},
                     plugins: [
                         {
                             name: 'directory_info',
@@ -437,12 +196,7 @@
                             version: '1.0.0',
                             loadTime: null,
                             callsMade: 0,
-                            showInfo: false,
-                            // Plugin-specific configuration
-                            targetPath: 'C:\\Users\\Public\\Documents',
-                            includeSubdirs: true,
-                            showHidden: false,
-                            maxDepth: 5
+                            showInfo: false
                         },
                         {
                             name: 'event_data',
@@ -452,26 +206,7 @@
                             version: '1.0.0',
                             loadTime: null,
                             callsMade: 0,
-                            showInfo: false,
-                            // Plugin-specific configuration
-                            monitorPath: 'C:\\Windows\\System32\\LogFiles',
-                            bufferSize: 1000,
-                            events: {
-                                fileCreated: true,
-                                fileDeleted: true,
-                                fileModified: true,
-                                fileRenamed: false,
-                                fileAccessed: false,
-                                filePermissionsChanged: true,
-                                directoryCreated: false,
-                                directoryDeleted: false,
-                                directoryModified: false,
-                                volumeMounted: true,
-                                volumeUnmounted: true,
-                                diskSpaceLow: true,
-                                networkDriveConnected: false,
-                                networkDriveDisconnected: false
-                            }
+                            showInfo: false
                         },
                         {
                             name: 'file_reader',
@@ -481,12 +216,7 @@
                             version: '1.0.0',
                             loadTime: null,
                             callsMade: 0,
-                            showInfo: false,
-                            // Plugin-specific configuration
-                            targetFile: 'C:\\Users\\Public\\Documents\\config.txt',
-                            encoding: 'utf-8',
-                            readMode: 'text',
-                            autoReload: false
+                            showInfo: false
                         },
                         {
                             name: 'watchers_manager',
@@ -496,18 +226,7 @@
                             version: '1.0.0',
                             loadTime: null,
                             callsMade: 0,
-                            showInfo: false,
-                            // Plugin-specific configuration
-                            watchPaths: ['C:\\Users\\Public\\Documents', 'C:\\Users\\Public\\Downloads'],
-                            watchEvents: {
-                                create: true,
-                                modify: true,
-                                delete: true,
-                                move: false,
-                                access: false,
-                                permission: true
-                            },
-                            recursive: true
+                            showInfo: false
                         },
                         {
                             name: 'file_signature',
@@ -517,57 +236,12 @@
                             version: '1.0.0',
                             loadTime: null,
                             callsMade: 0,
-                            showInfo: false,
-                            // Plugin-specific configuration
-                            targetPath: 'C:\\Users\\Public\\Documents',
-                            hashAlgorithm: 'sha256',
-                            includeMetadata: true
+                            showInfo: false
                         },
                         {
                             name: 'folder_watcher',
                             displayName: '📁 Folder Watcher',
                             description: 'Watches folders for changes and events',
-                            status: 'inactive',
-                            version: '1.0.0',
-                            loadTime: null,
-                            callsMade: 0,
-                            showInfo: false,
-                            // Plugin-specific configuration
-                            targetPath: 'C:\\Users\\Public\\Documents',
-                            events: {
-                                fileCreated: true,
-                                fileDeleted: true,
-                                fileModified: true,
-                                fileRenamed: false,
-                                directoryCreated: false,
-                                directoryDeleted: false
-                            },
-                            recursive: true
-                        },
-                        {
-                            name: 'file_listener',
-                            displayName: '👂 File Listener',
-                            description: 'Listens for file system events and notifications',
-                            status: 'inactive',
-                            version: '1.0.0',
-                            loadTime: null,
-                            callsMade: 0,
-                            showInfo: false
-                        },
-                        {
-                            name: 'root_directory_info',
-                            displayName: '🏠 Root Directory Info',
-                            description: 'Provides information about root and system directories',
-                            status: 'inactive',
-                            version: '1.0.0',
-                            loadTime: null,
-                            callsMade: 0,
-                            showInfo: false
-                        },
-                        {
-                            name: 'scanner_plugin',
-                            displayName: '🔍 Scanner Plugin',
-                            description: 'Scans directories and files for analysis',
                             status: 'inactive',
                             version: '1.0.0',
                             loadTime: null,
@@ -582,14 +256,9 @@
                             version: '1.0.0',
                             loadTime: Date.now() - 5000,
                             callsMade: 42,
-                            showInfo: false,
-                            // Plugin-specific configuration
-                            pluginDirectory: 'C:\\Program Files\\Mini MSP Agent\\plugins',
-                            autoScan: true,
-                            scanInterval: 30,
-                            hotReload: false
+                            showInfo: false
                         }
-                    ],
+                    ]
                 };
             },
             computed: {
@@ -598,205 +267,81 @@
                     const active = this.plugins.filter(p => p.status === 'active').length;
                     const inactive = this.plugins.filter(p => p.status === 'inactive').length;
                     const error = this.plugins.filter(p => p.status === 'error').length;
-
-                    return {
-                        totalPlugins: total,
-                        activePlugins: active,
-                        inactivePlugins: inactive,
-                        errorPlugins: error
-                    };
+                    return { total, active, inactive, error };
                 }
             },
+            async mounted() {
+                await this.initializePlatform();
+                this.loadPlugins();
+            },
             methods: {
-                async loadPlugins() {
-                    try {
-                        // Simulate loading plugins from server
-                        this.loading = false;
-                        this.showSuccess('Plugins loaded successfully!');
-                    } catch (error) {
-                        this.error = 'Failed to load plugins: ' + error.message;
-                        this.loading = false;
+                async initializePlatform() {
+                    // Wait for platform manager to load
+                    if (window.platformManager) {
+                        await window.platformManager.loadPlatformConfig();
+                        this.platformInfo = window.platformManager.getPlatformInfo();
+                    } else {
+                        console.error('Platform manager not found');
+                        this.showError('Platform manager not available');
                     }
                 },
 
-                async startPlugin(pluginName) {
-                    try {
-                        const plugin = this.plugins.find(p => p.name === pluginName);
-                        if (plugin) {
+                loadPlugins() {
+                    setTimeout(() => {
+                        this.loading = false;
+                        this.showSuccess('Plugin system loaded successfully');
+                    }, 1000);
+                },
+
+                startPlugin(pluginName) {
+                    const plugin = this.plugins.find(p => p.name === pluginName);
+                    if (plugin) {
+                        plugin.status = 'loading';
+                        setTimeout(() => {
                             plugin.status = 'active';
-                            plugin.loadTime = new Date();
-                            this.showSuccess(`${plugin.displayName} started successfully!`);
-                        }
-                    } catch (error) {
-                        this.showError(`Failed to start ${pluginName}: ${error.message}`);
+                            plugin.loadTime = Date.now();
+                            this.showSuccess(`${plugin.displayName} started successfully`);
+                        }, 1000);
                     }
                 },
 
-                async stopPlugin(pluginName) {
-                    try {
-                        const plugin = this.plugins.find(p => p.name === pluginName);
-                        if (plugin) {
-                            plugin.status = 'inactive';
-                            this.showSuccess(`${plugin.displayName} stopped successfully!`);
-                        }
-                    } catch (error) {
-                        this.showError(`Failed to stop ${pluginName}: ${error.message}`);
+                stopPlugin(pluginName) {
+                    const plugin = this.plugins.find(p => p.name === pluginName);
+                    if (plugin) {
+                        plugin.status = 'inactive';
+                        plugin.loadTime = null;
+                        this.showSuccess(`${plugin.displayName} stopped`);
                     }
                 },
 
-                async restartPlugin(pluginName) {
-                    try {
-                        await this.stopPlugin(pluginName);
+                restartPlugin(pluginName) {
+                    const plugin = this.plugins.find(p => p.name === pluginName);
+                    if (plugin) {
+                        this.stopPlugin(pluginName);
                         setTimeout(() => {
                             this.startPlugin(pluginName);
                         }, 1000);
-                    } catch (error) {
-                        this.showError(`Failed to restart ${pluginName}: ${error.message}`);
                     }
                 },
 
                 configurePlugin(pluginName) {
                     const plugin = this.plugins.find(p => p.name === pluginName);
                     if (plugin) {
-                        // Initialize config with plugin-specific defaults
+                        // Load platform-specific configuration
+                        const platformConfig = window.platformManager.getPluginConfig(pluginName);
+                        
                         this.configPlugin = {
+                            ...plugin,
+                            ...platformConfig,
                             // Common fields
-                            name: plugin.name,
-                            displayName: plugin.displayName,
-                            status: plugin.status,
                             autoStart: plugin.autoStart || false,
                             logLevel: plugin.logLevel || 'info',
                             maxCallsPerMinute: plugin.maxCallsPerMinute || 100,
-                            timeout: plugin.timeout || 30,
-                            
-                            // Directory Info specific
-                            targetPath: plugin.targetPath || '',
-                            includeSubdirs: plugin.includeSubdirs !== undefined ? plugin.includeSubdirs : true,
-                            showHidden: plugin.showHidden !== undefined ? plugin.showHidden : false,
-                            maxDepth: plugin.maxDepth || 5,
-                            
-                            // Event Data specific
-                            monitorPath: plugin.monitorPath || '',
-                            bufferSize: plugin.bufferSize || 1000,
-                            events: plugin.events || {
-                                fileCreated: true,
-                                fileDeleted: true,
-                                fileModified: true,
-                                fileRenamed: false,
-                                fileAccessed: false,
-                                filePermissionsChanged: true,
-                                directoryCreated: false,
-                                directoryDeleted: false,
-                                directoryModified: false,
-                                volumeMounted: true,
-                                volumeUnmounted: true,
-                                diskSpaceLow: true,
-                                networkDriveConnected: false,
-                                networkDriveDisconnected: false
-                            },
-                            
-                            // File Reader specific
-                            targetFile: plugin.targetFile || '',
-                            encoding: plugin.encoding || 'utf-8',
-                            readMode: plugin.readMode || 'text',
-                            autoReload: plugin.autoReload !== undefined ? plugin.autoReload : false,
-                            
-                            // Watchers Manager specific
-                            watchPaths: plugin.watchPaths ? [...plugin.watchPaths] : [''],
-                            watchEvents: plugin.watchEvents || {
-                                create: true,
-                                modify: true,
-                                delete: true,
-                                move: false,
-                                access: false,
-                                permission: true
-                            },
-                            recursive: plugin.recursive !== undefined ? plugin.recursive : true,
-                            
-                            // File Signature specific
-                            hashAlgorithm: plugin.hashAlgorithm || 'sha256',
-                            includeMetadata: plugin.includeMetadata !== undefined ? plugin.includeMetadata : true,
-                            
-                            // Folder Watcher specific
-                            events: plugin.events || {
-                                fileCreated: true,
-                                fileDeleted: true,
-                                fileModified: true,
-                                fileRenamed: false,
-                                directoryCreated: false,
-                                directoryDeleted: false
-                            },
-                            
-                            // Plugin Registry specific
-                            pluginDirectory: plugin.pluginDirectory || '',
-                            autoScan: plugin.autoScan !== undefined ? plugin.autoScan : true,
-                            scanInterval: plugin.scanInterval || 30,
-                            hotReload: plugin.hotReload !== undefined ? plugin.hotReload : false
+                            timeout: plugin.timeout || 30
                         };
+                        
                         this.showConfigModal = true;
                     }
-                },
-
-                browseDirectory(pluginName) {
-                    // Simulate directory browsing - in real app would use file dialog
-                    const plugin = this.plugins.find(p => p.name === pluginName);
-                    if (plugin) {
-                        // For demo purposes, set some common Windows directories
-                        const commonDirs = [
-                            'C:\\Users\\Public\\Documents',
-                            'C:\\Users\\Public\\Downloads',
-                            'C:\\Program Files',
-                            'C:\\Program Files (x86)',
-                            'C:\\Windows\\System32',
-                            'C:\\Windows\\Temp',
-                            'D:\\'
-                        ];
-                        
-                        // Set a default based on plugin type
-                        if (pluginName === 'directory_info' || pluginName === 'folder_watcher') {
-                            this.configPlugin.targetPath = commonDirs[0];
-                        } else if (pluginName === 'event_data') {
-                            this.configPlugin.monitorPath = commonDirs[5];
-                        } else if (pluginName === 'plugin_registry') {
-                            this.configPlugin.pluginDirectory = commonDirs[2] + '\\Mini MSP Agent\\plugins';
-                        }
-                        
-                        this.showSuccess(`Directory selected: ${this.configPlugin.targetPath || this.configPlugin.monitorPath || this.configPlugin.pluginDirectory}`);
-                    }
-                },
-
-                browseFile(pluginName) {
-                    // Simulate file browsing
-                    const plugin = this.plugins.find(p => p.name === pluginName);
-                    if (plugin) {
-                        const commonFiles = [
-                            'C:\\Users\\Public\\Documents\\config.txt',
-                            'C:\\Users\\Public\\Documents\\data.csv',
-                            'C:\\Windows\\System32\\drivers\\etc\\hosts',
-                            'C:\\ProgramData\\log.txt'
-                        ];
-                        
-                        this.configPlugin.targetFile = commonFiles[0];
-                        this.showSuccess(`File selected: ${this.configPlugin.targetFile}`);
-                    }
-                },
-
-                browsePath(pluginName) {
-                    // For file signature plugin - can be file or directory
-                    this.browseDirectory(pluginName);
-                },
-
-                browseDirectoryForPath(index) {
-                    // Browse for specific path in watchers manager
-                    const commonDirs = [
-                        'C:\\Users\\Public\\Documents',
-                        'C:\\Users\\Public\\Downloads',
-                        'C:\\Program Files',
-                        'C:\\Windows\\Temp'
-                    ];
-                    
-                    this.configPlugin.watchPaths[index] = commonDirs[index % commonDirs.length];
-                    this.showSuccess(`Directory ${index + 1} selected: ${this.configPlugin.watchPaths[index]}`);
                 },
 
                 closeConfigModal() {
@@ -807,38 +352,7 @@
                     const plugin = this.plugins.find(p => p.name === this.configPlugin.name);
                     if (plugin) {
                         // Update plugin with new configuration
-                        plugin.status = this.configPlugin.status;
-                        plugin.autoStart = this.configPlugin.autoStart;
-                        plugin.logLevel = this.configPlugin.logLevel;
-                        plugin.maxCallsPerMinute = this.configPlugin.maxCallsPerMinute;
-                        plugin.timeout = this.configPlugin.timeout;
-                        
-                        // Update plugin-specific configuration
-                        if (plugin.name === 'directory_info') {
-                            plugin.targetPath = this.configPlugin.targetPath;
-                            plugin.includeSubdirs = this.configPlugin.includeSubdirs;
-                            plugin.showHidden = this.configPlugin.showHidden;
-                            plugin.maxDepth = this.configPlugin.maxDepth;
-                        }
-                        
-                        if (plugin.name === 'event_data') {
-                            plugin.monitorPath = this.configPlugin.monitorPath;
-                            plugin.bufferSize = this.configPlugin.bufferSize;
-                            plugin.events = {...this.configPlugin.events};
-                        }
-                        
-                        if (plugin.name === 'file_reader') {
-                            plugin.targetFile = this.configPlugin.targetFile;
-                            plugin.encoding = this.configPlugin.encoding;
-                            plugin.readMode = this.configPlugin.readMode;
-                            plugin.autoReload = this.configPlugin.autoReload;
-                        }
-                        
-                        if (plugin.name === 'watchers_manager') {
-                            plugin.watchPaths = [...this.configPlugin.watchPaths];
-                            plugin.watchEvents = {...this.configPlugin.watchEvents};
-                            plugin.recursive = this.configPlugin.recursive;
-                        }
+                        Object.assign(plugin, this.configPlugin);
                         
                         this.showSuccess(`Configuration saved for ${plugin.displayName}`);
                         this.closeConfigModal();
@@ -846,14 +360,6 @@
                         // If plugin was started/stopped via config, update server
                         this.updatePluginStatus(plugin.name, plugin.status);
                     }
-                },
-
-                addWatchPath() {
-                    this.configPlugin.watchPaths.push('');
-                },
-
-                removeWatchPath(index) {
-                    this.configPlugin.watchPaths.splice(index, 1);
                 },
 
                 getPluginInfo(pluginName) {
@@ -869,14 +375,15 @@
                         'directory_info': '📁',
                         'event_data': '📋',
                         'file_reader': '📄',
+                        'watchers_manager': '👁️',
                         'file_signature': '🔐',
-                        'folder_watcher': '👁️',
-                        'file_listener': '🎧',
-                        'root_directory_info': '💾',
-                        'scanner': '🔍',
-                        'watchers_manager': '🎛️'
+                        'folder_watcher': '📁',
+                        'file_listener': '👂',
+                        'root_directory_info': '🏠',
+                        'scanner_plugin': '🔍',
+                        'plugin_registry': '📋'
                     };
-                    return icons[pluginName] || '🔧';
+                    return icons[pluginName] || '🔌';
                 },
 
                 getStatusClass(status) {
@@ -887,30 +394,39 @@
                     };
                 },
 
-                formatTime(time) {
-                    if (!time) return 'Never';
-                    return new Date(time).toLocaleString();
+                formatLoadTime(loadTime) {
+                    if (!loadTime) return 'Not loaded';
+                    const seconds = Math.floor((Date.now() - loadTime) / 1000);
+                    if (seconds < 60) return `${seconds}s ago`;
+                    const minutes = Math.floor(seconds / 60);
+                    if (minutes < 60) return `${minutes}m ago`;
+                    const hours = Math.floor(minutes / 60);
+                    return `${hours}h ago`;
+                },
+
+                showSuccess(message) {
+                    this.success = message;
+                    setTimeout(() => {
+                        this.success = null;
+                    }, 3000);
                 },
 
                 showError(message) {
                     this.error = message;
-                    this.success = null;
                     setTimeout(() => {
                         this.error = null;
                     }, 5000);
                 },
 
-                showSuccess(message) {
-                    this.success = message;
-                    this.error = null;
-                    setTimeout(() => {
-                        this.success = null;
-                    }, 3000);
-                }
-            },
+                updateConfig(newConfig) {
+                    this.configPlugin = { ...this.configPlugin, ...newConfig };
+                },
 
-            mounted() {
-                this.loadPlugins();
+                updatePluginStatus(pluginName, status) {
+                    // In a real implementation, this would send an API call to the server
+                    console.log(`Updating ${pluginName} status to ${status}`);
+                    // For now, just log it - the status is already updated in the UI
+                }
             }
         }).mount('#app');
     </script>
