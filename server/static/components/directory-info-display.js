@@ -32,8 +32,19 @@ const DirectoryInfoDisplay = {
                     max_depth: this.pluginConfig.maxDepth || 1,
                 }).toString();
 
-                const response = await fetch(`/agents/${this.agentId}/data/directory_info?${params}`);
+                const token = localStorage.getItem('token');
+                const response = await fetch(`/agents/${this.agentId}/data/directory_info?${params}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                    }
+                });
+
                 if (!response.ok) {
+                    if (response.status === 401) {
+                        this.error = "Session expired. Please login again.";
+                        return;
+                    }
                     const errorText = await response.text();
                     throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
                 }

@@ -171,6 +171,7 @@ async fn main() -> Result<()> {
     // Build router
     let app = Router::new()
         .route("/health", get(health_check))
+        .route("/login", post(routes::login))
         .route("/heartbeat", post(handle_heartbeat))
         .route("/ws", get(handle_websocket))
         .route("/agents", get(list_agents))

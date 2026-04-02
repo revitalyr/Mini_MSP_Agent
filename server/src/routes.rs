@@ -1,15 +1,95 @@
 use axum::{
-    extract::{ws::WebSocket, ws::Message, State, WebSocketUpgrade, Path},
+    extract::{ws::WebSocket, ws::Message, State, WebSocketUpgrade, Path, FromRequestParts},
     response::{IntoResponse, Json, Response},
-    http::StatusCode,
+    http::{StatusCode, request::Parts},
+    async_trait,
 };
 use futures_util::{StreamExt};
+use jsonwebtoken::{decode, encode, Header, DecodingKey, EncodingKey, Validation, Algorithm};
 use mini_msp_shared::{Command, Heartbeat};
 use serde_json::json;
 use std::{sync::Arc, time::Instant};
 use tracing::{debug, error, info, warn};
 
 use crate::{AgentInfo, AppState};
+
+const JWT_SECRET: &[u8] = b"your_ultra_secure_secret_change_this";
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct Claims {
+    pub sub: String, // Subject (обычно username или ID)
+    pub exp: usize,  // Expiration time
+}
+
+#[derive(serde::Deserialize)]
+pub struct LoginRequest {
+    pub username: String,
+    pub password: String,
+}
+
+pub async fn login(
+    Json(payload): Json<LoginRequest>,
+) -> impl IntoResponse {
+    // В реальном приложении здесь должна быть проверка хеша пароля из БД
+    if payload.username == "admin" && payload.password == "password" {
+        let expiration = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as usize
+            + 3600; // Токен на 1 час
+
+        let claims = Claims {
+            sub: payload.username,
+            exp: expiration,
+        };
+
+        let token = encode(
+            &Header::default(),
+            &claims,
+            &EncodingKey::from_secret(JWT_SECRET),
+        );
+
+        match token {
+            Ok(t) => (StatusCode::OK, Json(json!({ "token": t }))).into_response(),
+            Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Failed to generate token").into_response(),
+        }
+    } else {
+        (StatusCode::UNAUTHORIZED, Json(json!({ "error": "Invalid credentials" }))).into_response()
+    }
+}
+
+#[async_trait]
+impl<S> FromRequestParts<S> for Claims
+where
+    S: Send + Sync,
+{
+    type Rejection = (StatusCode, Json<serde_json::Value>);
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        // Извлекаем заголовок Authorization
+        let auth_header = parts.headers.get(axum::http::header::AUTHORIZATION)
+            .and_then(|h| h.to_str().ok())
+            .ok_or((StatusCode::UNAUTHORIZED, Json(json!({"error": "Missing authorization header"}))))?;
+
+        if !auth_header.starts_with("Bearer ") {
+            return Err((StatusCode::UNAUTHORIZED, Json(json!({"error": "Invalid token type"}))));
+        }
+
+        let token = &auth_header[7..];
+        
+        // Декодируем и валидируем токен
+        let token_data = decode::<Claims>(
+            token,
+            &DecodingKey::from_secret(JWT_SECRET),
+            &Validation::new(Algorithm::HS256),
+        ).map_err(|e| {
+            error!("JWT Validation error: {}", e);
+            (StatusCode::UNAUTHORIZED, Json(json!({"error": "Invalid or expired token"})))
+        })?;
+
+        Ok(token_data.claims)
+    }
+}
 
 pub async fn handle_heartbeat(
     State(state): State<AppState>,
@@ -117,6 +197,7 @@ pub async fn get_directory_info(
 
 pub async fn get_directory_info_data(
     State(state): State<AppState>,
+    _claims: Claims,
     Path(agent_id): Path<String>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> impl IntoResponse {
@@ -141,6 +222,7 @@ pub async fn get_directory_info_data(
 
 pub async fn get_plugin_registry_data(
     State(state): State<AppState>,
+    _claims: Claims,
     Path(agent_id): Path<String>,
 ) -> impl IntoResponse {
     let command = Command::GetPluginRegistry;
@@ -257,6 +339,7 @@ async fn handle_websocket_connection(socket: WebSocket, state: AppState) {
 
 pub async fn send_command(
     State(state): State<AppState>,
+    _claims: Claims,
     Path(agent_id): Path<String>,
     Json(command): Json<Command>,
 ) -> impl IntoResponse {
