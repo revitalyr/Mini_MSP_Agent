@@ -5,7 +5,7 @@ use axum::{
 };
 use futures_util::{StreamExt};
 use mini_msp_shared::{Command, Heartbeat};
-use serde_json;
+use serde_json::json;
 use std::{sync::Arc, time::Instant};
 use tracing::{debug, error, info, warn};
 
@@ -103,7 +103,7 @@ pub async fn get_directory_info(
                 "directories": directories
             });
             
-            Json(response)
+            Json(response).into_response()
         }
         Err(e) => {
             error!("Failed to read directory {}: {}", path, e);

@@ -54,29 +54,28 @@
 
 use anyhow::Result;
 use axum::{
-    extract::{Path, State},
-    http::StatusCode,
-    response::{Json, IntoResponse},
+    extract::State,
+    response::{IntoResponse, Json},
     routing::{get, post},
     Router,
 };
-use clap::{Arg, Command as ClapCommand};
-use mini_msp_shared::Command;
+use mini_msp_shared::{Heartbeat};
 use serde_json::json;
 use std::{
     collections::HashMap,
     net::SocketAddr,
     sync::Arc,
-    time::Instant,
+    time::{Instant, Duration},
 };
-use tokio::time::{interval, Duration};
+use tracing::info;
+use tokio::time::interval;
 use tower_http::{cors::CorsLayer, trace::TraceLayer, services::ServeDir};
-use tracing::{debug, error, info};
+use clap::{Arg, Command as ClapCommand};
 
 mod routes;
 mod websocket;
 
-use routes::{handle_heartbeat, handle_websocket, send_command as send_command_handler};
+use routes::{handle_heartbeat, handle_websocket, send_command as send_command_handler, get_directory_info};
 use websocket::WebSocketManager;
 
 /// Shared application state for the server
