@@ -34,17 +34,25 @@ const FileReaderConfig = {
         browseFile() {
             if (typeof window !== 'undefined' && window.platformManager) {
                 const platformConfig = window.platformManager.getPluginConfig('file_reader');
-                const defaultFiles = platformConfig.defaultFiles || [];
+                const defaultFiles = (platformConfig && platformConfig.defaultFiles) || [];
                 const selectedFile = defaultFiles[0] || defaultFiles[1];
-                this.config.targetFile = selectedFile;
-                this.emitUpdate();
                 
-                console.log(`File selected: ${selectedFile}`);
+                if (selectedFile) {
+                    this.config.targetFile = selectedFile;
+                    this.emitUpdate();
+                    console.log(`File selected: ${selectedFile}`);
+                }
             }
         },
         
         emitUpdate() {
             this.$emit('update', this.config);
+        },
+
+        getHint(key) {
+            return (typeof window !== 'undefined' && window.platformManager) 
+                ? window.platformManager.getHint(key) 
+                : '';
         }
     },
     template: `
@@ -58,7 +66,7 @@ const FileReaderConfig = {
                            @input="emitUpdate">
                     <button class="btn btn-small btn-secondary" @click="browseFile">Browse</button>
                 </div>
-                <small class="hint">{{ window.platformManager.getHint('targetFile') }}</small>
+                <small class="hint">{{ getHint('targetFile') }}</small>
             </div>
             <div class="config-item">
                 <label>File Encoding:</label>
@@ -87,3 +95,10 @@ const FileReaderConfig = {
         </div>
     `
 };
+
+// Export for use in other modules
+if (typeof window !== 'undefined') {
+    window.FileReaderConfig = FileReaderConfig;
+} else if (typeof module !== 'undefined' && module.exports) {
+    module.exports = FileReaderConfig;
+}

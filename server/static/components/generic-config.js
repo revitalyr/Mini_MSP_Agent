@@ -43,15 +43,17 @@ const GenericConfig = {
             const pluginName = this.plugin.name;
             if (typeof window !== 'undefined' && window.platformManager) {
                 const defaultPaths = window.platformManager.getDefaultPaths(pluginName);
-                const selectedPath = defaultPaths[0] || defaultPaths[1];
+                const selectedPath = defaultPaths ? (defaultPaths[0] || defaultPaths[1]) : null;
                 
-                if (pluginName === 'file_signature' || pluginName === 'folder_watcher') {
-                    this.config.targetPath = selectedPath;
-                } else if (pluginName === 'plugin_registry') {
-                    this.config.pluginDirectory = selectedPath;
+                if (selectedPath) {
+                    if (pluginName === 'file_signature' || pluginName === 'folder_watcher') {
+                        this.config.targetPath = selectedPath;
+                    } else if (pluginName === 'plugin_registry') {
+                        this.config.pluginDirectory = selectedPath;
+                    }
+                    
+                    this.emitUpdate();
                 }
-                
-                this.emitUpdate();
             }
         },
         
@@ -188,3 +190,10 @@ const GenericConfig = {
         </div>
     `
 };
+
+// Export for use in other modules
+if (typeof window !== 'undefined') {
+    window.GenericConfig = GenericConfig;
+} else if (typeof module !== 'undefined' && module.exports) {
+    module.exports = GenericConfig;
+}

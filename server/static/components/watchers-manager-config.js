@@ -52,12 +52,19 @@ const WatchersManagerConfig = {
         browseDirectoryForPath(index) {
             if (typeof window !== 'undefined' && window.platformManager) {
                 const defaultPaths = window.platformManager.getDefaultPaths('watchers_manager');
-                const selectedPath = defaultPaths[index % defaultPaths.length];
-                this.config.watchPaths[index] = selectedPath;
-                this.emitUpdate();
-                
-                console.log(`Directory ${index + 1} selected: ${selectedPath}`);
+                if (defaultPaths && defaultPaths.length > 0) {
+                    const selectedPath = defaultPaths[index % defaultPaths.length];
+                    this.config.watchPaths[index] = selectedPath;
+                    this.emitUpdate();
+                    console.log(`Directory ${index + 1} selected: ${selectedPath}`);
+                }
             }
+        },
+
+        getHint(key) {
+            return (typeof window !== 'undefined' && window.platformManager) 
+                ? window.platformManager.getHint(key) 
+                : '';
         },
         
         emitUpdate() {
@@ -98,3 +105,10 @@ const WatchersManagerConfig = {
         </div>
     `
 };
+
+// Export for use in other modules
+if (typeof window !== 'undefined') {
+    window.WatchersManagerConfig = WatchersManagerConfig;
+} else if (typeof module !== 'undefined' && module.exports) {
+    module.exports = WatchersManagerConfig;
+}
