@@ -76,6 +76,13 @@ pub enum Command {
     Exec { cmd: String },
     GetFile { path: String },
     GetSystemInfo,
+    GetDirectoryInfoData { 
+        path: String, 
+        include_subdirs: bool, 
+        show_hidden: bool, 
+        max_depth: u32 
+    },
+    GetPluginRegistry,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

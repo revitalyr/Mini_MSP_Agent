@@ -115,6 +115,42 @@ pub async fn get_directory_info(
     }
 }
 
+pub async fn get_directory_info_data(
+    State(state): State<AppState>,
+    Path(agent_id): Path<String>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    let path = params.get("path").cloned().unwrap_or_default();
+    let include_subdirs = params.get("include_subdirs").map(|v| v == "true").unwrap_or(false);
+    let show_hidden = params.get("show_hidden").map(|v| v == "true").unwrap_or(false);
+    let max_depth = params.get("max_depth").and_then(|v| v.parse().ok()).unwrap_or(1);
+
+    let command = Command::GetDirectoryInfoData { 
+        path, 
+        include_subdirs, 
+        show_hidden, 
+        max_depth 
+    };
+
+    let mut ws_manager = state.ws_manager.lock().await;
+    match ws_manager.send_to_agent(&agent_id, &command).await {
+        Ok(_) => (StatusCode::OK, Json(json!({"status": "sent", "agent_id": agent_id}))).into_response(),
+        Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))).into_response(),
+    }
+}
+
+pub async fn get_plugin_registry_data(
+    State(state): State<AppState>,
+    Path(agent_id): Path<String>,
+) -> impl IntoResponse {
+    let command = Command::GetPluginRegistry;
+    let mut ws_manager = state.ws_manager.lock().await;
+    match ws_manager.send_to_agent(&agent_id, &command).await {
+        Ok(_) => (StatusCode::OK, Json(json!({"status": "sent", "agent_id": agent_id}))).into_response(),
+        Err(e) => (StatusCode::NOT_FOUND, Json(json!({"error": e.to_string()}))).into_response(),
+    }
+}
+
 pub async fn handle_websocket(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,

@@ -8,7 +8,10 @@ const EventDataConfig = {
             systemEvents: {}
         };
     },
-    mounted() {
+    async mounted() {
+        if (typeof window !== 'undefined' && window.platformManager) {
+            await window.platformManager.ready();
+        }
         this.loadPlatformDefaults();
         this.loadSystemEvents();
     },
@@ -42,14 +45,24 @@ const EventDataConfig = {
             }
         },
         
-        browseDirectory() {
+        browseDirectory(event) {
             if (typeof window !== 'undefined' && window.platformManager) {
                 const defaultPaths = window.platformManager.getDefaultPaths('event_data');
-                const selectedPath = defaultPaths[0] || defaultPaths[1];
-                this.config.monitorPath = selectedPath;
-                this.emitUpdate();
-                
-                console.log(`Directory selected: ${selectedPath}`);
+                if (Array.isArray(defaultPaths) && defaultPaths.length > 0) {
+                    const currentIndex = defaultPaths.indexOf(this.config.monitorPath);
+                    const nextIndex = (currentIndex + 1) % defaultPaths.length;
+                    const selectedPath = defaultPaths[nextIndex];
+                    
+                    this.config.monitorPath = selectedPath;
+                    this.emitUpdate();
+                    
+                    // Visual feedback
+                    const input = event?.currentTarget?.previousElementSibling;
+                    if (input) {
+                        input.style.backgroundColor = '#e8f5e8';
+                        setTimeout(() => { input.style.backgroundColor = ''; }, 500);
+                    }
+                }
             }
         },
         

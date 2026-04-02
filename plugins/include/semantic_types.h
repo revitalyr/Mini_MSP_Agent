@@ -54,6 +54,17 @@ typedef struct {
 } directory_entry_t;
 
 typedef struct {
+    path_string_t m_path;
+    uint64_t m_total_files;
+    uint64_t m_total_directories;
+    uint64_t m_total_size_bytes;
+    uint64_t m_hidden_files;
+    uint64_t m_hidden_directories;
+    timestamp_t m_scan_timestamp;
+    percentage_t m_scan_progress;
+} directory_info_data_t;
+
+typedef struct {
     plugin_name_t m_plugin_name;      // Имя плагина
     call_count_t m_successful_calls;  // Успешные вызовы
     error_count_t m_failed_calls;     // Неудачные вызовы

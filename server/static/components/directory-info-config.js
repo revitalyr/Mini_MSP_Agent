@@ -1,18 +1,20 @@
 // Directory Info Configuration Component
 const DirectoryInfoConfig = {
-    props: ['plugin'],
+    props: ['plugin', 'agentId'],
     emits: ['update'],
     data() {
         return {
             config: { ...this.plugin }
         };
     },
-    mounted() {
-        this.loadPlatformDefaults();
+    async mounted() {
+        await this.loadPlatformDefaults();
     },
     methods: {
-        loadPlatformDefaults() {
+        async loadPlatformDefaults() {
             if (typeof window !== 'undefined' && window.platformManager) {
+                // Wait for platform configuration to be fully loaded
+                await window.platformManager.ready();
                 const platformConfig = window.platformManager.getPluginConfig('directory_info');
                 if (!this.config.targetPath) {
                     this.config.targetPath = platformConfig.targetPath || '';
@@ -20,48 +22,25 @@ const DirectoryInfoConfig = {
             }
         },
 
-        browseDirectory() {
-            console.log('🔍 Browse button clicked - START DEBUG');
-            console.log('window:', typeof window);
-            console.log('window.platformManager:', typeof window !== 'undefined' ? window.platformManager : 'undefined');
-            
+        browseDirectory(event) {
             if (typeof window !== 'undefined' && window.platformManager) {
-                console.log('✅ window.platformManager available');
-                console.log('Getting default paths for directory_info...');
                 const defaultPaths = window.platformManager.getDefaultPaths('directory_info');
-                console.log('Default paths received:', defaultPaths);
-                console.log('Is array?', Array.isArray(defaultPaths));
-                console.log('Length:', defaultPaths ? defaultPaths.length : 'undefined');
                 
                 if (Array.isArray(defaultPaths) && defaultPaths.length > 0) {
-                    // Выберем следующий путь из списка для демонстрации
                     const currentIndex = defaultPaths.indexOf(this.config.targetPath);
                     const nextIndex = (currentIndex + 1) % defaultPaths.length;
                     const selectedPath = defaultPaths[nextIndex];
-                    console.log('Current path:', this.config.targetPath);
-                    console.log('Selected path:', selectedPath);
                     
                     this.config.targetPath = selectedPath;
                     this.emitUpdate();
                     
-                    // Show user feedback (more elegant than alert)
-                    console.log(`✅ Directory selected: ${selectedPath}`);
-                    
                     // Visual feedback - briefly highlight the input
-                    const input = event.target?.previousElementSibling;
+                    const input = event?.currentTarget?.previousElementSibling;
                     if (input) {
                         input.style.backgroundColor = '#e8f5e8';
-                        setTimeout(() => {
-                            input.style.backgroundColor = '';
-                        }, 500);
+                        setTimeout(() => { input.style.backgroundColor = ''; }, 500);
                     }
-                } else {
-                    console.error('❌ No default paths available');
-                    alert('No default paths available for this plugin');
                 }
-            } else {
-                console.error('❌ Window or platformManager not available');
-                alert('Platform manager not available');
             }
         },
         
@@ -103,6 +82,10 @@ const DirectoryInfoConfig = {
                 <input type="number" v-model="config.maxDepth" min="1" max="10" @input="emitUpdate">
                 <small class="hint">{{ getHint('maxDepth') }}</small>
             </div>
+
+            <!-- Live Data Monitor -->
+            <hr>
+            <directory-info-display :agent-id="agentId" :plugin-config="config" />
         </div>
     `
 };

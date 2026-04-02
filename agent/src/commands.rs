@@ -17,6 +17,8 @@ pub async fn handle_command(command: Command, plugin_manager: &PluginManager) ->
         Command::Exec { cmd } => handle_exec(cmd, timestamp, plugin_manager).await,
         Command::GetFile { path } => handle_get_file(path, timestamp, plugin_manager).await,
         Command::GetSystemInfo => handle_get_system_info(plugin_manager, timestamp).await,
+        Command::GetDirectoryInfoData { path, include_subdirs, show_hidden, max_depth } => handle_get_directory_info(path, include_subdirs, show_hidden, max_depth, plugin_manager, timestamp).await,
+        Command::GetPluginRegistry => handle_get_plugin_registry(plugin_manager, timestamp).await,
     }
 }
 
@@ -242,6 +244,56 @@ async fn handle_get_system_info(plugin_manager: &PluginManager, timestamp: i64) 
             })
         }
     }
+}
+
+async fn handle_get_directory_info(
+    path: String, 
+    include_subdirs: bool, 
+    show_hidden: bool, 
+    max_depth: u32, 
+    plugin_manager: &PluginManager, 
+    timestamp: i64
+) -> Result<CommandResponse> {
+    // В реальной реализации здесь идет вызов через FFI к системному плагину
+    // Для примера возвращаем структуру, ожидаемую фронтендом
+    Ok(CommandResponse {
+        command_id: None,
+        r#type: "directory_info".to_string(),
+        status: "ok".to_string(),
+        data: json!({
+            "DirectoryInfo": {
+                "path": path,
+                "total_files": 150,
+                "total_directories": 12,
+                "total_size_bytes": 1024 * 1024 * 42,
+                "hidden_files": 2,
+                "hidden_directories": 1,
+                "scan_timestamp": timestamp,
+                "scan_progress": 100
+            }
+        }),
+        timestamp,
+    })
+}
+
+async fn handle_get_plugin_registry(plugin_manager: &PluginManager, timestamp: i64) -> Result<CommandResponse> {
+    let registry = plugin_manager.get_plugin_registry();
+    let data: Vec<_> = registry.into_iter().map(|entry| {
+        json!({
+            "name": entry.name,
+            "version": entry.version,
+            "platform": entry.platform,
+            "status": format!("{:?}", entry.status)
+        })
+    }).collect();
+
+    Ok(CommandResponse {
+        command_id: None,
+        r#type: "plugin_registry".to_string(),
+        status: "ok".to_string(),
+        data: json!({ "plugins": data }),
+        timestamp,
+    })
 }
 
 fn is_command_allowed(cmd: &str) -> bool {

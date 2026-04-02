@@ -175,6 +175,8 @@ async fn main() -> Result<()> {
         .route("/ws", get(handle_websocket))
         .route("/agents", get(list_agents))
         .route("/agents/:id/command", post(send_command_handler))
+        .route("/agents/:id/data/directory_info", get(routes::get_directory_info_data))
+        .route("/agents/:id/data/plugin_registry", get(routes::get_plugin_registry_data))
         .route("/directory/:path", get(get_directory_info))
         .nest_service("/static", ServeDir::new("static"))
         .route("/", get(|| async { axum::response::Redirect::permanent("/static/plugin_control.html") }))

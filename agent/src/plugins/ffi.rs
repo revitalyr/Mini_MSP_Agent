@@ -64,6 +64,19 @@ pub struct SystemInfo {
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
+pub struct CDirectoryInfoData {
+    pub m_path: *mut c_char,
+    pub m_total_files: u64,
+    pub m_total_directories: u64,
+    pub m_total_size_bytes: u64,
+    pub m_hidden_files: u64,
+    pub m_hidden_directories: u64,
+    pub m_scan_timestamp: u64,
+    pub m_scan_progress: u8,
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct PluginInterface {
     pub get_plugin_info: Option<unsafe extern "C" fn() -> *mut PluginInfo>,
     pub init: Option<unsafe extern "C" fn() -> bool>,
@@ -73,6 +86,12 @@ pub struct PluginInterface {
     pub execute_command: Option<unsafe extern "C" fn(*const c_char, *mut CommandResult) -> bool>,
     pub read_file: Option<unsafe extern "C" fn(*const c_char, *mut FileContent) -> bool>,
     pub get_system_info: Option<unsafe extern "C" fn(*mut SystemInfo) -> bool>,
+    pub get_directory_info_data: Option<unsafe extern "C" fn(
+        *const c_char, 
+        bool, 
+        bool, 
+        u32
+    ) -> *mut CDirectoryInfoData>,
     pub free_memory: Option<unsafe extern "C" fn(*mut c_void)>,
 }
 
