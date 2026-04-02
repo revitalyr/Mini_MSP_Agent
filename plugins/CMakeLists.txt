@@ -56,6 +56,7 @@ elseif(APPLE)
         ${CMAKE_CURRENT_SOURCE_DIR}/platform/macos/plugin_loader_macos.c
     )
     list(APPEND PLATFORM_LIBS pthread)
+    list(APPEND PLATFORM_DEFINES __APPLE__)
 else()
     list(APPEND PLATFORM_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/platform/linux/file_reader_plugin_linux.c
