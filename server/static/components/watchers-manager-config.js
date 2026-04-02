@@ -14,24 +14,28 @@ const WatchersManagerConfig = {
     },
     methods: {
         loadPlatformDefaults() {
-            const platformConfig = window.platformManager.getPluginConfig('watchers_manager');
-            if (!this.config.watchPaths || this.config.watchPaths.length === 0) {
-                this.config.watchPaths = platformConfig.watchPaths || [''];
-            }
-            if (!this.config.recursive) {
-                this.config.recursive = platformConfig.recursive !== undefined ? platformConfig.recursive : true;
+            if (typeof window !== 'undefined' && window.platformManager) {
+                const platformConfig = window.platformManager.getPluginConfig('watchers_manager');
+                if (!this.config.watchPaths || this.config.watchPaths.length === 0) {
+                    this.config.watchPaths = platformConfig.watchPaths || [''];
+                }
+                if (!this.config.recursive) {
+                    this.config.recursive = platformConfig.recursive !== undefined ? platformConfig.recursive : true;
+                }
             }
         },
         
         loadSystemEvents() {
-            this.systemEvents = window.platformManager.getSystemEvents();
-            if (!this.config.watchEvents) {
-                this.config.watchEvents = {};
-                // Initialize watcher events from platform configuration
-                const fileEvents = this.systemEvents.fileEvents || [];
-                fileEvents.forEach(event => {
-                    this.config.watchEvents[event.key.replace('file', '').toLowerCase()] = event.enabled;
-                });
+            if (typeof window !== 'undefined' && window.platformManager) {
+                this.systemEvents = window.platformManager.getSystemEvents();
+                if (!this.config.watchEvents) {
+                    this.config.watchEvents = {};
+                    // Initialize watcher events from platform configuration
+                    const fileEvents = this.systemEvents.fileEvents || [];
+                    fileEvents.forEach(event => {
+                        this.config.watchEvents[event.key.replace('file', '').toLowerCase()] = event.enabled;
+                    });
+                }
             }
         },
         
@@ -46,10 +50,14 @@ const WatchersManagerConfig = {
         },
         
         browseDirectoryForPath(index) {
-            const defaultPaths = window.platformManager.getDefaultPaths('watchers_manager');
-            const selectedPath = defaultPaths[index % defaultPaths.length];
-            this.config.watchPaths[index] = selectedPath;
-            this.emitUpdate();
+            if (typeof window !== 'undefined' && window.platformManager) {
+                const defaultPaths = window.platformManager.getDefaultPaths('watchers_manager');
+                const selectedPath = defaultPaths[index % defaultPaths.length];
+                this.config.watchPaths[index] = selectedPath;
+                this.emitUpdate();
+                
+                console.log(`Directory ${index + 1} selected: ${selectedPath}`);
+            }
         },
         
         emitUpdate() {

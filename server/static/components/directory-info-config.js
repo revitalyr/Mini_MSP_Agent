@@ -12,7 +12,7 @@ const DirectoryInfoConfig = {
     },
     methods: {
         loadPlatformDefaults() {
-            if (window.platformManager) {
+            if (typeof window !== 'undefined' && window.platformManager) {
                 const platformConfig = window.platformManager.getPluginConfig('directory_info');
                 if (!this.config.targetPath) {
                     this.config.targetPath = platformConfig.targetPath || '';
@@ -21,11 +21,16 @@ const DirectoryInfoConfig = {
         },
         
         browseDirectory() {
-            if (window.platformManager) {
+            if (typeof window !== 'undefined' && window.platformManager) {
                 const defaultPaths = window.platformManager.getDefaultPaths('directory_info');
                 const selectedPath = defaultPaths[0] || defaultPaths[1];
                 this.config.targetPath = selectedPath;
                 this.emitUpdate();
+                
+                // Show success message
+                if (window.platformManager) {
+                    console.log(`Directory selected: ${selectedPath}`);
+                }
             }
         },
         

@@ -14,35 +14,43 @@ const EventDataConfig = {
     },
     methods: {
         loadPlatformDefaults() {
-            const platformConfig = window.platformManager.getPluginConfig('event_data');
-            if (!this.config.monitorPath) {
-                this.config.monitorPath = platformConfig.monitorPath || '';
-            }
-            if (!this.config.bufferSize) {
-                this.config.bufferSize = platformConfig.bufferSize || 1000;
+            if (typeof window !== 'undefined' && window.platformManager) {
+                const platformConfig = window.platformManager.getPluginConfig('event_data');
+                if (!this.config.monitorPath) {
+                    this.config.monitorPath = platformConfig.monitorPath || '';
+                }
+                if (!this.config.bufferSize) {
+                    this.config.bufferSize = platformConfig.bufferSize || 1000;
+                }
             }
         },
         
         loadSystemEvents() {
-            this.systemEvents = window.platformManager.getSystemEvents();
-            if (!this.config.events) {
-                this.config.events = {};
-                // Initialize events from platform configuration
-                Object.values(this.systemEvents).flat().forEach(eventGroup => {
-                    if (Array.isArray(eventGroup)) {
-                        eventGroup.forEach(event => {
-                            this.config.events[event.key] = event.enabled;
-                        });
-                    }
-                });
+            if (typeof window !== 'undefined' && window.platformManager) {
+                this.systemEvents = window.platformManager.getSystemEvents();
+                if (!this.config.events) {
+                    this.config.events = {};
+                    // Initialize events from platform configuration
+                    Object.values(this.systemEvents).flat().forEach(eventGroup => {
+                        if (Array.isArray(eventGroup)) {
+                            eventGroup.forEach(event => {
+                                this.config.events[event.key] = event.enabled;
+                            });
+                        }
+                    });
+                }
             }
         },
         
         browseDirectory() {
-            const defaultPaths = window.platformManager.getDefaultPaths('event_data');
-            const selectedPath = defaultPaths[0] || defaultPaths[1];
-            this.config.monitorPath = selectedPath;
-            this.emitUpdate();
+            if (typeof window !== 'undefined' && window.platformManager) {
+                const defaultPaths = window.platformManager.getDefaultPaths('event_data');
+                const selectedPath = defaultPaths[0] || defaultPaths[1];
+                this.config.monitorPath = selectedPath;
+                this.emitUpdate();
+                
+                console.log(`Directory selected: ${selectedPath}`);
+            }
         },
         
         emitUpdate() {

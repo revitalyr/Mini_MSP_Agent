@@ -14,25 +14,33 @@ const FileReaderConfig = {
     },
     methods: {
         loadPlatformDefaults() {
-            const platformConfig = window.platformManager.getPluginConfig('file_reader');
-            if (!this.config.targetFile) {
-                this.config.targetFile = platformConfig.targetFile || '';
-            }
-            if (!this.config.encoding) {
-                this.config.encoding = platformConfig.encoding || 'utf-8';
+            if (typeof window !== 'undefined' && window.platformManager) {
+                const platformConfig = window.platformManager.getPluginConfig('file_reader');
+                if (!this.config.targetFile) {
+                    this.config.targetFile = platformConfig.targetFile || '';
+                }
+                if (!this.config.encoding) {
+                    this.config.encoding = platformConfig.encoding || 'utf-8';
+                }
             }
         },
         
         loadEncodings() {
-            this.encodings = window.platformManager.getEncodings();
+            if (typeof window !== 'undefined' && window.platformManager) {
+                this.encodings = window.platformManager.getEncodings();
+            }
         },
         
         browseFile() {
-            const platformConfig = window.platformManager.getPluginConfig('file_reader');
-            const defaultFiles = platformConfig.defaultFiles || [];
-            const selectedFile = defaultFiles[0] || defaultFiles[1];
-            this.config.targetFile = selectedFile;
-            this.emitUpdate();
+            if (typeof window !== 'undefined' && window.platformManager) {
+                const platformConfig = window.platformManager.getPluginConfig('file_reader');
+                const defaultFiles = platformConfig.defaultFiles || [];
+                const selectedFile = defaultFiles[0] || defaultFiles[1];
+                this.config.targetFile = selectedFile;
+                this.emitUpdate();
+                
+                console.log(`File selected: ${selectedFile}`);
+            }
         },
         
         emitUpdate() {
