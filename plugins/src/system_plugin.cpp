@@ -149,12 +149,12 @@ video_frame_t* PLUGIN_CALL get_video_frame(void) {
     if (!frame) return nullptr;
     memset(frame, 0, sizeof(video_frame_t));
 
-    uint32_t w = 320, h = 240;
-    uint32_t raw_size = w * h * 3;
+    const uint32_t w = 320, h = 240;
+    file_size_t raw_size = w * h * 3;
     std::vector<uint8_t> rgb_buffer(raw_size);
 
     // Генерация тестового изображения (градиент)
-    uint64_t ts = current_timestamp_ms();
+    timestamp_t ts = current_timestamp_ms();
     for (uint32_t i = 0; i < raw_size; i++) {
         rgb_buffer[i] = (uint8_t)(i + (uint32_t)ts) % 255;
     }

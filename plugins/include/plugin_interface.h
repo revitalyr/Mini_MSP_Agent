@@ -68,9 +68,9 @@ typedef struct {
  * @var hostname - System hostname (null-terminated, max 255 chars)
  */
 typedef struct {
-    float cpu_usage;
-    float ram_usage;
-    float disk_usage;
+    percentage_t cpu_usage;
+    percentage_t ram_usage;
+    percentage_t disk_usage;
     uint64_t uptime;
     char hostname[256];
 } system_metrics_t;
@@ -90,9 +90,9 @@ typedef struct {
 typedef struct {
     uint32_t pid;
     char name[256];
-    float cpu_usage;
-    uint64_t memory_usage;
-    uint64_t start_time;
+    percentage_t cpu_usage;
+    file_size_t memory_usage;
+    timestamp_t start_time;
 } process_info_t;
 
 /**

@@ -40,49 +40,15 @@ impl TelemetryCollector {
     }
 
     pub fn get_hostname(&self) -> String {
-        if let Ok(system_metrics) = self.plugin_manager.get_system_metrics() {
-            system_metrics.hostname
-        } else {
-            // Fallback to environment
-            std::env::var("COMPUTERNAME")
-                .or_else(|_| std::env::var("HOSTNAME"))
-                .unwrap_or_else(|_| {
-                    std::process::Command::new("hostname")
-                        .output()
-                        .ok()
-                        .and_then(|o| String::from_utf8(o.stdout).ok())
-                        .map(|s| s.trim().to_string())
-                        .unwrap_or_else(|| "unknown".to_string())
-                })
-        }
+        self.plugin_manager.get_system_metrics()
+            .map(|m| m.hostname)
+            .unwrap_or_else(|_| "unknown".to_string())
     }
 
     pub fn get_uptime(&self) -> u64 {
-        if let Ok(system_metrics) = self.plugin_manager.get_system_metrics() {
-            system_metrics.uptime
-        } else {
-            // Fallback: calculate actual system uptime using /proc/uptime on Linux
-            self.get_system_uptime_fallback()
-        }
-    }
-
-    fn get_system_uptime_fallback(&self) -> u64 {
-        #[cfg(target_os = "linux")]
-        {
-            if let Ok(uptime_content) = std::fs::read_to_string("/proc/uptime") {
-                if let Some(uptime_str) = uptime_content.split_whitespace().next() {
-                    if let Ok(uptime_seconds) = uptime_str.parse::<f64>() {
-                        return uptime_seconds as u64;
-                    }
-                }
-            }
-        }
-        
-        // Final fallback: agent uptime (not ideal but better than timestamp)
-        self.start_time
-            .elapsed()
-            .unwrap_or_default()
-            .as_secs()
+        self.plugin_manager.get_system_metrics()
+            .map(|m| m.uptime)
+            .unwrap_or(0)
     }
 
     pub fn get_processes(&self) -> Result<Vec<ProcessInfo>> {

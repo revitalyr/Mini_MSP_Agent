@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
@@ -7,7 +7,13 @@ use tokio::time::interval;
 use tracing::{debug, error, info, warn};
 
 use super::loader::PluginLoader;
-use super::ffi::{PluginInfoData, SystemMetricsData, ProcessInfoData, CommandResultData, FileContentData, SystemInfoData};
+use super::ffi::{
+    PluginInfoData, SystemMetricsData, ProcessInfoData, CommandResultData, FileContentData, 
+    SystemInfoData, EventData, WatchersData, FileReaderData, SensorData, CameraData, 
+    ProcessingResults, VideoFrameData, DirectoryInfoData
+};
+
+const MAX_SENSOR_QUEUE_SIZE: usize = 1000;
 
 #[derive(Debug, Clone)]
 pub enum PluginStatus {
@@ -35,6 +41,7 @@ pub struct PluginRegistryEntry {
 pub struct PluginManager {
     plugins: Arc<Mutex<HashMap<String, Arc<PluginLoader>>>>,
     registry: Arc<Mutex<HashMap<String, PluginRegistryEntry>>>,
+    sensor_queue: Arc<Mutex<VecDeque<SensorData>>>,
     system_plugin: Option<String>,
     hot_reload_enabled: bool,
     plugin_directory: Option<String>,
@@ -54,6 +61,7 @@ impl PluginManager {
         Self {
             plugins: Arc::new(Mutex::new(HashMap::new())),
             registry: Arc::new(Mutex::new(HashMap::new())),
+            sensor_queue: Arc::new(Mutex::new(VecDeque::with_capacity(MAX_SENSOR_QUEUE_SIZE))),
             system_plugin: None,
             hot_reload_enabled: false,
             plugin_directory: None,
@@ -254,6 +262,69 @@ impl PluginManager {
 
     pub fn get_system_info(&self) -> Result<SystemInfoData> {
         self.get_system_plugin()?.get_interface()?.get_system_info()
+    }
+
+    pub fn get_directory_info_data(&self, path: &str, recursive: bool, show_hidden: bool, max_depth: u32) -> Result<DirectoryInfoData> {
+        self.get_system_plugin()?.get_interface()?.get_directory_info_data(path, recursive, show_hidden, max_depth)
+    }
+
+    pub fn get_event_data(&self, path: &str) -> Result<EventData> {
+        self.get_system_plugin()?.get_interface()?.get_event_data(path)
+    }
+
+    pub fn get_watchers_data(&self) -> Result<WatchersData> {
+        self.get_system_plugin()?.get_interface()?.get_watchers_data()
+    }
+
+    pub fn get_file_reader_data(&self, path: &str) -> Result<FileReaderData> {
+        self.get_system_plugin()?.get_interface()?.get_file_reader_data(path)
+    }
+
+    pub fn get_sensor_data(&self) -> Result<SensorData> {
+        self.get_system_plugin()?.get_interface()?.get_sensor_data()
+    }
+
+    /// Добавляет данные в очередь (с вытеснением старых данных)
+    pub fn push_sensor_data(&self, data: SensorData) {
+        let mut queue = self.sensor_queue.lock().unwrap();
+        if queue.len() >= MAX_SENSOR_QUEUE_SIZE {
+            queue.pop_front();
+        }
+        queue.push_back(data);
+    }
+
+    /// Возвращает историю данных из очереди
+    pub fn get_sensor_history(&self) -> Vec<SensorData> {
+        let queue = self.sensor_queue.lock().unwrap();
+        queue.iter().cloned().collect()
+    }
+
+    /// Запускает фоновый опрос датчиков на высокой частоте
+    pub fn start_sensor_polling(&self, interval_ms: u64) {
+        let pm = self.clone();
+        let frequency = Duration::from_millis(interval_ms);
+        
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(frequency);
+            loop {
+                interval.tick().await;
+                if let Ok(data) = pm.get_sensor_data() {
+                    pm.push_sensor_data(data);
+                }
+            }
+        });
+    }
+
+    pub fn get_camera_data(&self) -> Result<CameraData> {
+        self.get_system_plugin()?.get_interface()?.get_camera_data()
+    }
+
+    pub fn get_processing_results(&self) -> Result<ProcessingResults> {
+        self.get_system_plugin()?.get_interface()?.get_processing_results()
+    }
+
+    pub fn get_video_frame(&self) -> Result<VideoFrameData> {
+        self.get_system_plugin()?.get_interface()?.get_video_frame()
     }
 
     pub fn is_system_plugin_loaded(&self) -> bool {

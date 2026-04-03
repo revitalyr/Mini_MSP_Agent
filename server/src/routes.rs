@@ -468,45 +468,7 @@ pub async fn send_command(
                     "memory": "16GB",
                     "disk": "500GB SSD"
                 }),
-                Command::GetProcesses => {
-                    // Use ps command to get real process data
-                    let mut processes = Vec::new();
-                    
-                    match std::process::Command::new("ps")
-                        .args(&["-eo", "pid,comm,etime"])
-                        .output()
-                    {
-                        Ok(output) => {
-                            if output.status.success() {
-                                let output_str = String::from_utf8_lossy(&output.stdout);
-                                for line in output_str.lines().skip(1).take(15) { // Skip header, limit to 15
-                                    let parts: Vec<&str> = line.trim().split_whitespace().collect();
-                                    if parts.len() >= 3 {
-                                        let pid: u32 = parts[0].parse().unwrap_or(0);
-                                        let name = parts[1];
-                                        let start_time = parts[2];
-                                        
-                                        processes.push(serde_json::json!({
-                                            "pid": pid,
-                                            "name": name,
-                                            "cpu_usage": 0.0,
-                                            "memory_usage": 0,
-                                            "start_time": start_time
-                                        }));
-                                    }
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            warn!("Failed to run ps command: {}", e);
-                        }
-                    }
-                    
-                    serde_json::json!({
-                        "processes": processes,
-                        "count": processes.len()
-                    })
-                },
+                Command::GetProcesses => serde_json::json!({"status": "error", "message": "Agent timeout: plugin data not available"}),
                         _ => serde_json::json!({"status": "timeout", "message": "Agent did not respond in time"})
                     }
                 }

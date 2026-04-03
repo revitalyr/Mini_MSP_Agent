@@ -1,9 +1,14 @@
 use anyhow::{anyhow, Result};
 use libloading::{Library, Symbol};
+use openssl::hash::MessageDigest;
+use openssl::pkey::PKey;
+use openssl::sign::Verifier;
 use std::path::Path;
 use tracing::{debug, error, info, warn};
 
 use super::ffi::{PluginInterface, SafePluginInterface};
+
+const PUBLIC_KEY_PATH: &str = "../security/agent_public.pem";
 
 pub struct PluginLoader {
     library: Option<Library>,
@@ -26,6 +31,12 @@ impl PluginLoader {
         
         info!("Loading plugin from: {}", self.plugin_path);
         
+        // Security: Verify plugin signature before loading
+        if !self.verify_signature(path) {
+            error!("Security: Plugin signature verification failed for {}", self.plugin_path);
+            return Err(anyhow!("Invalid plugin signature."));
+        }
+
         // Load the dynamic library
         let library = unsafe { Library::new(path) }
             .map_err(|e| anyhow!("Failed to load plugin library: {}", e))?;
@@ -69,6 +80,50 @@ impl PluginLoader {
         self.interface.is_some()
     }
     
+    fn verify_signature(&self, path: &Path) -> bool {
+        if cfg!(debug_assertions) {
+            debug!("Debug mode: skipping signature verification for {:?}", path);
+            return true;
+        }
+
+        debug!("Cryptographically verifying signature for plugin: {:?}", path);
+        
+        // 1. Определение пути к файлу подписи (.sig)
+        let mut sig_path = path.to_path_buf();
+        let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+        sig_path.set_extension(format!("{}.sig", ext));
+        
+        if !sig_path.exists() {
+            error!("Signature file not found: {:?}", sig_path);
+            return false;
+        }
+
+        // 2. Загрузка публичного ключа, плагина и подписи
+        let result: Result<bool> = (|| {
+            let pub_key_pem = std::fs::read(PUBLIC_KEY_PATH)?;
+            let pkey = PKey::public_key_from_pem(&pub_key_pem)?;
+            
+            let plugin_bytes = std::fs::read(path)?;
+            let sig_bytes = std::fs::read(&sig_path)?;
+
+            // 3. Проверка подписи (SHA-256)
+            let mut verifier = Verifier::new(MessageDigest::sha256(), &pkey)?;
+            verifier.update(&plugin_bytes)?;
+            Ok(verifier.verify(&sig_bytes)?)
+        })();
+
+        match result {
+            Ok(is_valid) => {
+                if !is_valid { error!("Invalid signature for {:?}", path); }
+                is_valid
+            }
+            Err(e) => {
+                error!("Signature verification error for {:?}: {}", path, e);
+                false
+            }
+        }
+    }
+
     pub fn get_plugin_info(&self) -> Result<super::ffi::PluginInfoData> {
         self.get_interface()?.get_plugin_info()
     }

@@ -55,28 +55,28 @@ typedef struct {
 
 typedef struct {
     path_string_t m_path;
-    uint64_t m_total_files;
-    uint64_t m_total_directories;
-    uint64_t m_total_size_bytes;
-    uint64_t m_hidden_files;
-    uint64_t m_hidden_directories;
+    file_count_t  m_total_files;
+    file_count_t  m_total_directories;
+    file_size_t   m_total_size_bytes;
+    file_count_t  m_hidden_files;
+    file_count_t  m_hidden_directories;
     timestamp_t m_scan_timestamp;
     percentage_t m_scan_progress;
 } directory_info_data_t;
 
 typedef struct {
     path_string_t m_path;
-    uint64_t m_events_count;
+    call_count_t m_events_count;
     percentage_t m_buffer_usage;
     char m_last_event[64];
     timestamp_t m_timestamp;
 } event_data_t;
 
 typedef struct {
-    uint32_t m_active_watchers;
-    uint64_t m_total_notifications;
+    file_count_t m_active_watchers;
+    call_count_t m_total_notifications;
     float m_cpu_usage;
-    uint64_t m_memory_usage_kb;
+    file_size_t m_memory_usage_kb;
 } watchers_data_t;
 
 typedef struct {

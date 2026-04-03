@@ -257,13 +257,10 @@ async fn cleanup_inactive_agents(state: &AppState) {
     let now = Instant::now();
     let timeout = Duration::from_secs(120); // 2 minutes timeout
     
-    let mut to_remove = Vec::new();
-    
-    for (id, agent) in agents.iter() {
-        if now.duration_since(agent.last_heartbeat) > timeout {
-            to_remove.push(id.to_string());
-        }
-    }
+    let to_remove: Vec<_> = agents.iter()
+        .filter(|(_, agent)| now.duration_since(agent.last_heartbeat) > timeout)
+        .map(|(id, _)| id.clone())
+        .collect();
     
     for id in to_remove {
         info!("Removing inactive agent: {}", id);

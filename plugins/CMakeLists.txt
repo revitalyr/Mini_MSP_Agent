@@ -5,6 +5,17 @@ project(mini_msp_plugins)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+# --- Security Configuration ---
+find_program(OPENSSL_EXECUTABLE openssl REQUIRED)
+set(PLUGIN_PRIVATE_KEY "${CMAKE_CURRENT_SOURCE_DIR}/../security/agent_private.pem")
+
+if(NOT EXISTS ${PLUGIN_PRIVATE_KEY})
+    message(WARNING "Private key for signing not found at ${PLUGIN_PRIVATE_KEY}. Plugins will not be signed correctly for production use.")
+endif()
+
+message(STATUS "Using OpenSSL for signing: ${OPENSSL_EXECUTABLE}")
+# ------------------------------
+
 # Detect platform
 if(WIN32)
     set(PLATFORM "windows")
@@ -29,6 +40,16 @@ add_library(system_plugin SHARED
 
 target_include_directories(system_plugin PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+# Add signature generation for system_plugin
+add_custom_command(TARGET system_plugin POST_BUILD
+    COMMAND ${OPENSSL_EXECUTABLE} dgst -sha256 -sign ${PLUGIN_PRIVATE_KEY} 
+            -out "$<TARGET_FILE:system_plugin>.sig" 
+            "$<TARGET_FILE:system_plugin>"
+    WORKING_DIRECTORY ${PLUGIN_OUTPUT_DIR}
+    COMMENT "🛡️ Generating digital signature for system_plugin"
+    VERBATIM
 )
 
 set_target_properties(system_plugin PROPERTIES
@@ -96,6 +117,16 @@ foreach(PLUGIN_SOURCE ${PLUGIN_SOURCES})
         ${PLATFORM_SOURCES}
     )
     
+    # Add signature generation for each plugin
+    add_custom_command(TARGET ${PLUGIN_NAME} POST_BUILD
+        COMMAND ${OPENSSL_EXECUTABLE} dgst -sha256 -sign ${PLUGIN_PRIVATE_KEY} 
+                -out "$<TARGET_FILE:${PLUGIN_NAME}>.sig" 
+                "$<TARGET_FILE:${PLUGIN_NAME}>"
+        WORKING_DIRECTORY ${PLUGIN_OUTPUT_DIR}
+        COMMENT "🛡️ Generating digital signature for ${PLUGIN_NAME}"
+        VERBATIM
+    )
+
     target_compile_definitions(${PLUGIN_NAME} PRIVATE ${PLATFORM_DEFINES})
     target_link_libraries(${PLUGIN_NAME} PRIVATE ${PLATFORM_LIBS})
     
@@ -117,7 +148,15 @@ endforeach()
 # Custom target to copy plugins to agent directory
 add_custom_target(copy_all_plugins ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_SOURCE_DIR}/../agent/plugins
+    # Copy libraries
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${PLUGIN_OUTPUT_DIR}/system_plugin.dll ${CMAKE_CURRENT_SOURCE_DIR}/../agent/plugins/ || ${CMAKE_COMMAND} -E copy_if_different ${PLUGIN_OUTPUT_DIR}/libsystem_plugin.so ${CMAKE_CURRENT_SOURCE_DIR}/../agent/plugins/ || ${CMAKE_COMMAND} -E copy_if_different ${PLUGIN_OUTPUT_DIR}/libsystem_plugin.dylib ${CMAKE_CURRENT_SOURCE_DIR}/../agent/plugins/
+    # Copy signatures
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different 
+        ${PLUGIN_OUTPUT_DIR}/system_plugin.dll.sig 
+        ${PLUGIN_OUTPUT_DIR}/libsystem_plugin.so.sig 
+        ${PLUGIN_OUTPUT_DIR}/libsystem_plugin.dylib.sig 
+        ${CMAKE_CURRENT_SOURCE_DIR}/../agent/plugins/ || ${CMAKE_COMMAND} -E echo "Signature for system_plugin not found, skipping..."
+    
     DEPENDS system_plugin
     COMMENT "Copying system plugin to agent directory"
 )
@@ -128,8 +167,9 @@ foreach(PLUGIN_SOURCE ${PLUGIN_SOURCES})
     add_custom_command(TARGET ${PLUGIN_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
         $<TARGET_FILE:${PLUGIN_NAME}>
+        "$<TARGET_FILE:${PLUGIN_NAME}>.sig"
         ${CMAKE_CURRENT_SOURCE_DIR}/../agent/plugins/
-        COMMENT "Copying ${PLUGIN_NAME} to agent directory"
+        COMMENT "Copying ${PLUGIN_NAME} and signature to agent directory"
     )
 endforeach()
 

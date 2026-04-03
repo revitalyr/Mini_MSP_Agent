@@ -99,18 +99,11 @@ impl WebSocketManager {
 
     pub fn cleanup_inactive(&mut self, timeout: std::time::Duration) {
         let now = std::time::Instant::now();
-        let mut to_remove = Vec::new();
-        
-        for (id, connection) in self.agents.iter() {
-            if now.duration_since(connection.last_activity) > timeout {
-                to_remove.push(id.clone());
-            }
-        }
-        
-        for id in to_remove {
-            warn!("Removing inactive agent: {}", id);
-            self.agents.remove(&id);
-        }
+        self.agents.retain(|id, connection| {
+            let is_active = now.duration_since(connection.last_activity) <= timeout;
+            if !is_active { warn!("Removing inactive agent: {}", id); }
+            is_active
+        });
     }
 }
 

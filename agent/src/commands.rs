@@ -25,15 +25,16 @@ pub async fn handle_command(command: Command, command_id: Option<String>, plugin
         Command::GetSensorData => handle_get_sensor_data(timestamp).await,
         Command::GetCameraData => handle_get_camera_data(timestamp).await,
         Command::GetProcessingResults => handle_get_processing_results(timestamp).await,
-        Command::GetVideoData => handle_get_video_data(timestamp).await,
-        Command::GetAudioData => handle_get_audio_data(timestamp).await,    
+        Command::GetVideoData => handle_get_video_data(timestamp).await, // Mock or legacy
+        Command::GetAudioData => handle_get_audio_data(timestamp).await, // Mock or legacy   
         Command::GetVideoFrame => {
-            // Специальная обработка для бинарного ответа
-            let raw_data = vec![0u8; 1024]; // Имитация кадра из плагина
-            return Ok(AgentResponse::Binary { 
-                command_id: command_id.unwrap_or_default(), 
-                data: raw_data 
-            });
+            match plugin_manager.get_video_frame() {
+                Ok(frame) => Ok(AgentResponse::Binary { 
+                    command_id: command_id.unwrap_or_default(), 
+                    data: frame.data 
+                }),
+                Err(e) => Err(anyhow!("Failed to get video frame from plugin: {}", e))
+            }
         },
     }?;
 
@@ -407,24 +408,12 @@ async fn handle_get_video_frame(plugin_manager: &PluginManager, timestamp: i64) 
 }
 
 fn is_command_allowed(cmd: &str) -> bool {
-    // 1. Запрещаем спецсимволы оболочки для предотвращения Command Injection
     let forbidden_chars = ['|', ';', '&', '$', '>', '<', '`', '\\', '\n'];
-    if cmd.chars().any(|c| forbidden_chars.contains(&c)) {
-        warn!("Security: Command contains forbidden characters: {}", cmd);
-        return false;
-    }
+    let is_forbidden = cmd.contains("..") || cmd.chars().any(|c| forbidden_chars.contains(&c));
+    
+    let allowed_commands = ["ps", "top", "df", "free", "uptime", "whoami", "id", "uname", "date", "ls", "cat", "grep", "wc", "head", "tail", "netstat", "ss", "ip"];
 
-    // 2. Запрещаем попытки выхода за пределы директорий
-    if cmd.contains("..") {
-        return false;
-    }
-
-    // 3. Белый список базовых утилит
-    let allowed_commands = vec![
-        "ps", "top", "df", "free", "uptime", "whoami", "id", "uname", "date",
-        "ls", "cat", "grep", "wc", "head", "tail", "netstat", "ss", "ip"
-    ];
-
-    let first_word = cmd.split_whitespace().next().unwrap_or("");
-    allowed_commands.contains(&first_word)
+    !is_forbidden && cmd.split_whitespace()
+        .next()
+        .map_or(false, |first| allowed_commands.contains(&first))
 }
