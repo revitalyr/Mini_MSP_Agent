@@ -62,31 +62,55 @@ if ($Build) {
         } elseif (-not $ninja) {
             Write-Host "⚠️ Ninja не найден. Пропускаю сборку плагинов." -ForegroundColor Yellow
         } else {
-            Write-Host "🔧 Конфигурация CMake..." -ForegroundColor Yellow
-            & cmake .. -DCMAKE_BUILD_TYPE=Release -G "Ninja"
+            # Очистка кэша CMake если нужно
+            if (Test-Path "CMakeCache.txt") {
+                Write-Host "🧹 Очистка кэша CMake..." -ForegroundColor Yellow
+                Remove-Item "CMakeCache.txt" -Force
+                Remove-Item "CMakeFiles" -Recurse -Force -ErrorAction SilentlyContinue
+            }
             
-            if ($LASTEXITCODE -eq 0) {
-                Write-Host "🔧 Сборка плагинов..." -ForegroundColor Yellow
-                & ninja
+            # Находим компилятор для Windows
+            $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+            if (Test-Path $vswhere) {
+                $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+                $vcVarsPath = "$vsPath\VC\Auxiliary\Build\vcvars64.bat"
                 
-                if ($LASTEXITCODE -eq 0) {
-                    # Копирование плагинов
-                    if (Test-Path "system_plugin.dll") {
-                        Copy-Item "system_plugin.dll" "$AgentPluginDir\" -Force
-                        Write-Host "✅ system_plugin.dll скопирован" -ForegroundColor Green
-                    }
+                if (Test-Path $vcVarsPath) {
+                    Write-Host "🔧 Настройка окружения Visual Studio..." -ForegroundColor Yellow
+                    $env:VSCMD_START_DIR = $pwd.Path
                     
-                    if (Test-Path "file_reader_plugin.dll") {
-                        Copy-Item "file_reader_plugin.dll" "$AgentPluginDir\" -Force
-                        Write-Host "✅ file_reader_plugin.dll скопирован" -ForegroundColor Green
-                    }
+                    # Конфигурация CMake с Ninja и указанием компилятора
+                    Write-Host "🔧 Конфигурация CMake с Ninja..." -ForegroundColor Yellow
+                    & cmake .. -DCMAKE_BUILD_TYPE=Release -G "Ninja" -DCMAKE_C_COMPILER="cl.exe" -DCMAKE_CXX_COMPILER="cl.exe"
                     
-                    Write-Host "✅ Плагины собраны и скопированы" -ForegroundColor Green
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Host "🔧 Сборка плагинов с Ninja..." -ForegroundColor Yellow
+                        & ninja
+                        
+                        if ($LASTEXITCODE -eq 0) {
+                            # Копирование плагинов
+                            if (Test-Path "system_plugin.dll") {
+                                Copy-Item "system_plugin.dll" "$AgentPluginDir\" -Force
+                                Write-Host "✅ system_plugin.dll скопирован" -ForegroundColor Green
+                            }
+                            
+                            if (Test-Path "file_reader_plugin.dll") {
+                                Copy-Item "file_reader_plugin.dll" "$AgentPluginDir\" -Force
+                                Write-Host "✅ file_reader_plugin.dll скопирован" -ForegroundColor Green
+                            }
+                            
+                            Write-Host "✅ Плагины собраны и скопированы" -ForegroundColor Green
+                        } else {
+                            Write-Host "❌ Ошибка сборки плагинов с Ninja" -ForegroundColor Red
+                        }
+                    } else {
+                        Write-Host "❌ Ошибка конфигурации CMake с Ninja" -ForegroundColor Red
+                    }
                 } else {
-                    Write-Host "❌ Ошибка сборки плагинов" -ForegroundColor Red
+                    Write-Host "❌ vcvars64.bat не найден: $vcVarsPath" -ForegroundColor Red
                 }
             } else {
-                Write-Host "❌ Ошибка конфигурации CMake" -ForegroundColor Red
+                Write-Host "❌ Visual Studio не найдена" -ForegroundColor Red
             }
         }
     }
