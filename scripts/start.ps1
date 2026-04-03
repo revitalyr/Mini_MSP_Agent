@@ -41,7 +41,7 @@ if ($Build) {
     Write-Host "🔧 Сборка C++ плагинов..." -ForegroundColor Yellow
     $PluginDir = "plugins"
     $BuildDir = "$PluginDir\build"
-    $AgentPluginDir = "agent\plugins"
+    $AgentPluginDir = "plugins"  # Изменено на "plugins" как ожидает агент
     
     # Создание директорий
     if (-not (Test-Path $BuildDir)) {
@@ -215,7 +215,7 @@ catch {
 
 # Запуск агента
 Write-Host "🤖 Запуск агента с конфигурацией: $AgentConfig" -ForegroundColor Yellow
-$AgentProcess = Start-Process -FilePath $AgentPath -ArgumentList "--config", $AgentConfig -PassThru -WindowStyle Hidden
+$AgentProcess = Start-Process -FilePath $AgentPath -ArgumentList "--config", $AgentConfig, "--plugin-dir", "plugins" -PassThru -WindowStyle Hidden
 
 Write-Host "✅ Сервер и агент запущены!" -ForegroundColor Green
 Write-Host "📊 Панель управления: http://localhost:$ServerPort/static/plugin_control.html" -ForegroundColor Cyan
