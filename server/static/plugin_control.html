@@ -405,6 +405,17 @@
                     this.showConfigModal = false;
                 },
 
+                updateConfig(pluginName, newConfig) {
+                    const plugin = this.plugins.find(p => p.name === pluginName);
+                    if (plugin) {
+                        // Update plugin configuration
+                        Object.assign(plugin, newConfig);
+                        // Auto-save to localStorage
+                        this.saveConfigToStorage();
+                        console.log(`Configuration auto-saved for ${plugin.displayName}`);
+                    }
+                },
+
                 savePluginConfig() {
                     const plugin = this.plugins.find(p => p.name === this.configPlugin.name);
                     if (plugin) {
@@ -427,6 +438,9 @@
                         const configData = {
                             plugins: this.plugins.map(p => ({
                                 name: p.name,
+                                displayName: p.displayName,
+                                description: p.description,
+                                version: p.version,
                                 status: p.status,
                                 autoStart: p.autoStart,
                                 logLevel: p.logLevel,
@@ -436,11 +450,27 @@
                                 monitorPath: p.monitorPath,
                                 pluginDirectory: p.pluginDirectory,
                                 watchPaths: p.watchPaths,
-                                scanInterval: p.scanInterval
+                                scanInterval: p.scanInterval,
+                                // Directory Info specific
+                                recursive: p.recursive,
+                                includeHidden: p.includeHidden,
+                                maxDepth: p.maxDepth,
+                                // Event Data specific
+                                bufferSize: p.bufferSize,
+                                events: p.events,
+                                // File Reader specific
+                                filePattern: p.filePattern,
+                                encoding: p.encoding,
+                                // Watchers Manager specific
+                                fileExtensions: p.fileExtensions,
+                                // Generic specific
+                                maxRetries: p.maxRetries,
+                                retryDelay: p.retryDelay
                             })),
                             selectedAgent: this.selectedAgent
                         };
                         localStorage.setItem('miniMspPluginConfig', JSON.stringify(configData));
+                        console.log('Configuration saved to localStorage');
                     } catch (error) {
                         console.error('Failed to save config to localStorage:', error);
                     }
@@ -451,13 +481,20 @@
                         const saved = localStorage.getItem('miniMspPluginConfig');
                         if (saved) {
                             const configData = JSON.parse(saved);
+                            console.log('Loading configuration from storage:', configData);
                             
                             // Restore plugin configurations
                             if (configData.plugins) {
                                 configData.plugins.forEach(savedPlugin => {
                                     const plugin = this.plugins.find(p => p.name === savedPlugin.name);
                                     if (plugin) {
-                                        Object.assign(plugin, savedPlugin);
+                                        // Restore all fields
+                                        Object.keys(savedPlugin).forEach(key => {
+                                            if (key !== 'name' && savedPlugin[key] !== undefined) {
+                                                plugin[key] = savedPlugin[key];
+                                            }
+                                        });
+                                        console.log(`Restored configuration for ${plugin.name}`);
                                     }
                                 });
                             }
@@ -466,6 +503,8 @@
                             if (configData.selectedAgent) {
                                 this.selectedAgent = configData.selectedAgent;
                             }
+                            
+                            console.log('Configuration loaded successfully');
                         }
                     } catch (error) {
                         console.error('Failed to load config from localStorage:', error);

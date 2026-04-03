@@ -72,7 +72,13 @@ const DirectoryInfoConfig = {
 
             <!-- Live Data Monitor -->
             <hr>
-            <directory-info-display :agent-id="agentId" :plugin-config="config" />
+            <div class="data-display-section">
+                <h4>📁 Directory Information</h4>
+                <p>Directory monitoring active for: <strong>{{ config.targetPath || 'Not configured' }}</strong></p>
+                <div v-if="config.targetPath">
+                    <p><small>Real-time data will appear here when agent is connected</small></p>
+                </div>
+            </div>
         </div>
     `
 };

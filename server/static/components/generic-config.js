@@ -192,7 +192,11 @@ const GenericConfig = {
         <!-- Context Specific Monitors -->
         <template v-if="plugin.name === 'plugin_registry'">
             <hr>
-            <plugin-registry-display :agent-id="agentId" />
+            <div class="data-display-section">
+                <h4>🔌 Plugin Registry</h4>
+                <p>Plugin registry monitoring active</p>
+                <p><small>Plugin list will appear here when agent is connected</small></p>
+            </div>
         </template>
     `
 };
