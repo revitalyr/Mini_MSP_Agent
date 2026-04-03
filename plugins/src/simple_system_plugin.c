@@ -1,5 +1,5 @@
 #include <windows.h>
-#include <stdio.h>
+#include <stdbool.h>
 
 // Базовые типы для совместимости
 typedef enum {
@@ -69,14 +69,14 @@ __declspec(dllexport) plugin_info_t* get_plugin_info(void) {
     return &info;
 }
 
-// Функция init - обязательная для системных плагинов
-__declspec(dllexport) bool init(void) {
+// Функция plugin_init - обязательная для системных плагинов
+__declspec(dllexport) bool plugin_init(void) {
     // Инициализация плагина
     return true; // Успешная инициализация
 }
 
-// Функция cleanup
-__declspec(dllexport) void cleanup(void) {
+// Функция plugin_cleanup
+__declspec(dllexport) void plugin_cleanup(void) {
     // Очистка ресурсов плагина
 }
 
@@ -84,8 +84,8 @@ __declspec(dllexport) void cleanup(void) {
 __declspec(dllexport) plugin_interface_t* get_plugin_interface(void) {
     // Устанавливаем функции интерфейса
     g_plugin_interface.get_plugin_info = get_plugin_info;
-    g_plugin_interface.init = init;
-    g_plugin_interface.cleanup = cleanup;
+    g_plugin_interface.init = plugin_init;
+    g_plugin_interface.cleanup = plugin_cleanup;
     return &g_plugin_interface;
 }
 
