@@ -205,9 +205,9 @@ pub struct PluginInterface {
 impl Default for SystemMetrics {
     fn default() -> Self {
         Self {
-            cpu_usage: 0.0,
-            ram_usage: 0.0,
-            disk_usage: 0.0,
+            cpu_usage: 0u8,
+            ram_usage: 0u8,
+            disk_usage: 0u8,
             uptime: 0,
             hostname: [0; 256],
         }
@@ -219,7 +219,7 @@ impl Default for ProcessInfo {
         Self {
             pid: 0,
             name: [0; 256],
-            cpu_usage: 0.0,
+            cpu_usage: 0u8,
             memory_usage: 0,
             start_time: 0,
         }
@@ -599,6 +599,18 @@ impl_ffi_conv!(CEventData => EventData {
     m_timestamp => timestamp,
 });
 
+impl EventData {
+    unsafe fn from_c_struct(event: CEventData) -> Result<Self> {
+        Ok(Self {
+            path: c_string_to_string_lossy(event.m_path),
+            events_count: event.m_events_count,
+            buffer_usage: event.m_buffer_usage,
+            last_event: c_string_to_string_lossy(event.m_last_event),
+            timestamp: event.m_timestamp,
+        })
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct WatchersData {
     pub active_watchers: u32,
@@ -713,9 +725,9 @@ pub struct SystemMetricsData {
 impl SystemMetricsData {
     unsafe fn from_c_struct(metrics: SystemMetrics) -> Self {
         Self {
-            cpu_usage: metrics.cpu_usage,
-            ram_usage: metrics.ram_usage,
-            disk_usage: metrics.disk_usage,
+            cpu_usage: metrics.cpu_usage as f32,
+            ram_usage: metrics.ram_usage as f32,
+            disk_usage: metrics.disk_usage as f32,
             uptime: metrics.uptime,
             hostname: c_string_to_string_lossy(metrics.hostname.as_ptr()),
         }
@@ -736,7 +748,7 @@ impl ProcessInfoData {
         Self {
             pid: process.pid,
             name: c_string_to_string_lossy(process.name.as_ptr()),
-            cpu_usage: process.cpu_usage,
+            cpu_usage: process.cpu_usage as f32,
             memory_usage: process.memory_usage,
             start_time: process.start_time,
         }
