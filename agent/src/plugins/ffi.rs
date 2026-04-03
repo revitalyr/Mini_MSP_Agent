@@ -12,31 +12,6 @@ pub type CallCount = u32;
 pub type Percentage = u8;
 // -----------------------------
 
-/// Макрос для автоматической генерации конвертации из C-структур в Rust
-macro_rules! impl_ffi_conv {
-    // Основной вход: C-тип => Safe-тип { поле_C [: тип_обработки] => поле_Rust, ... }
-    ($c_type:ty => $safe_type:ident { $( $c_field:ident $( : $kind:ident )? => $safe_field:ident ),* $(,)? }) => {
-        impl $safe_type {
-            pub unsafe fn from_c_struct(info: $c_type) -> Self {
-                Self {
-                    $(
-                        $safe_field: impl_ffi_conv!(@convert info.$c_field $( : $kind )?),
-                    )*
-                }
-            }
-        }
-    };
-
-    // Вспомогательные правила конвертации
-    (@convert $expr:expr) => { $expr }; // Прямое копирование
-    (@convert $expr:expr : string) => { c_string_to_string_lossy($expr) }; // Указатель в String
-    (@convert $expr:expr : string_array) => { c_string_to_string_lossy($expr.as_ptr()) }; // [c_char] в String
-    (@convert $expr:expr : percentage) => { 
-        // Проверка границ: гарантируем, что процент не превысит 100
-        std::cmp::min($expr, 100) 
-    };
-}
-
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct PluginInfo {
@@ -571,16 +546,20 @@ pub struct DirectoryInfoData {
     pub scan_progress: u8,
 }
 
-impl_ffi_conv!(CDirectoryInfoData => DirectoryInfoData {
-    m_path : string => path,
-    m_total_files => total_files,
-    m_total_directories => total_directories,
-    m_total_size_bytes => total_size_bytes,
-    m_hidden_files => hidden_files,
-    m_hidden_directories => hidden_directories,
-    m_scan_timestamp => scan_timestamp,
-    m_scan_progress : percentage => scan_progress,
-});
+impl DirectoryInfoData {
+    unsafe fn from_c_struct(info: CDirectoryInfoData) -> Self {
+        Self {
+            path: c_string_to_string_lossy(info.m_path),
+            total_files: info.m_total_files as u64,
+            total_directories: info.m_total_directories as u64,
+            total_size_bytes: info.m_total_size_bytes as u64,
+            hidden_files: info.m_hidden_files as u64,
+            hidden_directories: info.m_hidden_directories as u64,
+            scan_timestamp: info.m_scan_timestamp,
+            scan_progress: info.m_scan_progress,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct EventData {
@@ -591,102 +570,112 @@ pub struct EventData {
     pub timestamp: u64,
 }
 
-impl_ffi_conv!(CEventData => EventData {
-    m_path : string => path,
-    m_events_count => events_count,
-    m_buffer_usage : percentage => buffer_usage,
-    m_last_event : string_array => last_event,
-    m_timestamp => timestamp,
-});
-
 impl EventData {
-    unsafe fn from_c_struct(event: CEventData) -> Result<Self> {
-        Ok(Self {
+    unsafe fn from_c_struct(event: CEventData) -> Self {
+        Self {
             path: c_string_to_string_lossy(event.m_path),
-            events_count: event.m_events_count,
+            events_count: event.m_events_count as u64,
             buffer_usage: event.m_buffer_usage,
-            last_event: c_string_to_string_lossy(event.m_last_event),
+            last_event: c_string_to_string_lossy(event.m_last_event.as_ptr()),
             timestamp: event.m_timestamp,
-        })
+        }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct WatchersData {
-    pub active_watchers: u32,
+    pub active_watchers: u64,
     pub total_notifications: u64,
     pub cpu_usage: f32,
     pub memory_usage_kb: u64,
 }
 
-impl_ffi_conv!(CWatchersData => WatchersData {
-    m_active_watchers => active_watchers,
-    m_total_notifications => total_notifications,
-    m_cpu_usage => cpu_usage,
-    m_memory_usage_kb => memory_usage_kb,
-});
+impl WatchersData {
+    unsafe fn from_c_struct(data: CWatchersData) -> Self {
+        Self {
+            active_watchers: data.m_active_watchers as u64,
+            total_notifications: data.m_total_notifications as u64,
+            cpu_usage: data.m_cpu_usage,
+            memory_usage_kb: data.m_memory_usage_kb,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct FileReaderData {
     pub path: String,
+    pub content: String,
     pub size: u64,
     pub encoding: String,
-    pub is_locked: bool,
-    pub last_access: u64,
 }
 
-impl_ffi_conv!(CFileReaderData => FileReaderData {
-    m_path : string => path,
-    m_size => size,
-    m_encoding : string_array => encoding,
-    m_is_locked => is_locked,
-    m_last_access => last_access,
-});
+impl FileReaderData {
+    unsafe fn from_c_struct(data: CFileReaderData) -> Self {
+        Self {
+            path: c_string_to_string_lossy(data.m_path),
+            content: c_string_to_string_lossy(data.m_content),
+            size: data.m_size_bytes as u64,
+            encoding: c_string_to_string_lossy(data.m_encoding.as_ptr()),
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct SensorData {
-    pub temperature: f32,
-    pub humidity: f32,
-    pub pressure: f32,
-    pub timestamp: u64,
+    pub sensor_type: String,
+    pub value: f64,
+    pub unit: String,
+    pub timestamp: i64,
 }
 
-impl_ffi_conv!(CSensorData => SensorData {
-    m_temperature => temperature,
-    m_humidity => humidity,
-    m_pressure => pressure,
-    m_timestamp => timestamp,
-});
+impl SensorData {
+    unsafe fn from_c_struct(data: CSensorData) -> Self {
+        Self {
+            sensor_type: c_string_to_string_lossy(data.m_sensor_type),
+            value: data.m_value,
+            unit: c_string_to_string_lossy(data.m_unit),
+            timestamp: data.m_timestamp as i64,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct CameraData {
-    pub width: u32,
-    pub height: u32,
-    pub fps: u32,
-    pub codec: String,
-    pub timestamp: u64,
+    pub camera_id: String,
+    pub resolution: String,
+    pub frame_rate: u32,
+    pub timestamp: i64,
 }
 
-impl_ffi_conv!(CCameraData => CameraData {
-    m_width => width,
-    m_height => height,
-    m_fps => fps,
-    m_codec : string_array => codec,
-    m_timestamp => timestamp,
-});
+impl CameraData {
+    unsafe fn from_c_struct(data: CCameraData) -> Self {
+        Self {
+            camera_id: "default".to_string(), // Use default since C struct doesn't have this field
+            resolution: format!("{}x{}", data.m_width, data.m_height),
+            frame_rate: data.m_fps,
+            timestamp: data.m_timestamp as i64,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct ProcessingResults {
+    pub task_id: String,
     pub status: String,
-    pub load_index: f32,
-    pub processed_items: u32,
+    pub result_data: serde_json::Value,
+    pub processing_time: f64,
 }
 
-impl_ffi_conv!(CProcessingResults => ProcessingResults {
-    m_status : string_array => status,
-    m_load_index => load_index,
-    m_processed_items => processed_items,
-});
+impl ProcessingResults {
+    unsafe fn from_c_struct(data: CProcessingResults) -> Self {
+        Self {
+            task_id: c_string_to_string_lossy(data.m_task_id),
+            status: c_string_to_string_lossy(data.m_status.as_ptr()),
+            result_data: serde_json::from_str(c_string_to_string_lossy(data.m_result_data.as_ptr()).as_str()).unwrap_or(serde_json::Value::Null),
+            processing_time: data.m_processing_time_ms as f64 / 1000.0,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct VideoFrameData {

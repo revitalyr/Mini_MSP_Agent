@@ -270,6 +270,40 @@ pub async fn get_event_data_endpoint(
     }
 }
 
+pub async fn get_sensor_data_endpoint(
+    State(state): State<AppState>,
+    _claims: Claims,
+    Path(agent_id): Path<String>,
+) -> impl IntoResponse {
+    let command = Command::GetSensorData;
+    
+    let mut ws_manager = state.ws_manager.lock().await;
+    let result = match ws_manager.send_and_wait(&agent_id, command).await {
+        Ok(rx) => {
+            drop(ws_manager);
+            match rx.await {
+                Ok(response) => {
+                    match response {
+                        mini_msp_shared::AgentResponse::Json(cmd_response) => {
+                            (StatusCode::OK, Json(cmd_response.data)).into_response()
+                        }
+                        mini_msp_shared::AgentResponse::Binary { data, .. } => {
+                            (StatusCode::OK, [("Content-Type", "application/octet-stream")], data).into_response()
+                        }
+                    }
+                }
+                Err(_) => {
+                    (StatusCode::GATEWAY_TIMEOUT, Json(json!({"error": "Timeout"}))).into_response()
+                }
+            }
+        }
+        Err(_) => {
+            (StatusCode::NOT_FOUND, Json(json!({"error": "Agent not found"}))).into_response()
+        }
+    };
+    result
+}
+
 pub async fn get_watchers_data_endpoint(
     State(state): State<AppState>,
     _claims: Claims,
@@ -461,15 +495,21 @@ pub async fn send_command(
                 _ => {
                     // Если агент не ответил вовремя, возвращаем mock или ошибку
                     match &command {
-                        Command::GetSystemInfo => serde_json::json!({
-                    "hostname": "ASUS1",
-                    "os": "Linux",
-                    "cpu": "Intel Core i7",
-                    "memory": "16GB",
-                    "disk": "500GB SSD"
-                }),
-                Command::GetProcesses => serde_json::json!({"status": "error", "message": "Agent timeout: plugin data not available"}),
-                        _ => serde_json::json!({"status": "timeout", "message": "Agent did not respond in time"})
+                        Command::GetSystemInfo => {
+                            return (StatusCode::OK, Json(serde_json::json!({
+                                "hostname": "ASUS1",
+                                "os": "Linux", 
+                                "cpu": "Intel Core i7",
+                                "memory": "16GB",
+                                "disk": "500GB SSD"
+                            }))).into_response();
+                        },
+                        Command::GetProcesses => {
+                            return (StatusCode::OK, Json(serde_json::json!({"status": "error", "message": "Agent timeout: plugin data not available"}))).into_response();
+                        },
+                        _ => {
+                            return (StatusCode::OK, Json(serde_json::json!({"status": "timeout", "message": "Agent did not respond in time"}))).into_response();
+                        }
                     }
                 }
             };
@@ -479,13 +519,13 @@ pub async fn send_command(
                 "agent_id": agent_id,
                 "command": command,
                 "response": final_data
-            })))
+            }))).into_response()
         },
         Err(e) => {
             warn!("Failed to send command via WebSocket: {}", e);
             (StatusCode::NOT_FOUND, Json(serde_json::json!({
                 "error": format!("Agent not connected: {}", e)
-            })))
+            }))).into_response()
         }
     }
 }

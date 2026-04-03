@@ -137,10 +137,11 @@ impl Default for AgentConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct DirectoryInfoData {
     pub path: String,
-    pub total_files: u32,
-    pub total_directories: u32,
-    pub total_size_bytes: u32,
-    pub hidden_files: u32,
+    pub total_files: u64,
+    pub total_directories: u64,
+    pub total_size_bytes: u64,
+    pub hidden_files: u64,
+    pub hidden_directories: u64,
     pub scan_timestamp: u64,
     pub scan_progress: u8,
 }
@@ -165,7 +166,7 @@ pub struct EventData {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WatchersData {
-    pub active_watchers: u32,
+    pub active_watchers: u64,
     pub total_notifications: u64,
     pub cpu_usage: f32,
     pub memory_usage_kb: u64,

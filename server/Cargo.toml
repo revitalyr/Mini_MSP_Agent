@@ -23,6 +23,7 @@ tower-http = { workspace = true, features = ["fs", "cors", "trace"] }
 futures-util = { workspace = true }
 tokio-tungstenite = { workspace = true }
 clap = { workspace = true }
+jsonwebtoken = "10.3.0"
 
 [dev-dependencies]
 tower = { workspace = true, features = ["util"] }
