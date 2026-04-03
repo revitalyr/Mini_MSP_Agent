@@ -47,8 +47,8 @@ if ($Build) {
     if (-not (Test-Path $BuildDir)) {
         New-Item -ItemType Directory -Path $BuildDir | Out-Null
     }
-    if (-not (Test-Path $AgentPluginDir)) {
-        New-Item -ItemType Directory -Path $AgentPluginDir | Out-Null
+    if (-not (Test-Path "../$AgentPluginDir")) {
+        New-Item -ItemType Directory -Path "../$AgentPluginDir" | Out-Null
     }
     
     # Сборка плагинов через CMake
@@ -103,13 +103,13 @@ if ($Build) {
                         
                         if ($LASTEXITCODE -eq 0) {
                             # Создаем директорию для плагинов если нужно
-                            if (-not (Test-Path "$AgentPluginDir")) {
-                                New-Item -ItemType Directory -Path "$AgentPluginDir" -Force | Out-Null
+                            if (-not (Test-Path "../$AgentPluginDir")) {
+                                New-Item -ItemType Directory -Path "../$AgentPluginDir" -Force | Out-Null
                             }
                             
                             # Копирование плагинов
                             if (Test-Path "plugins/system_plugin.dll") {
-                                Copy-Item "plugins/system_plugin.dll" "$AgentPluginDir\" -Force
+                                Copy-Item "plugins/system_plugin.dll" "../$AgentPluginDir/system_plugin.dll" -Force
                                 Write-Host "✅ system_plugin.dll скопирован" -ForegroundColor Green
                             }
                             
