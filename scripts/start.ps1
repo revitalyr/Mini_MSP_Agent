@@ -30,9 +30,10 @@ if (-not (Test-Command "cargo")) {
 # Сборка проекта если нужно
 if ($Build) {
     Write-Host "📦 Сборка проекта..." -ForegroundColor Yellow
-    cargo build
+    & cargo build --quiet 2>$null
+    
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "❌ Ошибка сборки проекта" -ForegroundColor Red
+        Write-Host "❌ Ошибка сборки Rust проекта" -ForegroundColor Red
         exit 1
     }
     
@@ -94,11 +95,11 @@ if ($Build) {
                     Write-Host "🔧 Конфигурация CMake (простой плагин)..." -ForegroundColor Yellow
                     # Копируем простой CMakeLists.txt временно
                     Copy-Item "../simple_CMakeLists.txt" "CMakeLists.txt" -Force
-                    & cmake . -DCMAKE_BUILD_TYPE=Release -G "Ninja"
+                    & cmake . -DCMAKE_BUILD_TYPE=Release -G "Ninja" 2>$null
                     
                     if ($LASTEXITCODE -eq 0) {
                         Write-Host "🔧 Сборка плагинов с Ninja..." -ForegroundColor Yellow
-                        & ninja
+                        & ninja 2>$null
                         
                         if ($LASTEXITCODE -eq 0) {
                             # Создаем директорию для плагинов если нужно
