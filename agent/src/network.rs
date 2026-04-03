@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use futures_util::{SinkExt, StreamExt};
-use mini_msp_shared::{Command, CommandResponse, Heartbeat};
+use mini_msp_shared::{Command, CommandResponse, Heartbeat, CommandRequest, AgentResponse};
 use reqwest::Client;
 use serde_json;
 use std::time::Duration;
@@ -168,19 +168,24 @@ impl WebSocketClient {
         Ok(())
     }
 
-    async fn handle_message(&self, message: String) -> Result<Option<String>> {
+    async fn handle_message(&self, message: String) -> Result<Option<Message>> {
         info!("Handling WebSocket message: {}", message);
         
-        let command: Command = serde_json::from_str(&message)
-            .with_context(|| "Failed to parse command")?;
+        let request: CommandRequest = serde_json::from_str(&message)
+            .with_context(|| "Failed to parse command request")?;
 
-        info!("Parsed command: {:?}", command);
+        info!("Parsed command: {:?}", request.command);
 
-        match handle_command(command, &self.plugin_manager).await {
-            Ok(response) => {
-                let response_text = serde_json::to_string(&response)
-                    .with_context(|| "Failed to serialize response")?;
-                Ok(Some(response_text))
+        match handle_command(request.command, Some(request.command_id.clone()), &self.plugin_manager).await {
+            Ok(AgentResponse::Json(resp)) => {
+                let text = serde_json::to_string(&resp)?;
+                Ok(Some(Message::Text(text)))
+            }
+            Ok(AgentResponse::Binary { command_id, data }) => {
+                // Формируем бинарный пакет: [36 байт ID][Данные]
+                let mut packet = command_id.into_bytes();
+                packet.extend(data);
+                Ok(Some(Message::Binary(packet)))
             }
             Err(e) => {
                 error!("Command execution failed: {}", e);
@@ -200,7 +205,7 @@ impl WebSocketClient {
                 
                 let response_text = serde_json::to_string(&error_response)
                     .with_context(|| "Failed to serialize error response")?;
-                Ok(Some(response_text))
+                Ok(Some(Message::Text(response_text)))
             }
         }
     }

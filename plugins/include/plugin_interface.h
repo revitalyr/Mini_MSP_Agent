@@ -170,6 +170,10 @@ typedef directory_info_data_t* (PLUGIN_CALL *get_directory_info_data_fn_t)(const
 typedef event_data_t* (PLUGIN_CALL *get_event_data_fn_t)(const char* path);
 typedef watchers_data_t* (PLUGIN_CALL *get_watchers_data_fn_t)(void);
 typedef file_reader_data_t* (PLUGIN_CALL *get_file_reader_data_fn_t)(const char* path);
+typedef sensor_data_t* (PLUGIN_CALL *get_sensor_data_fn_t)(void);
+typedef camera_data_t* (PLUGIN_CALL *get_camera_data_fn_t)(void);
+typedef processing_results_t* (PLUGIN_CALL *get_processing_results_fn_t)(void);
+typedef video_frame_t* (PLUGIN_CALL *get_video_frame_fn_t)(void);
 typedef void (PLUGIN_CALL *free_memory_fn_t)(void* ptr);
 
 // Plugin interface structure
@@ -186,6 +190,10 @@ typedef struct {
     get_event_data_fn_t get_event_data;
     get_watchers_data_fn_t get_watchers_data;
     get_file_reader_data_fn_t get_file_reader_data;
+    get_sensor_data_fn_t get_sensor_data;
+    get_camera_data_fn_t get_camera_data;
+    get_processing_results_fn_t get_processing_results;
+    get_video_frame_fn_t get_video_frame;
     free_memory_fn_t free_memory;
 } plugin_interface_t;
 

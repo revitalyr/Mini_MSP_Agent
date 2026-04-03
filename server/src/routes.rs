@@ -8,10 +8,11 @@ use futures_util::{StreamExt};
 use jsonwebtoken::{decode, encode, Header, DecodingKey, EncodingKey, Validation, Algorithm};
 use mini_msp_shared::{Command, Heartbeat};
 use serde_json::json;
-use std::{sync::Arc, time::Instant};
+use std::{sync::Arc, time::Instant, collections::HashMap};
 use tracing::{debug, error, info, warn};
 
 use crate::{AgentInfo, AppState};
+use mini_msp_shared::AgentResponse;
 
 const JWT_SECRET: &[u8] = b"your_ultra_secure_secret_change_this";
 
@@ -373,10 +374,13 @@ async fn handle_websocket_connection(socket: WebSocket, state: AppState) {
                                         "command_response" => {
                                             info!("Received command response: {}", json_msg);
                                             
-                                            if let Some(command_id) = json_msg.get("command_id").and_then(|v| v.as_str()) {
-                                                let data = json_msg.get("data").cloned().unwrap_or(json!({}));
+                                            if let Ok(response) = serde_json::from_value::<mini_msp_shared::CommandResponse>(json_msg.clone()) {
+                                                let command_id = match &response.command_id {
+                                                    Some(id) => id.clone(),
+                                                    None => return,
+                                                };
                                                 let mut ws_manager = state.ws_manager.lock().await;
-                                                ws_manager.handle_response(command_id, data);
+                                                ws_manager.handle_response(&command_id, AgentResponse::Json(response));
                                             }
 
                                             if let Some(response_data) = json_msg.get("data") {
@@ -395,8 +399,18 @@ async fn handle_websocket_connection(socket: WebSocket, state: AppState) {
                             }
                         }
                     }
-                    Ok(Message::Binary(_data)) => {
-                        debug!("Received binary WebSocket message");
+                    Ok(Message::Binary(data)) => {
+                        // Протокол: [36 байт UUID][Данные]
+                        if data.len() >= 36 {
+                            if let Ok(command_id) = std::str::from_utf8(&data[0..36]) {
+                                let payload = data[36..].to_vec();
+                                let mut ws_manager = state.ws_manager.lock().await;
+                                ws_manager.handle_response(command_id, AgentResponse::Binary { 
+                                    command_id: command_id.to_string(), 
+                                    data: payload 
+                                });
+                            }
+                        }
                     }
                     Ok(Message::Ping(_payload)) => {
                         debug!("Received ping, sending pong");
@@ -439,7 +453,11 @@ pub async fn send_command(
             let response_data = tokio::time::timeout(std::time::Duration::from_secs(10), rx).await;
 
             let final_data = match response_data {
-                Ok(Ok(data)) => data,
+                Ok(Ok(AgentResponse::Json(resp))) => serde_json::to_value(resp).unwrap_or(json!({})),
+                Ok(Ok(AgentResponse::Binary { data, .. })) => {
+                    // Если это бинарные данные (например, кадр), отдаем их как Raw Body
+                    return (StatusCode::OK, [("Content-Type", "application/octet-stream")], data).into_response();
+                },
                 _ => {
                     // Если агент не ответил вовремя, возвращаем mock или ошибку
                     match &command {

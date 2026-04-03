@@ -86,6 +86,16 @@ pub enum Command {
     GetEventData { path: String },
     GetWatchersData,
     GetFileReaderData { path: String },
+    GetSensorData,
+    GetCameraData,
+    GetProcessingResults,
+    GetVideoFrame,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum AgentResponse {
+    Json(CommandResponse),
+    Binary { command_id: String, data: Vec<u8> },
 }
 
 /// Обертка для отправки команды с уникальным идентификатором

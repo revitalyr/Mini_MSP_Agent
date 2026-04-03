@@ -1,18 +1,18 @@
 use anyhow::{anyhow, Result};
-use mini_msp_shared::{Command, CommandResponse};
+use mini_msp_shared::{Command, CommandResponse, AgentResponse};
 use serde_json::json;
 use std::time::SystemTime;
 use tracing::{debug, error, info, warn};
 
 use crate::plugins::PluginManager;
 
-pub async fn handle_command(command: Command, plugin_manager: &PluginManager) -> Result<CommandResponse> {
+pub async fn handle_command(command: Command, command_id: Option<String>, plugin_manager: &PluginManager) -> Result<AgentResponse> {
     let timestamp = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap()
         .as_secs() as i64;
 
-    match command {
+    let mut response = match command {
         Command::GetProcesses => handle_get_processes(plugin_manager, timestamp).await,
         Command::Exec { cmd } => handle_exec(cmd, timestamp, plugin_manager).await,
         Command::GetFile { path } => handle_get_file(path, timestamp, plugin_manager).await,
@@ -22,7 +22,23 @@ pub async fn handle_command(command: Command, plugin_manager: &PluginManager) ->
         Command::GetEventData { path } => handle_get_event_data(path, timestamp).await,
         Command::GetWatchersData => handle_get_watchers_data(timestamp).await,
         Command::GetFileReaderData { path } => handle_get_file_reader_data(path, timestamp).await,
-    }
+        Command::GetSensorData => handle_get_sensor_data(timestamp).await,
+        Command::GetCameraData => handle_get_camera_data(timestamp).await,
+        Command::GetProcessingResults => handle_get_processing_results(timestamp).await,
+        Command::GetVideoData => handle_get_video_data(timestamp).await,
+        Command::GetAudioData => handle_get_audio_data(timestamp).await,    
+        Command::GetVideoFrame => {
+            // Специальная обработка для бинарного ответа
+            let raw_data = vec![0u8; 1024]; // Имитация кадра из плагина
+            return Ok(AgentResponse::Binary { 
+                command_id: command_id.unwrap_or_default(), 
+                data: raw_data 
+            });
+        },
+    }?;
+
+    response.command_id = command_id;
+    Ok(AgentResponse::Json(response))
 }
 
 async fn handle_get_processes(plugin_manager: &PluginManager, timestamp: i64) -> Result<CommandResponse> {
@@ -350,6 +366,44 @@ async fn handle_get_file_reader_data(path: String, timestamp: i64) -> Result<Com
         }),
         timestamp,
     })
+}
+
+async fn handle_get_sensor_data(timestamp: i64) -> Result<CommandResponse> {
+    Ok(CommandResponse {
+        command_id: None,
+        r#type: "sensor_data".to_string(),
+        status: "ok".to_string(),
+        data: json!({ "temperature": 24.5, "humidity": 50.0, "timestamp": timestamp }),
+        timestamp,
+    })
+}
+
+async fn handle_get_camera_data(timestamp: i64) -> Result<CommandResponse> {
+    Ok(CommandResponse {
+        command_id: None,
+        r#type: "camera_data".to_string(),
+        status: "ok".to_string(),
+        data: json!({ "fps": 30, "resolution": "1920x1080", "status": "streaming" }),
+        timestamp,
+    })
+}
+
+async fn handle_get_processing_results(timestamp: i64) -> Result<CommandResponse> {
+    Ok(CommandResponse {
+        command_id: None,
+        r#type: "processing_results".to_string(),
+        status: "ok".to_string(),
+        data: json!({
+            "status": "active",
+            "items_processed": 5000,
+            "efficiency": 0.98
+        }),
+        timestamp,
+    })
+}
+
+async fn handle_get_video_frame(plugin_manager: &PluginManager, timestamp: i64) -> Result<CommandResponse> {
+    Err(anyhow!("Use binary path for video frames"))
 }
 
 fn is_command_allowed(cmd: &str) -> bool {

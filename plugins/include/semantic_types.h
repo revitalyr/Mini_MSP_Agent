@@ -88,6 +88,35 @@ typedef struct {
 } file_reader_data_t;
 
 typedef struct {
+    float m_temperature;
+    float m_humidity;
+    float m_pressure;
+    timestamp_t m_timestamp;
+} sensor_data_t;
+
+typedef struct {
+    uint32_t m_width;
+    uint32_t m_height;
+    uint32_t m_fps;
+    char m_codec[16];
+    timestamp_t m_timestamp;
+} camera_data_t;
+
+typedef struct {
+    char m_status[64];
+    float m_load_index;
+    uint32_t m_processed_items;
+} processing_results_t;
+
+typedef struct {
+    uint8_t* m_data;                 // Указатель на бинарные данные (кадр)
+    file_size_t m_size;              // Размер данных
+    uint32_t m_width;
+    uint32_t m_height;
+    timestamp_t m_timestamp;
+} video_frame_t;
+
+typedef struct {
     plugin_name_t m_plugin_name;      // Имя плагина
     call_count_t m_successful_calls;  // Успешные вызовы
     error_count_t m_failed_calls;     // Неудачные вызовы

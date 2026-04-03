@@ -50,7 +50,10 @@ const SharedDisplayMixin = {
 
         async refreshAccessToken() {
             const refreshToken = localStorage.getItem('refreshToken');
-            if (!refreshToken) return false;
+            if (!refreshToken) {
+                this.handleLogout();
+                return false;
+            }
 
             try {
                 const response = await fetch('/refresh', {
@@ -69,9 +72,17 @@ const SharedDisplayMixin = {
                 console.error("Token refresh failed", e);
             }
 
+            this.handleLogout();
+            return false;
+        },
+
+        handleLogout() {
             localStorage.removeItem('token');
             localStorage.removeItem('refreshToken');
-            return false;
+            // Перенаправление на страницу входа, если мы еще не на ней
+            if (!window.location.pathname.endsWith('login.html')) {
+                window.location.href = '/static/login.html';
+            }
         }
     }
 };

@@ -1,6 +1,6 @@
 use axum::extract::ws::{WebSocket, Message};
 use futures_util::{SinkExt, StreamExt};
-use mini_msp_shared::{Command, CommandRequest};
+use mini_msp_shared::{Command, CommandRequest, AgentResponse};
 use serde_json::{self, json};
 use std::collections::HashMap;
 use std::time::Instant;
@@ -9,7 +9,7 @@ use tracing::{debug, info, warn};
 
 pub struct WebSocketManager {
     agents: HashMap<String, AgentConnection>,
-    pending_responses: HashMap<String, oneshot::Sender<serde_json::Value>>,
+    pending_responses: HashMap<String, oneshot::Sender<AgentResponse>>,
 }
 
 #[derive(Debug)]
@@ -46,7 +46,7 @@ impl WebSocketManager {
         }
     }
 
-    pub async fn send_and_wait(&mut self, agent_id: &str, command: Command) -> Result<oneshot::Receiver<serde_json::Value>, String> {
+    pub async fn send_and_wait(&mut self, agent_id: &str, command: Command) -> Result<oneshot::Receiver<AgentResponse>, String> {
         println!("WS: Attempting to send to agent: {}", agent_id);
         
         let command_id = uuid::Uuid::new_v4().to_string();
@@ -78,7 +78,7 @@ impl WebSocketManager {
         }
     }
 
-    pub fn handle_response(&mut self, command_id: &str, data: serde_json::Value) {
+    pub fn handle_response(&mut self, command_id: &str, data: AgentResponse) {
         if let Some(tx) = self.pending_responses.remove(command_id) {
             let _ = tx.send(data);
             debug!("Response delivered for command ID: {}", command_id);

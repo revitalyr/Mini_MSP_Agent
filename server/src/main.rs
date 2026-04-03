@@ -182,6 +182,7 @@ async fn main() -> Result<()> {
         .route("/agents/:id/data/watchers_data", get(routes::get_watchers_data_endpoint))
         .route("/agents/:id/data/file_reader_data", get(routes::get_file_reader_data_endpoint))
         .route("/agents/:id/data/plugin_registry", get(routes::get_plugin_registry_data))
+        .route("/agents/:id/data/sensors", get(routes::get_sensor_data_endpoint))
         .route("/directory/:path", get(get_directory_info))
         .nest_service("/static", ServeDir::new("static"))
         .route("/", get(|| async { axum::response::Redirect::permanent("/static/plugin_control.html") }))
