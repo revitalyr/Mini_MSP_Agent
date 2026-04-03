@@ -90,9 +90,9 @@ if ($Build) {
                         }
                     }
                     
-                    # Конфигурация CMake с Ninja и указанием компилятора
-                    Write-Host "🔧 Конфигурация CMake с Ninja..." -ForegroundColor Yellow
-                    & cmake .. -DCMAKE_BUILD_TYPE=Release -G "Ninja" -DCMAKE_C_COMPILER="cl.exe" -DCMAKE_CXX_COMPILER="cl.exe"
+                    # Пробуем простой CMakeLists.txt сначала
+                    Write-Host "🔧 Конфигурация CMake (простой плагин)..." -ForegroundColor Yellow
+                    & cmake .. -f ../simple_CMakeLists.txt -DCMAKE_BUILD_TYPE=Release -G "Ninja"
                     
                     if ($LASTEXITCODE -eq 0) {
                         Write-Host "🔧 Сборка плагинов с Ninja..." -ForegroundColor Yellow
@@ -100,14 +100,9 @@ if ($Build) {
                         
                         if ($LASTEXITCODE -eq 0) {
                             # Копирование плагинов
-                            if (Test-Path "system_plugin.dll") {
-                                Copy-Item "system_plugin.dll" "$AgentPluginDir\" -Force
+                            if (Test-Path "plugins/system_plugin.dll") {
+                                Copy-Item "plugins/system_plugin.dll" "$AgentPluginDir\" -Force
                                 Write-Host "✅ system_plugin.dll скопирован" -ForegroundColor Green
-                            }
-                            
-                            if (Test-Path "file_reader_plugin.dll") {
-                                Copy-Item "file_reader_plugin.dll" "$AgentPluginDir\" -Force
-                                Write-Host "✅ file_reader_plugin.dll скопирован" -ForegroundColor Green
                             }
                             
                             Write-Host "✅ Плагины собраны и скопированы" -ForegroundColor Green
