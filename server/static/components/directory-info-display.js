@@ -10,19 +10,6 @@ const DirectoryInfoDisplay = {
         async fetchDirectoryInfo() {
             if (!this.pluginConfig?.targetPath) return;
             
-            // For demo, show mock data
-            if (this.agentId === 'demo-agent-001') {
-                this.liveData = {
-                    files: [
-                        {name: 'demo.txt', size: 1024},
-                        {name: 'test.doc', size: 2048}
-                    ],
-                    totalSize: 3072,
-                    path: this.pluginConfig.targetPath
-                };
-                return;
-            }
-            
             const params = new URLSearchParams({
                 path: this.pluginConfig.targetPath,
                 recursive: this.pluginConfig.recursive ? 'true' : 'false',
@@ -52,7 +39,7 @@ const DirectoryInfoDisplay = {
                     <span class="stat-value">{{ pluginConfig?.targetPath || 'N/A' }}</span>
                 </div>
             </div>
-            <p v-else-if="!error">Querying directory information...</p>
+            <p v-else-if="!error">Waiting for agent data...</p>
             <div v-else class="error-message">{{ error }}</div>
         </div>
     `

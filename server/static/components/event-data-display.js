@@ -9,16 +9,6 @@ const EventDataDisplay = {
         async fetchEventData() {
             if (!this.pluginConfig?.monitorPath) return;
             
-            // For demo, show mock data
-            if (this.agentId === 'demo-agent-001') {
-                this.liveData = {
-                    events_count: 42,
-                    buffer_usage: 15,
-                    last_event: 'File Created'
-                };
-                return;
-            }
-            
             await this.fetchData(
                 `/agents/${this.agentId}/data/event_data?path=${encodeURIComponent(this.pluginConfig.monitorPath)}`,
                 'EventData'
@@ -33,7 +23,8 @@ const EventDataDisplay = {
                 <p>Buffer Usage: {{ liveData.buffer_usage }}%</p>
                 <p>Last Event Type: <strong>{{ liveData.last_event }}</strong></p>
             </div>
-            <div v-else-if="error" class="error-message">{{ error }}</div>
+            <p v-else-if="!error">Waiting for agent data...</p>
+            <div v-else class="error-message">{{ error }}</div>
         </div>
     `
 };
