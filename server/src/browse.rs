@@ -5,13 +5,13 @@ use serde_json::{json, Value};
 #[cfg(target_os = "windows")]
 use windows::{
     Win32::{
-        UI::WindowsAndMessaging::{GetForegroundWindow},
+        UI::WindowsAndMessaging::{GetForegroundWindow, SetForegroundWindow, ShowWindow, SW_RESTORE},
     }
 };
 
 pub async fn browse_directory() -> Json<Value> {
     let path = tokio::task::spawn_blocking(|| {
-        // bring_to_front(); // Временно отключено из-за проблем с Windows API
+        bring_to_front();
         rfd::FileDialog::new()
             .set_title("Select Directory")
             .pick_folder()
@@ -25,7 +25,7 @@ pub async fn browse_directory() -> Json<Value> {
 
 pub async fn browse_file() -> Json<Value> {
     let path = tokio::task::spawn_blocking(|| {
-        // bring_to_front(); // Временно отключено из-за проблем с Windows API
+        bring_to_front();
         rfd::FileDialog::new()
             .set_title("Select File")
             .pick_file()
@@ -40,13 +40,14 @@ pub async fn browse_file() -> Json<Value> {
 fn bring_to_front() {
     #[cfg(target_os = "windows")]
     unsafe {
-        use windows::Win32::UI::WindowsAndMessaging::{
-            GetForegroundWindow, SetForegroundWindow, ShowWindow, SW_RESTORE,
-        };
-
-        // Получаем и устанавливаем текущее активное окно
-        if let Some(hwnd) = GetForegroundWindow() {
+        // Получаем HWND текущего активного окна
+        let hwnd = GetForegroundWindow();
+        
+        // Проверяем, что валидный HWND
+        if !hwnd.is_invalid() {
+            // Восстанавливаем окно, если оно свернуто
             let _ = ShowWindow(hwnd, SW_RESTORE);
+            // Устанавливаем фокус на окно
             let _ = SetForegroundWindow(hwnd);
         }
     }
