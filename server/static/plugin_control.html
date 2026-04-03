@@ -49,19 +49,19 @@
                 <h3 style="margin-bottom: 20px; color: #333;">📊 System Statistics</h3>
                 <div class="stats-grid">
                     <div class="stat-item">
-                        <div class="stat-value">{{ pluginStats.totalPlugins }}</div>
+                        <div class="stat-value">{{ pluginStats.total }}</div>
                         <div class="stat-label">Total Plugins</div>
                     </div>
                     <div class="stat-item">
-                        <div class="stat-value">{{ pluginStats.activePlugins }}</div>
+                        <div class="stat-value">{{ pluginStats.active }}</div>
                         <div class="stat-label">Active</div>
                     </div>
                     <div class="stat-item">
-                        <div class="stat-value">{{ pluginStats.inactivePlugins }}</div>
+                        <div class="stat-value">{{ pluginStats.inactive }}</div>
                         <div class="stat-label">Inactive</div>
                     </div>
                     <div class="stat-item">
-                        <div class="stat-value">{{ pluginStats.errorPlugins }}</div>
+                        <div class="stat-value">{{ pluginStats.error }}</div>
                         <div class="stat-label">Errors</div>
                     </div>
                 </div>
@@ -324,6 +324,7 @@
                 },
 
                 loadPlugins() {
+                    console.log('Loading plugins...', this.plugins.length);
                     // Set initial plugin statuses
                     this.plugins.forEach(plugin => {
                         if (plugin.status === 'inactive') {
@@ -334,11 +335,11 @@
                         }
                     });
                     
-                    // Initialize plugin stats
-                    this.pluginStats; // Trigger computed property
+                    console.log('Plugin statuses:', this.plugins.map(p => ({name: p.name, status: p.status})));
                     
                     setTimeout(() => {
                         this.loading = false;
+                        console.log('Loading complete, pluginStats:', this.pluginStats);
                         this.showSuccess('Plugin system loaded successfully');
                     }, 500);
                 },
