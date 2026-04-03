@@ -101,6 +101,11 @@ if ($Build) {
                         & ninja
                         
                         if ($LASTEXITCODE -eq 0) {
+                            # Создаем директорию для плагинов если нужно
+                            if (-not (Test-Path "$AgentPluginDir")) {
+                                New-Item -ItemType Directory -Path "$AgentPluginDir" -Force | Out-Null
+                            }
+                            
                             # Копирование плагинов
                             if (Test-Path "plugins/system_plugin.dll") {
                                 Copy-Item "plugins/system_plugin.dll" "$AgentPluginDir\" -Force
