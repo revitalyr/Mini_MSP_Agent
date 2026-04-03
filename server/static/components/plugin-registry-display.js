@@ -29,4 +29,10 @@ const PluginRegistryDisplay = {
         </div>
     `
 };
-window.PluginRegistryDisplay = PluginRegistryDisplay;
+
+// Export for use in other modules
+if (typeof window !== 'undefined') {
+    window.PluginRegistryDisplay = PluginRegistryDisplay;
+} else if (typeof module !== 'undefined' && module.exports) {
+    module.exports = PluginRegistryDisplay;
+}

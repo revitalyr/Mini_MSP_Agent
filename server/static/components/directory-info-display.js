@@ -8,38 +8,39 @@ const DirectoryInfoDisplay = {
     },
     methods: {
         async fetchDirectoryInfo() {
-            if (!this.pluginConfig?.targetPath) {
-                this.liveData = null;
-                return;
-            }
-
+            if (!this.pluginConfig?.targetPath) return;
+            
             const params = new URLSearchParams({
                 path: this.pluginConfig.targetPath,
-                include_subdirs: this.pluginConfig.includeSubdirs || false,
-                show_hidden: this.pluginConfig.showHidden || false,
-                max_depth: this.pluginConfig.maxDepth || 1,
+                recursive: this.pluginConfig.recursive ? 'true' : 'false',
+                includeHidden: this.pluginConfig.includeHidden ? 'true' : 'false'
             }).toString();
 
             await this.fetchData(
                 `/agents/${this.agentId}/data/directory_info?${params}`, 
                 'DirectoryInfo'
             );
-        },
+        }
     },
     template: `
         <div class="data-display-section">
-            <h4>📁 Live Directory Info for: {{ pluginConfig.targetPath }}</h4>
-            <div v-if="liveData">
-                <p>Total Files: {{ liveData.total_files }}</p>
-                <p>Total Directories: {{ liveData.total_directories }}</p>
-                <p>Total Size: {{ (liveData.total_size_bytes / (1024 * 1024)).toFixed(2) }} MB</p>
-                <p>Hidden Files: {{ liveData.hidden_files }}</p>
-                <p>Hidden Dirs: {{ liveData.hidden_directories }}</p>
-                <p>Scan Progress: {{ liveData.scan_progress }}%</p>
-                <p>Last Scan: {{ new Date(liveData.scan_timestamp * 1000).toLocaleString() }}</p>
+            <h4>📁 Directory Information</h4>
+            <div v-if="liveData && liveData.files" class="directory-stats">
+                <div class="stat-row">
+                    <span class="stat-label">Total Files:</span>
+                    <span class="stat-value">{{ liveData.files.length || 0 }}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Total Size:</span>
+                    <span class="stat-value">{{ formatFileSize(liveData.totalSize || 0) }}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Path:</span>
+                    <span class="stat-value">{{ pluginConfig?.targetPath || 'N/A' }}</span>
+                </div>
             </div>
-            <div v-else-if="error" class="error-message">Error: {{ error }}</div>
-            <div v-else>Loading directory information...</div>
+            <p v-else-if="!error">Querying directory information...</p>
+            <div v-else class="error-message">{{ error }}</div>
         </div>
     `
 };
