@@ -18,7 +18,7 @@ file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/plugins)
 
 # Простой системный плагин
 add_library(system_plugin SHARED
-    src/simple_system_plugin.c
+    ../src/simple_system_plugin.c
 )
 
 # Настройка вывода
