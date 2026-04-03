@@ -829,3 +829,53 @@ input[type="checkbox"] {
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
+
+/* Plugin Table Styles */
+.plugin-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.plugin-table th,
+.plugin-table td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+}
+
+.plugin-table th {
+    background: #667eea;
+    color: white;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+}
+
+.plugin-table tr:hover {
+    background: #f8f9ff;
+}
+
+.plugin-table tr:last-child td {
+    border-bottom: none;
+}
+
+.status-active {
+    color: #28a745;
+    font-weight: 600;
+}
+
+.status-inactive {
+    color: #6c757d;
+    font-weight: 600;
+}
+
+.status-error {
+    color: #dc3545;
+    font-weight: 600;
+}

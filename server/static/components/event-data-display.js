@@ -8,6 +8,17 @@ const EventDataDisplay = {
     methods: {
         async fetchEventData() {
             if (!this.pluginConfig?.monitorPath) return;
+            
+            // For demo, show mock data
+            if (this.agentId === 'demo-agent-001') {
+                this.liveData = {
+                    events_count: 42,
+                    buffer_usage: 15,
+                    last_event: 'File Created'
+                };
+                return;
+            }
+            
             await this.fetchData(
                 `/agents/${this.agentId}/data/event_data?path=${encodeURIComponent(this.pluginConfig.monitorPath)}`,
                 'EventData'

@@ -6,6 +6,16 @@ const PluginRegistryDisplay = {
     },
     methods: {
         async fetchRegistry() {
+            // For demo, show mock data
+            if (this.agentId === 'demo-agent-001') {
+                this.liveData = [
+                    {name: 'directory_info', version: '1.0.0', status: 'Active'},
+                    {name: 'event_data', version: '1.0.0', status: 'Active'},
+                    {name: 'file_reader', version: '1.0.0', status: 'Inactive'}
+                ];
+                return;
+            }
+            
             await this.fetchData(`/agents/${this.agentId}/data/plugin_registry`, 'plugins');
         }
     },
