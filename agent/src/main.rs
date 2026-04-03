@@ -146,7 +146,7 @@ async fn main() -> Result<()> {
     let hot_reload_enabled = matches.get_flag("hot-reload");
     
     // Set up event callback for plugin events
-    let plugin_manager_clone = plugin_manager.clone();
+    let _plugin_manager_clone = plugin_manager.clone();
     plugin_manager.set_event_callback(move |event_type, plugin_name, message| {
         match event_type {
             PluginEventType::Loaded => {

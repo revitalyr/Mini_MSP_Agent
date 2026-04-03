@@ -25,17 +25,7 @@ pub async fn handle_command(command: Command, command_id: Option<String>, plugin
         Command::GetSensorData => handle_get_sensor_data(timestamp).await,
         Command::GetCameraData => handle_get_camera_data(timestamp).await,
         Command::GetProcessingResults => handle_get_processing_results(timestamp).await,
-        Command::GetVideoData => handle_get_video_data(timestamp).await, // Mock or legacy
-        Command::GetAudioData => handle_get_audio_data(timestamp).await, // Mock or legacy   
-        Command::GetVideoFrame => {
-            match plugin_manager.get_video_frame() {
-                Ok(frame) => Ok(AgentResponse::Binary { 
-                    command_id: command_id.unwrap_or_default(), 
-                    data: frame.data 
-                }),
-                Err(e) => Err(anyhow!("Failed to get video frame from plugin: {}", e))
-            }
-        },
+        Command::GetVideoFrame => handle_get_video_frame(plugin_manager, timestamp).await,
     }?;
 
     response.command_id = command_id;
@@ -267,12 +257,12 @@ async fn handle_get_system_info(plugin_manager: &PluginManager, timestamp: i64) 
 }
 
 async fn handle_get_directory_info(
-    path: String, 
-    include_subdirs: bool, 
-    show_hidden: bool, 
-    max_depth: u32, 
-    plugin_manager: &PluginManager, 
-    timestamp: i64
+    path: String,
+    _include_subdirs: bool,
+    _show_hidden: bool,
+    _max_depth: u32,
+    _plugin_manager: &PluginManager,
+    timestamp: i64,
 ) -> Result<CommandResponse> {
     // В реальной реализации здесь идет вызов через FFI к системному плагину
     // Для примера возвращаем структуру, ожидаемую фронтендом
@@ -403,7 +393,7 @@ async fn handle_get_processing_results(timestamp: i64) -> Result<CommandResponse
     })
 }
 
-async fn handle_get_video_frame(plugin_manager: &PluginManager, timestamp: i64) -> Result<CommandResponse> {
+async fn handle_get_video_frame(_plugin_manager: &PluginManager, _timestamp: i64) -> Result<CommandResponse> {
     Err(anyhow!("Use binary path for video frames"))
 }
 

@@ -125,7 +125,7 @@ impl WebSocketClient {
                             match self.handle_message(text).await {
                                 Ok(response) => {
                                     if let Some(resp_text) = response {
-                                        write.send(Message::Text(resp_text)).await
+                                        write.send(Message::Text(resp_text.to_string())).await
                                             .with_context(|| "Failed to send response")?;
                                     }
                                 }

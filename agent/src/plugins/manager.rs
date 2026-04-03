@@ -205,7 +205,7 @@ impl PluginManager {
     pub fn list_plugins(&self) -> Vec<PluginInfoData> {
         let mut plugins_info = Vec::new();
         
-        for (name, loader) in self.plugins.lock().unwrap().iter() {
+        for (_name, loader) in self.plugins.lock().unwrap().iter() {
             if let Ok(info) = loader.get_plugin_info() {
                 plugins_info.push(info);
             }
@@ -380,8 +380,8 @@ impl PluginManager {
 
         let plugin_dir = self.plugin_directory.clone().unwrap();
         let registry = Arc::clone(&self.registry);
-        let plugins = Arc::clone(&self.plugins);
-        let event_callback = self.event_callback.as_ref().map(|cb| cb as *const _);
+        let _plugins = Arc::clone(&self.plugins);
+        let _event_callback = self.event_callback.as_ref().map(|cb| cb as *const _);
         
         tokio::spawn(async move {
             let mut interval = interval(Duration::from_secs(1));
