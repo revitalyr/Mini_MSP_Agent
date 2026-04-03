@@ -35,6 +35,64 @@ if ($Build) {
         Write-Host "❌ Ошибка сборки проекта" -ForegroundColor Red
         exit 1
     }
+    
+    # Сборка C++ плагинов
+    Write-Host "🔧 Сборка C++ плагинов..." -ForegroundColor Yellow
+    $PluginDir = "plugins"
+    $BuildDir = "$PluginDir\build"
+    $AgentPluginDir = "agent\plugins"
+    
+    # Создание директорий
+    if (-not (Test-Path $BuildDir)) {
+        New-Item -ItemType Directory -Path $BuildDir | Out-Null
+    }
+    if (-not (Test-Path $AgentPluginDir)) {
+        New-Item -ItemType Directory -Path $AgentPluginDir | Out-Null
+    }
+    
+    # Сборка плагинов через CMake
+    Push-Location $BuildDir
+    try {
+        # Проверяем наличие CMake и Ninja
+        $cmake = Get-Command cmake -ErrorAction SilentlyContinue
+        $ninja = Get-Command ninja -ErrorAction SilentlyContinue
+        
+        if (-not $cmake) {
+            Write-Host "⚠️ CMake не найден. Пропускаю сборку плагинов." -ForegroundColor Yellow
+        } elseif (-not $ninja) {
+            Write-Host "⚠️ Ninja не найден. Пропускаю сборку плагинов." -ForegroundColor Yellow
+        } else {
+            Write-Host "🔧 Конфигурация CMake..." -ForegroundColor Yellow
+            & cmake .. -DCMAKE_BUILD_TYPE=Release -G "Ninja"
+            
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "🔧 Сборка плагинов..." -ForegroundColor Yellow
+                & ninja
+                
+                if ($LASTEXITCODE -eq 0) {
+                    # Копирование плагинов
+                    if (Test-Path "system_plugin.dll") {
+                        Copy-Item "system_plugin.dll" "$AgentPluginDir\" -Force
+                        Write-Host "✅ system_plugin.dll скопирован" -ForegroundColor Green
+                    }
+                    
+                    if (Test-Path "file_reader_plugin.dll") {
+                        Copy-Item "file_reader_plugin.dll" "$AgentPluginDir\" -Force
+                        Write-Host "✅ file_reader_plugin.dll скопирован" -ForegroundColor Green
+                    }
+                    
+                    Write-Host "✅ Плагины собраны и скопированы" -ForegroundColor Green
+                } else {
+                    Write-Host "❌ Ошибка сборки плагинов" -ForegroundColor Red
+                }
+            } else {
+                Write-Host "❌ Ошибка конфигурации CMake" -ForegroundColor Red
+            }
+        }
+    }
+    finally {
+        Pop-Location
+    }
 }
 
 # Пути к бинарникам

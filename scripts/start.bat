@@ -21,6 +21,19 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
+REM Сборка C++ плагинов
+echo 🔧 Building C++ plugins...
+cd /d plugins
+if exist build.bat (
+    call build.bat
+    if %ERRORLEVEL% neq 0 (
+        echo ⚠️ Ошибка сборки плагинов, но продолжаем...
+    )
+) else (
+    echo ⚠️ build.bat не найден, пропускаю сборку плагинов
+)
+cd /d ..
+
 REM Проверка существования бинарников
 if not exist "target\debug\server.exe" (
     echo ❌ Сервер не найден: target\debug\server.exe

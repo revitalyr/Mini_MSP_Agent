@@ -13,54 +13,49 @@
 ### Windows (PowerShell)
 
 ```powershell
-# Базовый запуск
+# Базовый запуск (без сборки плагинов)
 .\scripts\start.ps1
 
-# С указанием порта
-.\scripts\start.ps1 -ServerPort 9090
-
-# С указанием конфигурации
-.\scripts\start.ps1 -AgentConfig "configs/my-config.toml"
-
-# Со сборкой проекта
+# Полная сборка включая плагины
 .\scripts\start.ps1 -Build
+
+# С указанием порта и полной сборкой
+.\scripts\start.ps1 -ServerPort 9090 -Build
 ```
 
 ### Windows (Batch)
 
 ```cmd
-# Простой запуск
+# Простой запуск (без сборки плагинов)
+scripts\start.bat
+
+# Полная сборка включая плагины
 scripts\start.bat
 ```
 
 ### Linux/macOS
 
 ```bash
-# Базовый запуск
+# Базовый запуск (без сборки плагинов)
 ./scripts/start.sh
 
-# С указанием порта
-./scripts/start.sh --port 9090
-
-# С указанием конфигурации
-./scripts/start.sh --config configs/my-config.toml
-
-# Со сборкой проекта
+# Полная сборка включая плагины
 ./scripts/start.sh --build
 
-# Показать справку
-./scripts/start.sh --help
+# С параметрами
+./scripts/start.sh --port 9090 --build
 ```
 
 ## ⚙️ Что делают скрипты
 
-1. **Проверка зависимостей** - проверяют наличие Rust/Cargo
+1. **Проверка зависимостей** - проверяют наличие Rust/Cargo, CMake, Ninja
 2. **Сборка проекта** (опционально) - `cargo build`
-3. **Создание конфигурации** - создают `configs/config.toml` если отсутствует
-4. **Запуск сервера** - веб-сервер на указанном порту (8080 по умолчанию)
-5. **Запуск агента** - агент с указанной конфигурацией
-6. **Мониторинг** - следят за работой процессов
-7. **Очистка** - корректно останавливают процессы при выходе
+3. **Сборка C++ плагинов** (с флагом -Build) - CMake + Ninja
+4. **Создание конфигурации** - создают `configs/config.toml` если отсутствует
+5. **Запуск сервера** - веб-сервер на указанном порту (8080 по умолчанию)
+6. **Запуск агента** - агент с указанной конфигурацией
+7. **Мониторинг** - следят за работой процессов
+8. **Очистка** - корректно останавливают процессы при выходе
 
 ## 📊 Доступные URL
 
@@ -100,8 +95,35 @@ max_memory_usage = 512
 ## 🔧 Требования
 
 - **Rust** и **Cargo** установлены
+- **CMake** (для сборки плагинов)
+- **Ninja** (для сборки плагинов на Windows/Linux)
 - **Собранный проект** (или флаг `--build`/`-Build`)
 - **Порты** 8080 (или другой указанный) должны быть свободны
+
+### 📦 Зависимости для плагинов
+
+**Windows:**
+- Visual Studio Build Tools или Visual Studio
+- CMake
+- Ninja
+
+**Linux:**
+```bash
+# Ubuntu/Debian
+sudo apt install cmake ninja-build
+
+# CentOS/RHEL
+sudo yum install cmake ninja-build
+
+# Arch Linux
+sudo pacman -S cmake ninja
+```
+
+**macOS:**
+```bash
+# Install via Homebrew
+brew install cmake ninja
+```
 
 ## 🛑 Остановка
 

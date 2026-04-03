@@ -57,6 +57,24 @@ fi
 if [ "$BUILD" = true ]; then
     echo "📦 Сборка проекта..."
     cargo build
+    if [ $? -ne 0 ]; then
+        echo "❌ Ошибка сборки проекта"
+        exit 1
+    fi
+    
+    # Сборка C++ плагинов
+    echo "🔧 Сборка C++ плагинов..."
+    if [ -f "plugins/build.sh" ]; then
+        cd plugins
+        chmod +x build.sh
+        ./build.sh
+        if [ $? -ne 0 ]; then
+            echo "⚠️ Ошибка сборки плагинов, но продолжаем..."
+        fi
+        cd ..
+    else
+        echo "⚠️ build.sh не найден, пропускаю сборку плагинов"
+    fi
 fi
 
 # Пути к бинарникам
