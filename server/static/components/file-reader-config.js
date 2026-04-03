@@ -31,17 +31,12 @@ const FileReaderConfig = {
             }
         },
         
-        browseFile() {
-            if (typeof window !== 'undefined' && window.platformManager) {
-                const platformConfig = window.platformManager.getPluginConfig('file_reader');
-                const defaultFiles = (platformConfig && platformConfig.defaultFiles) || [];
-                const selectedFile = defaultFiles[0] || defaultFiles[1];
-                
-                if (selectedFile) {
-                    this.config.targetFile = selectedFile;
-                    this.emitUpdate();
-                    console.log(`File selected: ${selectedFile}`);
-                }
+        async browseFile() {
+            const res = await fetch('/api/browse/file', { method: 'POST' });
+            const data = await res.json();
+            if (data.path) {
+                this.config.targetFile = data.path;
+                this.emitUpdate();
             }
         },
         

@@ -52,25 +52,12 @@ const WatchersManagerConfig = {
             this.emitUpdate();
         },
         
-        browseDirectoryForPath(index, event) {
-            if (typeof window !== 'undefined' && window.platformManager) {
-                const defaultPaths = window.platformManager.getDefaultPaths('watchers_manager');
-                if (Array.isArray(defaultPaths) && defaultPaths.length > 0) {
-                    const currentPath = this.config.watchPaths[index];
-                    const currentIndex = defaultPaths.indexOf(currentPath);
-                    const nextIndex = (currentIndex + 1) % defaultPaths.length;
-                    const selectedPath = defaultPaths[nextIndex];
-                    
-                    this.config.watchPaths[index] = selectedPath;
-                    this.emitUpdate();
-                    
-                    // Visual feedback
-                    const input = event?.currentTarget?.previousElementSibling;
-                    if (input) {
-                        input.style.backgroundColor = '#e8f5e8';
-                        setTimeout(() => { input.style.backgroundColor = ''; }, 500);
-                    }
-                }
+        async browseDirectory() {
+            const res = await fetch('/api/browse/directory', { method: 'POST' });
+            const data = await res.json();
+            if (data.path) {
+                this.config.targetPath = data.path;
+                this.emitUpdate();
             }
         },
 
@@ -94,7 +81,7 @@ const WatchersManagerConfig = {
                         <input type="text" v-model="config.watchPaths[index]" 
                                placeholder="Click Browse to select directory"
                                @input="emitUpdate">
-                        <button class="btn btn-small btn-secondary" @click="browseDirectoryForPath(index, $event)">Browse</button>
+                        <button class="btn btn-small btn-secondary" @click="browseDirectory()">Browse</button>
                         <button class="btn btn-small btn-danger" @click="removeWatchPath(index)">×</button>
                     </div>
                     <button class="btn btn-small btn-secondary" @click="addWatchPath">+ Add Path</button>

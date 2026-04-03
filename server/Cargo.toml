@@ -25,6 +25,15 @@ tokio-tungstenite = { workspace = true }
 clap = { workspace = true }
 jsonwebtoken = "10.3.0"
 
+[target.'cfg(windows)'.dependencies]
+rfd = "0.14"   # native file dialog, кроссплатформенный
+windows = { version = "0.58", features = [
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[target.'cfg(unix)'.dependencies]
+rfd = "0.14"
+
 [dev-dependencies]
 tower = { workspace = true, features = ["util"] }
 axum = { workspace = true }

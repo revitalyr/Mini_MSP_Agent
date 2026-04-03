@@ -1,9 +1,8 @@
-use axum::extract::ws::{WebSocket, Message};
-use futures_util::{SinkExt, StreamExt};
-use mini_msp_shared::{Command, CommandRequest, AgentResponse};
-use serde_json::{self, json};
 use std::collections::HashMap;
-use std::time::Instant;
+use axum::extract::ws::{WebSocket, Message};
+use futures_util::SinkExt;
+use mini_msp_shared::{Command, CommandRequest, AgentResponse};
+use serde_json;
 use tokio::sync::oneshot;
 use tracing::{debug, info, warn};
 

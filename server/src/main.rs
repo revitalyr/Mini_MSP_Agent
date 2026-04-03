@@ -59,7 +59,6 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use mini_msp_shared::{Heartbeat};
 use serde_json::json;
 use std::{
     collections::HashMap,
@@ -74,6 +73,7 @@ use clap::{Arg, Command as ClapCommand};
 
 mod routes;
 mod websocket;
+mod browse;
 
 use routes::{handle_heartbeat, handle_websocket, send_command as send_command_handler, get_directory_info};
 use websocket::WebSocketManager;
@@ -183,7 +183,10 @@ async fn main() -> Result<()> {
         .route("/agents/:id/data/file_reader_data", get(routes::get_file_reader_data_endpoint))
         .route("/agents/:id/data/plugin_registry", get(routes::get_plugin_registry_data))
         .route("/agents/:id/data/sensors", get(routes::get_sensor_data_endpoint))
+        .route("/agents/ws", get(list_ws_agents))
         .route("/directory/:path", get(get_directory_info))
+        .route("/api/browse/directory", post(browse::browse_directory))
+        .route("/api/browse/file",      post(browse::browse_file))
         .nest_service("/static", ServeDir::new("static"))
         .route("/", get(|| async { axum::response::Redirect::permanent("/static/plugin_control.html") }))
         .with_state(app_state.clone())
@@ -251,20 +254,28 @@ pub async fn list_agents(State(state): State<AppState>) -> impl IntoResponse {
 
 
 async fn cleanup_inactive_agents(state: &AppState) {
+    let timeout = Duration::from_secs(120);
+
     let mut agents = state.agents.lock().await;
-    let mut ws_manager = state.ws_manager.lock().await;
-    
-    let now = Instant::now();
-    let timeout = Duration::from_secs(120); // 2 minutes timeout
-    
     let to_remove: Vec<_> = agents.iter()
-        .filter(|(_, agent)| now.duration_since(agent.last_heartbeat) > timeout)
+        .filter(|(_, agent)| Instant::now().duration_since(agent.last_heartbeat) > timeout)
         .map(|(id, _)| id.clone())
         .collect();
-    
-    for id in to_remove {
+    for id in &to_remove {
         info!("Removing inactive agent: {}", id);
-        agents.remove(&id);
-        ws_manager.remove_agent(&id).await;
+        agents.remove(id);
     }
+    drop(agents);
+
+    let mut ws_manager = state.ws_manager.lock().await;
+    for id in &to_remove {
+        ws_manager.remove_agent(id).await;  // <-- вернули
+    }
+    ws_manager.cleanup_inactive(timeout);
+}
+
+async fn list_ws_agents(State(state): State<AppState>) -> impl IntoResponse {
+    let ws_manager = state.ws_manager.lock().await;
+    let agents = ws_manager.get_connected_agents(); // <-- вот он
+    Json(json!({ "agents": agents, "count": agents.len() }))
 }

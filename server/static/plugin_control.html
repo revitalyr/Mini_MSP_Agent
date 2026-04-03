@@ -11,8 +11,13 @@
     <script src="components/event-data-config.js"></script>
     <script src="components/file-reader-config.js"></script>
     <script src="components/watchers-manager-config.js"></script>
+    <script src="components/shared-display-mixin.js"></script>
+    <script src="components/directory-info-display.js"></script>
+    <script src="components/event-data-display.js"></script>
+    <script src="components/plugin-registry-display.js"></script>
     <script src="components/generic-config.js"></script>
     <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
 </head>
 <body>
     <div id="app">
@@ -181,11 +186,14 @@
         // Register components globally
         const app = createApp({
             components: {
-                'directory-info-config': DirectoryInfoConfig,
-                'event-data-config': EventDataConfig,
-                'file-reader-config': FileReaderConfig,
-                'watchers-manager-config': WatchersManagerConfig,
-                'generic-config': GenericConfig
+                'directory-info-config':    DirectoryInfoConfig,
+                'event-data-config':        EventDataConfig,
+                'file-reader-config':       FileReaderConfig,
+                'watchers-manager-config':  WatchersManagerConfig,
+                'generic-config':           GenericConfig,
+                'directory-info-display':   DirectoryInfoDisplay,
+                'event-data-display':       EventDataDisplay,
+                'plugin-registry-display':  PluginRegistryDisplay,
             },
             data() {
                 return {

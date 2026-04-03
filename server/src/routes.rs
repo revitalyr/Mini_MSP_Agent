@@ -4,11 +4,11 @@ use axum::{
     http::{StatusCode, request::Parts},
     async_trait,
 };
-use futures_util::{StreamExt};
+use futures_util::{StreamExt, SinkExt};
 use jsonwebtoken::{decode, encode, Header, DecodingKey, EncodingKey, Validation, Algorithm};
 use mini_msp_shared::{Command, Heartbeat};
 use serde_json::json;
-use std::{sync::Arc, time::Instant, collections::HashMap};
+use std::{sync::Arc, time::Instant};
 use tracing::{debug, error, info, warn};
 
 use crate::{AgentInfo, AppState};
@@ -355,7 +355,7 @@ pub async fn handle_websocket(
 }
 
 async fn handle_websocket_connection(socket: WebSocket, state: AppState) {
-    let (sender, mut receiver) = socket.split();
+    let (mut sender, mut receiver) = socket.split();
     let agent_id = Arc::new(tokio::sync::Mutex::new(None::<String>));
     
     info!("New WebSocket connection established");
@@ -375,25 +375,25 @@ async fn handle_websocket_connection(socket: WebSocket, state: AppState) {
                                             if let Some(agent_id_str) = json_msg.get("agent_id").and_then(|v| v.as_str()) {
                                                 let mut id_guard = agent_id.lock().await;
                                                 *id_guard = Some(agent_id_str.to_string());
-                                                drop(id_guard); // Drop guard before await
-                                                
-                                                // Register agent in WebSocket manager
-                                                let agent_id_clone = agent_id_str.to_string();
-                                                let mut ws_manager = state.ws_manager.lock().await;
-                                                ws_manager.register_agent(agent_id_clone, sender).await;
-                                                drop(ws_manager); // Drop guard before any further awaits
-                                                
-                                                info!("Agent {} registered via WebSocket", agent_id_str);
-                                                
-                                                // Send acknowledgment
+                                                drop(id_guard);
+
+                                                // Сначала отправляем acknowledgment — пока sender ещё наш
                                                 let response = serde_json::json!({
                                                     "type": "registered",
                                                     "status": "ok"
                                                 });
-                                                
-                                                // Note: We can't send after moving sender, so registration happens before move
-                                                info!("Agent registration completed");
-                                                break; // Exit loop after registration
+                                                if let Err(e) = sender.send(axum::extract::ws::Message::Text(response.to_string().into())).await {
+                                                    tracing::error!("Failed to send registration ack: {}", e);
+                                                }
+
+                                                // Потом регистрируем — sender переходит во владение ws_manager
+                                                let agent_id_clone = agent_id_str.to_string();
+                                                let mut ws_manager = state.ws_manager.lock().await;
+                                                ws_manager.register_agent(agent_id_clone, sender).await;
+                                                drop(ws_manager);
+
+                                                info!("Agent {} registered via WebSocket", agent_id_str);
+                                                break;
                                             }
                                         }
                                         "system_info" => {

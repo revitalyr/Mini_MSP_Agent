@@ -22,25 +22,12 @@ const DirectoryInfoConfig = {
             }
         },
 
-        browseDirectory(event) {
-            if (typeof window !== 'undefined' && window.platformManager) {
-                const defaultPaths = window.platformManager.getDefaultPaths('directory_info');
-                
-                if (Array.isArray(defaultPaths) && defaultPaths.length > 0) {
-                    const currentIndex = defaultPaths.indexOf(this.config.targetPath);
-                    const nextIndex = (currentIndex + 1) % defaultPaths.length;
-                    const selectedPath = defaultPaths[nextIndex];
-                    
-                    this.config.targetPath = selectedPath;
-                    this.emitUpdate();
-                    
-                    // Visual feedback - briefly highlight the input
-                    const input = event?.currentTarget?.previousElementSibling;
-                    if (input) {
-                        input.style.backgroundColor = '#e8f5e8';
-                        setTimeout(() => { input.style.backgroundColor = ''; }, 500);
-                    }
-                }
+        async browseDirectory() {
+            const res = await fetch('/api/browse/directory', { method: 'POST' });
+            const data = await res.json();
+            if (data.path) {
+                this.config.targetPath = data.path;
+                this.emitUpdate();
             }
         },
         

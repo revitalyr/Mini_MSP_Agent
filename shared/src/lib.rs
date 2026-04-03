@@ -17,7 +17,6 @@
 //! enabling seamless communication over HTTP and WebSocket protocols.
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use uuid::Uuid;
 
 /// Agent heartbeat message containing status and metrics
