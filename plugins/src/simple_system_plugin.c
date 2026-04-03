@@ -13,7 +13,18 @@ typedef enum {
     PLUGIN_ERROR = 1
 } plugin_result_t;
 
-// Экспортируемая функция
+// Структура интерфейса плагина
+typedef struct {
+    plugin_result_t (*get_plugin_info)(plugin_info_t* info);
+    // Другие функции могут быть добавлены позже
+} plugin_interface_t;
+
+// Глобальный интерфейс
+static plugin_interface_t g_plugin_interface = {
+    .get_plugin_info = NULL
+};
+
+// Экспортиемые функции
 __declspec(dllexport) plugin_result_t get_plugin_info(plugin_info_t* info) {
     if (!info) return PLUGIN_ERROR;
     
@@ -22,6 +33,12 @@ __declspec(dllexport) plugin_result_t get_plugin_info(plugin_info_t* info) {
     info->status = 1; // Active
     
     return PLUGIN_SUCCESS;
+}
+
+__declspec(dllexport) plugin_interface_t* get_plugin_interface(void) {
+    // Устанавливаем указатель на функцию
+    g_plugin_interface.get_plugin_info = get_plugin_info;
+    return &g_plugin_interface;
 }
 
 // Точка входа DllMain
