@@ -39,7 +39,7 @@ if ($Build) {
 
 # Пути к бинарникам
 $ServerPath = "target/debug/server.exe"
-$AgentPath = "target/debug/mini_msp_agent.exe"
+$AgentPath = "target/debug/agent.exe"
 
 # Проверка существования бинарников
 if (-not (Test-Path $ServerPath)) {

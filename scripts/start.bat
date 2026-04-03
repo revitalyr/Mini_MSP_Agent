@@ -28,8 +28,8 @@ if not exist "target\debug\server.exe" (
     exit /b 1
 )
 
-if not exist "target\debug\mini_msp_agent.exe" (
-    echo ❌ Агент не найден: target\debug\mini_msp_agent.exe
+if not exist "target\debug\agent.exe" (
+    echo ❌ Агент не найден: target\debug\agent.exe
     pause
     exit /b 1
 )
@@ -88,7 +88,7 @@ echo ✅ Сервер запущен на http://localhost:8080
 
 REM Запуск агента
 echo 🤖 Запуск агента...
-start "Mini MSP Agent" /MIN target\debug\mini_msp_agent.exe --config configs\config.toml
+start "Mini MSP Agent" /MIN target\debug\agent.exe --config configs\config.toml
 
 echo.
 echo ✅ Сервер и агент запущены!
@@ -101,7 +101,7 @@ pause >nul
 REM Остановка процессов
 echo 🛑 Остановка сервисов...
 taskkill /f /im server.exe >nul 2>&1
-taskkill /f /im mini_msp_agent.exe >nul 2>&1
+taskkill /f /im agent.exe >nul 2>&1
 echo ✅ Сервисы остановлены
 echo 👋 Работа завершена
 pause

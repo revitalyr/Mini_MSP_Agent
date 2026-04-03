@@ -61,7 +61,7 @@ fi
 
 # Пути к бинарникам
 SERVER_PATH="target/debug/server"
-AGENT_PATH="target/debug/mini_msp_agent"
+AGENT_PATH="target/debug/agent"
 
 # Проверка существования бинарников
 if [ ! -f "$SERVER_PATH" ]; then
