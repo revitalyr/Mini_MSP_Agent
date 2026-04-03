@@ -92,7 +92,9 @@ if ($Build) {
                     
                     # Пробуем простой CMakeLists.txt сначала
                     Write-Host "🔧 Конфигурация CMake (простой плагин)..." -ForegroundColor Yellow
-                    & cmake .. -f ../simple_CMakeLists.txt -DCMAKE_BUILD_TYPE=Release -G "Ninja"
+                    # Копируем простой CMakeLists.txt временно
+                    Copy-Item "../simple_CMakeLists.txt" "CMakeLists.txt" -Force
+                    & cmake . -DCMAKE_BUILD_TYPE=Release -G "Ninja"
                     
                     if ($LASTEXITCODE -eq 0) {
                         Write-Host "🔧 Сборка плагинов с Ninja..." -ForegroundColor Yellow
