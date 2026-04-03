@@ -29,6 +29,7 @@ jsonwebtoken = "10.3.0"
 rfd = "0.14"   # native file dialog, кроссплатформенный
 windows = { version = "0.58", features = [
     "Win32_UI_WindowsAndMessaging",
+    "Win32_System_Console",
 ] }
 
 [target.'cfg(unix)'.dependencies]

@@ -5,7 +5,8 @@ use serde_json::{json, Value};
 #[cfg(target_os = "windows")]
 use windows::{
     Win32::{
-        UI::WindowsAndMessaging::{GetForegroundWindow, SetForegroundWindow, ShowWindow, SW_RESTORE},
+        System::Console::GetConsoleWindow,
+        UI::WindowsAndMessaging::{SetForegroundWindow, ShowWindow, SW_RESTORE},
     }
 };
 
@@ -40,8 +41,8 @@ pub async fn browse_file() -> Json<Value> {
 fn bring_to_front() {
     #[cfg(target_os = "windows")]
     unsafe {
-        // Получаем HWND текущего активного окна
-        let hwnd = GetForegroundWindow();
+        // Получаем HWND консольного окна сервера
+        let hwnd = GetConsoleWindow();
         
         // Проверяем, что валидный HWND
         if !hwnd.is_invalid() {
@@ -49,6 +50,9 @@ fn bring_to_front() {
             let _ = ShowWindow(hwnd, SW_RESTORE);
             // Устанавливаем фокус на окно
             let _ = SetForegroundWindow(hwnd);
+            
+            // Даем время на активацию окна перед показом диалога
+            std::thread::sleep(std::time::Duration::from_millis(100));
         }
     }
 }
