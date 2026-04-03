@@ -13,10 +13,10 @@
     <script src="components/file-reader-config.js"></script>
     <script src="components/watchers-manager-config.js"></script>
     <script src="components/shared-display-mixin.js"></script>
+    <script src="components/generic-config.js"></script>
     <script src="components/directory-info-display.js"></script>
     <script src="components/event-data-display.js"></script>
     <script src="components/plugin-registry-display.js"></script>
-    <script src="components/generic-config.js"></script>
     <link rel="stylesheet" href="style.css">
     <link rel="icon" type="image/x-icon" href="favicon.ico">
 </head>
@@ -197,8 +197,7 @@
 
     <script>
         const { createApp } = Vue;
-
-        // Register components globally
+        
         const app = createApp({
             components: {
                 'directory-info-config':    DirectoryInfoConfig,
@@ -327,10 +326,20 @@
                 },
 
                 loadPlugins() {
+                    // Set initial plugin statuses
+                    this.plugins.forEach(plugin => {
+                        if (plugin.status === 'inactive') {
+                            // Keep inactive for demo
+                        } else if (plugin.status === 'active') {
+                            // Set load time for active plugins
+                            plugin.loadTime = Date.now();
+                        }
+                    });
+                    
                     setTimeout(() => {
                         this.loading = false;
                         this.showSuccess('Plugin system loaded successfully');
-                    }, 1000);
+                    }, 500);
                 },
 
                 startPlugin(pluginName) {
@@ -634,7 +643,10 @@
             }
         });
         
-        app.mount('#app');
+        const appInstance = app.mount('#app');
+        
+        // Make selectAgent globally available for onclick handlers
+        window.app = appInstance;
     </script>
 </body>
 </html>
