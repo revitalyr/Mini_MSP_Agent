@@ -124,7 +124,13 @@ const EventDataConfig = {
             
             <!-- Live Data Monitor -->
             <hr>
-            <event-data-display :agent-id="agentId" :plugin-config="config" />
+            <div class="data-display-section">
+                <h4>📊 Live Event Stream: {{ config.monitorPath }}</h4>
+                <p>Event monitoring active for: <strong>{{ config.monitorPath || 'Not configured' }}</strong></p>
+                <div v-if="config.monitorPath">
+                    <p><small>Live events will appear here when connected to agent</small></p>
+                </div>
+            </div>
         </div>
     `
 };

@@ -206,9 +206,6 @@
                 'file-reader-config':       FileReaderConfig,
                 'watchers-manager-config':  WatchersManagerConfig,
                 'generic-config':           GenericConfig,
-                'directory-info-display':   DirectoryInfoDisplay,
-                'event-data-display':       EventDataDisplay,
-                'plugin-registry-display':  PluginRegistryDisplay,
             },
             data() {
                 return {
@@ -336,6 +333,9 @@
                             plugin.loadTime = Date.now();
                         }
                     });
+                    
+                    // Initialize plugin stats
+                    this.pluginStats; // Trigger computed property
                     
                     setTimeout(() => {
                         this.loading = false;
