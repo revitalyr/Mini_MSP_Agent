@@ -109,7 +109,7 @@ if ($Build) {
                             
                             # Копирование плагинов
                             if (Test-Path "plugins/system_plugin.dll") {
-                                Copy-Item "plugins/system_plugin.dll" "../$AgentPluginDir/system_plugin.dll" -Force
+                                Copy-Item "plugins/system_plugin.dll" "../../system_plugin.dll" -Force
                                 Write-Host "✅ system_plugin.dll скопирован" -ForegroundColor Green
                             }
                             
