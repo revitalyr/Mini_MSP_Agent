@@ -1,42 +1,77 @@
 #include <windows.h>
 #include <stdio.h>
 
-// Минимальные определения для совместимости
+// Базовые типы для совместимости
+typedef enum {
+    PLUGIN_SUCCESS = 0,
+    PLUGIN_ERROR = 1
+} plugin_result_t;
+
+// Указатели на функции (Option в Rust)
+typedef void* option_fn_t;
+
+// Структура интерфейса плагина как в Rust
+typedef struct {
+    option_fn_t get_plugin_info;           // Option<unsafe extern "C" fn() -> *mut PluginInfo>
+    option_fn_t init;                      // Option<unsafe extern "C" fn() -> bool>
+    option_fn_t cleanup;                   // Option<unsafe extern "C" fn()>
+    option_fn_t get_system_metrics;        // Option<unsafe extern "C" fn(*mut SystemMetrics) -> bool>
+    option_fn_t get_processes;             // Option<unsafe extern "C" fn(*mut *mut ProcessInfo, *mut usize) -> bool>
+    option_fn_t execute_command;           // Option<unsafe extern "C" fn(*const c_char, *mut CommandResult) -> bool>
+    option_fn_t read_file;                 // Option<unsafe extern "C" fn(*const c_char, *mut FileContent) -> bool>
+    option_fn_t get_system_info;           // Option<unsafe extern "C" fn(*mut SystemInfo) -> bool>
+    option_fn_t get_directory_info_data;   // Option<unsafe extern "C" fn(*const c_char, bool, bool, u32) -> *mut CDirectoryInfoData>
+    option_fn_t get_event_data;            // Option<unsafe extern "C" fn(*const c_char) -> *mut CEventData>
+    option_fn_t get_watchers_data;         // Option<unsafe extern "C" fn() -> *mut CWatchersData>
+    option_fn_t get_file_reader_data;      // Option<unsafe extern "C" fn(*const c_char) -> *mut CFileReaderData>
+    option_fn_t get_sensor_data;            // Option<unsafe extern "C" fn() -> *mut CSensorData>
+    option_fn_t get_camera_data;            // Option<unsafe extern "C" fn() -> *mut CCameraData>
+    option_fn_t get_processing_results;     // Option<unsafe extern "C" fn() -> *mut CProcessingResults>
+    option_fn_t get_video_frame;            // Option<unsafe extern "C" fn() -> *mut CVideoFrame>
+    option_fn_t free_memory;                // Option<unsafe extern "C" fn(*mut c_void)>
+} plugin_interface_t;
+
+// Глобальный интерфейс - все поля NULL кроме обязательных
+static plugin_interface_t g_plugin_interface = {
+    .get_plugin_info = NULL,
+    .init = NULL,
+    .cleanup = NULL,
+    .get_system_metrics = NULL,
+    .get_processes = NULL,
+    .execute_command = NULL,
+    .read_file = NULL,
+    .get_system_info = NULL,
+    .get_directory_info_data = NULL,
+    .get_event_data = NULL,
+    .get_watchers_data = NULL,
+    .get_file_reader_data = NULL,
+    .get_sensor_data = NULL,
+    .get_camera_data = NULL,
+    .get_processing_results = NULL,
+    .get_video_frame = NULL,
+    .free_memory = NULL
+};
+
+// Простая структура информации о плагине
 typedef struct {
     char* name;
     char* version;
     int status;
 } plugin_info_t;
 
-typedef enum {
-    PLUGIN_SUCCESS = 0,
-    PLUGIN_ERROR = 1
-} plugin_result_t;
-
-// Структура интерфейса плагина
-typedef struct {
-    plugin_result_t (*get_plugin_info)(plugin_info_t* info);
-    // Другие функции могут быть добавлены позже
-} plugin_interface_t;
-
-// Глобальный интерфейс
-static plugin_interface_t g_plugin_interface = {
-    .get_plugin_info = NULL
-};
-
-// Экспортиемые функции
-__declspec(dllexport) plugin_result_t get_plugin_info(plugin_info_t* info) {
-    if (!info) return PLUGIN_ERROR;
-    
-    info->name = "system_plugin";
-    info->version = "1.0.0";
-    info->status = 1; // Active
-    
-    return PLUGIN_SUCCESS;
+// Функция get_plugin_info
+__declspec(dllexport) plugin_info_t* get_plugin_info(void) {
+    static plugin_info_t info = {
+        .name = "system_plugin",
+        .version = "1.0.0",
+        .status = 1
+    };
+    return &info;
 }
 
+// Экспортируемая функция get_plugin_interface
 __declspec(dllexport) plugin_interface_t* get_plugin_interface(void) {
-    // Устанавливаем указатель на функцию
+    // Устанавливаем только get_plugin_info, остальные NULL
     g_plugin_interface.get_plugin_info = get_plugin_info;
     return &g_plugin_interface;
 }
