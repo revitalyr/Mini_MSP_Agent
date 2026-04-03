@@ -69,10 +69,23 @@ __declspec(dllexport) plugin_info_t* get_plugin_info(void) {
     return &info;
 }
 
+// Функция init - обязательная для системных плагинов
+__declspec(dllexport) bool init(void) {
+    // Инициализация плагина
+    return true; // Успешная инициализация
+}
+
+// Функция cleanup
+__declspec(dllexport) void cleanup(void) {
+    // Очистка ресурсов плагина
+}
+
 // Экспортируемая функция get_plugin_interface
 __declspec(dllexport) plugin_interface_t* get_plugin_interface(void) {
-    // Устанавливаем только get_plugin_info, остальные NULL
+    // Устанавливаем функции интерфейса
     g_plugin_interface.get_plugin_info = get_plugin_info;
+    g_plugin_interface.init = init;
+    g_plugin_interface.cleanup = cleanup;
     return &g_plugin_interface;
 }
 
