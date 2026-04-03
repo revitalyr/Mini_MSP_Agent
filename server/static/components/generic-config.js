@@ -39,21 +39,21 @@ const GenericConfig = {
             }
         },
         
-        browseDirectory() {
-            const pluginName = this.plugin.name;
-            if (typeof window !== 'undefined' && window.platformManager) {
-                const defaultPaths = window.platformManager.getDefaultPaths(pluginName);
-                const selectedPath = defaultPaths ? (defaultPaths[0] || defaultPaths[1]) : null;
-                
-                if (selectedPath) {
-                    if (pluginName === 'file_signature' || pluginName === 'folder_watcher') {
-                        this.config.targetPath = selectedPath;
-                    } else if (pluginName === 'plugin_registry') {
-                        this.config.pluginDirectory = selectedPath;
-                    }
-                    
-                    this.emitUpdate();
+        async browseDirectory() {
+            const res = await fetch('/api/browse/directory', { method: 'POST' });
+            const data = await res.json();
+            if (data.path) {
+                // Set path based on plugin type
+                if (this.plugin.name === 'directory_info') {
+                    this.config.targetPath = data.path;
+                } else if (this.plugin.name === 'file_signature') {
+                    this.config.targetPath = data.path;
+                } else if (this.plugin.name === 'folder_watcher') {
+                    this.config.targetPath = data.path;
+                } else if (this.plugin.name === 'plugin_registry') {
+                    this.config.pluginDirectory = data.path;
                 }
+                this.emitUpdate();
             }
         },
         

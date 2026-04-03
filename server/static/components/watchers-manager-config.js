@@ -56,7 +56,14 @@ const WatchersManagerConfig = {
             const res = await fetch('/api/browse/directory', { method: 'POST' });
             const data = await res.json();
             if (data.path) {
-                this.config.targetPath = data.path;
+                // Добавляем новый путь если есть пустые слоты
+                const emptyIndex = this.config.watchPaths.findIndex(path => !path || path.trim() === '');
+                if (emptyIndex !== -1) {
+                    this.config.watchPaths[emptyIndex] = data.path;
+                } else {
+                    // Если нет пустых слотов, добавляем новый
+                    this.config.watchPaths.push(data.path);
+                }
                 this.emitUpdate();
             }
         },

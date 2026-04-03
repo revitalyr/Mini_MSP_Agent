@@ -45,23 +45,18 @@ const EventDataConfig = {
             }
         },
         
-        browseDirectory(event) {
-            if (typeof window !== 'undefined' && window.platformManager) {
-                const defaultPaths = window.platformManager.getDefaultPaths('event_data');
-                if (Array.isArray(defaultPaths) && defaultPaths.length > 0) {
-                    const currentIndex = defaultPaths.indexOf(this.config.monitorPath);
-                    const nextIndex = (currentIndex + 1) % defaultPaths.length;
-                    const selectedPath = defaultPaths[nextIndex];
-                    
-                    this.config.monitorPath = selectedPath;
-                    this.emitUpdate();
-                    
-                    // Visual feedback
-                    const input = event?.currentTarget?.previousElementSibling;
-                    if (input) {
-                        input.style.backgroundColor = '#e8f5e8';
-                        setTimeout(() => { input.style.backgroundColor = ''; }, 500);
-                    }
+        async browseDirectory(event) {
+            const res = await fetch('/api/browse/directory', { method: 'POST' });
+            const data = await res.json();
+            if (data.path) {
+                this.config.monitorPath = data.path;
+                this.emitUpdate();
+                
+                // Visual feedback
+                const input = event?.currentTarget?.previousElementSibling;
+                if (input) {
+                    input.style.backgroundColor = '#e8f5e8';
+                    setTimeout(() => { input.style.backgroundColor = ''; }, 500);
                 }
             }
         },
