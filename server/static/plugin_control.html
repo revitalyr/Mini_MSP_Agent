@@ -66,6 +66,20 @@
                 </div>
             </div>
 
+            <!-- Agents Panel -->
+            <div v-if="!loading && !error" class="agents-panel">
+                <h3 style="margin-bottom: 20px; color: #333;">🤖 Connected Agents</h3>
+                <div class="agent-controls">
+                    <select id="agentSelect" class="agent-selector">
+                        <option value="">Select an agent...</option>
+                    </select>
+                    <button class="btn btn-primary" @click="refreshAgents">🔄 Refresh</button>
+                </div>
+                <div id="agentsGrid" class="agents-grid">
+                    <!-- Agent cards will be dynamically added here -->
+                </div>
+            </div>
+
             <div v-if="!loading && !error" class="plugins-grid">
                 <div v-for="plugin in plugins" :key="plugin.name" 
                      class="plugin-card" 
@@ -203,6 +217,13 @@
                     showConfigModal: false,
                     configPlugin: {},
                     platformInfo: {},
+                    // Agent data
+                    agents: new Map(),
+                    selectedAgent: null,
+                    agentStats: {
+                        totalAgents: 0,
+                        activeAgents: 0
+                    },
                     plugins: [
                         {
                             name: 'directory_info',
@@ -289,6 +310,7 @@
             async mounted() {
                 await this.initializePlatform();
                 this.loadPlugins();
+                this.refreshAgents(); // Load agents on startup
             },
             methods: {
                 async initializePlatform() {
@@ -439,6 +461,114 @@
 
                 updateConfig(newConfig) {
                     this.configPlugin = { ...this.configPlugin, ...newConfig };
+                },
+
+                // Agent methods
+                async refreshAgents() {
+                    try {
+                        const response = await fetch('/agents');
+                        const data = await response.json();
+                        
+                        this.agents.clear();
+                        data.agents.forEach(agent => {
+                            this.agents.set(agent.id, {
+                                ...agent,
+                                last_seen: Date.now()
+                            });
+                        });
+                        
+                        this.updateAgentsDisplay();
+                        this.updateAgentStats();
+                    } catch (error) {
+                        console.error('Failed to refresh agents:', error);
+                        this.showError('Failed to load agents');
+                    }
+                },
+
+                updateAgentsDisplay() {
+                    const grid = document.getElementById('agentsGrid');
+                    if (!grid) return;
+                    
+                    grid.innerHTML = '';
+                    
+                    this.agents.forEach((agent, id) => {
+                        const card = this.createAgentCard(id, agent);
+                        grid.appendChild(card);
+                    });
+                },
+
+                createAgentCard(id, agent) {
+                    const card = document.createElement('div');
+                    card.className = 'agent-card';
+                    
+                    const isOnline = this.isAgentActive(agent);
+                    
+                    card.innerHTML = `
+                        <div class="agent-header">
+                            <div class="agent-name">${agent.hostname || 'Unknown Agent'}</div>
+                            <div class="agent-status ${isOnline ? 'online' : 'offline'}">
+                                ${isOnline ? 'Online' : 'Offline'}
+                            </div>
+                        </div>
+                        <div class="agent-info">
+                            <div class="agent-detail">
+                                <span class="label">ID:</span>
+                                <span class="value">${id}</span>
+                            </div>
+                            <div class="agent-detail">
+                                <span class="label">Last Seen:</span>
+                                <span class="value">${this.formatLastSeen(agent.last_seen)}</span>
+                            </div>
+                            <div class="agent-detail" v-if="agent.cpu">
+                                <span class="label">CPU:</span>
+                                <span class="value">${agent.cpu || 'N/A'}%</span>
+                            </div>
+                            <div class="agent-detail" v-if="agent.ram">
+                                <span class="label">RAM:</span>
+                                <span class="value">${agent.ram || 'N/A'}%</span>
+                            </div>
+                        </div>
+                        <div class="agent-actions">
+                            <button class="btn btn-small btn-primary" onclick="app.selectAgent('${id}')">
+                                Select
+                            </button>
+                        </div>
+                    `;
+                    
+                    return card;
+                },
+
+                selectAgent(agentId) {
+                    this.selectedAgent = agentId;
+                    const selector = document.getElementById('agentSelect');
+                    if (selector) {
+                        selector.value = agentId;
+                    }
+                    this.showSuccess(`Selected agent: ${agentId}`);
+                },
+
+                isAgentActive(agent) {
+                    if (!agent.last_seen) return false;
+                    const now = Date.now();
+                    const lastSeen = agent.last_seen;
+                    return (now - lastSeen) < 30000; // 30 seconds timeout
+                },
+
+                formatLastSeen(timestamp) {
+                    if (!timestamp) return 'Never';
+                    const now = Date.now();
+                    const diff = now - timestamp;
+                    
+                    if (diff < 60000) return 'Just now';
+                    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+                    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+                    return `${Math.floor(diff / 86400000)}d ago`;
+                },
+
+                updateAgentStats() {
+                    this.agentStats.totalAgents = this.agents.size;
+                    this.agentStats.activeAgents = Array.from(this.agents.values())
+                        .filter(agent => this.isAgentActive(agent)).length;
                 },
 
                 updatePluginStatus(pluginName, status) {

@@ -690,3 +690,107 @@ input[type="checkbox"] {
         width: 100%;
     }
 }
+
+/* Agents Panel Styles */
+.agents-panel {
+    background: white;
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+}
+
+.agent-controls {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+    align-items: center;
+}
+
+.agent-selector {
+    padding: 10px 15px;
+    border: 2px solid #e1e8ed;
+    border-radius: 8px;
+    background: white;
+    font-size: 14px;
+    min-width: 200px;
+}
+
+.agents-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.agent-card {
+    background: #f8f9fa;
+    border: 2px solid #e1e8ed;
+    border-radius: 10px;
+    padding: 20px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.agent-card:hover {
+    border-color: #667eea;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+
+.agent-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.agent-name {
+    font-weight: 600;
+    font-size: 16px;
+    color: #333;
+}
+
+.agent-status {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.agent-status.online {
+    background: #d4edda;
+    color: #155724;
+}
+
+.agent-status.offline {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.agent-info {
+    margin-bottom: 15px;
+}
+
+.agent-detail {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.agent-detail .label {
+    color: #666;
+    font-weight: 500;
+}
+
+.agent-detail .value {
+    color: #333;
+    font-weight: 600;
+}
+
+.agent-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
