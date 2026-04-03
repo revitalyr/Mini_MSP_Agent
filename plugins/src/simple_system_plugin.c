@@ -52,11 +52,11 @@ static plugin_interface_t g_plugin_interface = {
     .free_memory = NULL
 };
 
-// Простая структура информации о плагине
+// Структура PluginInfo как в Rust
 typedef struct {
-    char* name;
-    char* version;
-    int status;
+    const char* name;
+    const char* version;
+    const char* description;
 } plugin_info_t;
 
 // Функция get_plugin_info
@@ -64,7 +64,7 @@ __declspec(dllexport) plugin_info_t* get_plugin_info(void) {
     static plugin_info_t info = {
         .name = "system_plugin",
         .version = "1.0.0",
-        .status = 1
+        .description = "Simple system plugin for Mini MSP Agent"
     };
     return &info;
 }
