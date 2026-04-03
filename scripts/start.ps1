@@ -77,7 +77,18 @@ if ($Build) {
                 
                 if (Test-Path $vcVarsPath) {
                     Write-Host "🔧 Настройка окружения Visual Studio..." -ForegroundColor Yellow
-                    $env:VSCMD_START_DIR = $pwd.Path
+                    
+                    # Запускаем vcvars64.bat и импортируем окружение
+                    $vcVarsOutput = & cmd /c "`"$vcVarsPath`" && set" | Out-String
+                    $vcVarsLines = $vcVarsOutput -split "`r`n"
+                    
+                    foreach ($line in $vcVarsLines) {
+                        if ($line -match "^(.+?)=(.*)$") {
+                            $varName = $matches[1]
+                            $varValue = $matches[2]
+                            Set-Item -Path "env:$varName" -Value $varValue
+                        }
+                    }
                     
                     # Конфигурация CMake с Ninja и указанием компилятора
                     Write-Host "🔧 Конфигурация CMake с Ninja..." -ForegroundColor Yellow
