@@ -98,7 +98,7 @@ struct SystemMetrics {
           uptime_seconds{uptime}, timestamp{time} {}
     
     // Three-way comparison operator (C++20)
-    auto operator<=>(const SystemMetrics& other) const noexcept -> std::strong_ordering {
+    auto operator<=>(const SystemMetrics& other) const noexcept -> std::partial_ordering {
         if (auto cmp = cpu_usage <=> other.cpu_usage; cmp != 0) return cmp;
         if (auto cmp = memory_usage <=> other.memory_usage; cmp != 0) return cmp;
         return disk_usage <=> other.disk_usage;
@@ -222,7 +222,7 @@ class ModernSystemPlugin {
 private:
     // Modern atomic state
     std::atomic<bool> initialized_{false};
-    std::atomic<uint32_t> request_count_{0};
+    mutable std::atomic<uint32_t> request_count_{0};
     
     // Modern thread management
     std::jthread monitoring_thread_;
@@ -586,7 +586,14 @@ public:
             // Get file size and last modified time
             auto file_size = std::filesystem::file_size(file_path);
             auto last_modified = std::filesystem::last_write_time(file_path);
-            auto last_modified_time = std::chrono::clock_cast<std::chrono::system_clock::time_point>(last_modified);
+            auto last_modified_time = std::chrono::system_clock::now(); // Default initialization
+            
+            try {
+                last_modified_time = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
+                    last_modified - std::filesystem::file_time_type::clock::now() + std::chrono::system_clock::now());
+            } catch (...) {
+                // Use current time as fallback
+            }
             
             // Read file with RAII
             std::ifstream file(file_path, std::ios::binary);
@@ -839,9 +846,10 @@ extern "C" {
     }
     
     // Modern plugin initialization
-    [[nodiscard]] SystemResult<bool> plugin_initialize() {
+    [[nodiscard]] bool plugin_initialize() {
         static auto plugin = std::make_unique<ModernSystemPlugin>();
-        return plugin->initialize();
+        auto result = plugin->initialize();
+        return result.has_value() ? result.value() : false;
     }
     
     // Modern plugin cleanup

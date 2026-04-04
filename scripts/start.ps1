@@ -91,13 +91,14 @@ if ($Build) {
                         }
                     }
                     
-                    # Используем современный CMakeLists.txt для C++23 плагинов
-                    Write-Host "🔧 Конфигурация CMake (современные C++23 плагины)..." -ForegroundColor Yellow
-                    & cmake . -DCMAKE_BUILD_TYPE=Release 2>$null
+                    # Используем современный CMakeLists.txt для C++23 плагинов с Ninja
+                    Write-Host "🔧 Конфигурация CMake (современные C++23 плагины с Ninja)..." -ForegroundColor Yellow
+                    & cmake . -DCMAKE_BUILD_TYPE=Release -G "Ninja"
                     
                     if ($LASTEXITCODE -eq 0) {
-                        Write-Host "🔧 Сборка плагинов..." -ForegroundColor Yellow
-                        & cmake --build . --config Release 2>$null
+                        Write-Host "🔧 Сборка плагинов с Ninja..." -ForegroundColor Yellow
+                        & ninja -C . 2>&1
+                        Write-Host "Ninja exit code: $LASTEXITCODE" -ForegroundColor Yellow
                         
                         if ($LASTEXITCODE -eq 0) {
                             # Создаем директорию для плагинов если нужно
@@ -117,10 +118,10 @@ if ($Build) {
                             
                             Write-Host "✅ Плагины собраны и скопированы" -ForegroundColor Green
                         } else {
-                            Write-Host "❌ Ошибка сборки плагинов" -ForegroundColor Red
+                            Write-Host "❌ Ошибка сборки плагинов с Ninja" -ForegroundColor Red
                         }
                     } else {
-                        Write-Host "❌ Ошибка конфигурации CMake" -ForegroundColor Red
+                        Write-Host "❌ Ошибка конфигурации CMake с Ninja" -ForegroundColor Red
                     }
                 } else {
                     Write-Host "❌ vcvars64.bat не найден: $vcVarsPath" -ForegroundColor Red

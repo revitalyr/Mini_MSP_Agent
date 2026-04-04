@@ -18,19 +18,21 @@
 #include <span>
 #include <ranges>
 #include <vector>
+#include <filesystem>
 #include <chrono>
 #include <thread>
 #include <mutex>
 #include <shared_mutex>
 #include <atomic>
+#include <unordered_map>
+#include <regex>
 #include <concepts>
 #include <type_traits>
-#include <filesystem>
 #include <system_error>
 #include <iostream>
 #include <fstream>
-#include <unordered_map>
 #include <algorithm>
+#include <future>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -148,7 +150,7 @@ struct DirectoryStats {
           scanned_path{std::move(path)} {}
     
     // Modern formatting
-    friend auto operator<<(std::ostream& os, const DirectoryStats& stats) -> std::chrono::system_clock::time_point {
+    friend auto operator<<(std::ostream& os, const DirectoryStats& stats) -> std::ostream& {
         os << std::format("Stats: {} files, {} dirs, {} bytes, scan time: {}ms", 
                        stats.total_files, stats.total_directories, stats.total_size,
                        stats.scan_duration.count());
@@ -194,9 +196,9 @@ concept DirectoryScanner = requires(T scanner, StringView path, const ScanConfig
 class ModernDirectoryScanner {
 private:
     // Modern atomic state
-    std::atomic<bool> scanning_{false};
-    std::atomic<uint32_t> scans_completed_{0};
-    std::atomic<uint64_t> files_scanned_{0};
+    mutable std::atomic<bool> scanning_{false};
+    mutable std::atomic<uint32_t> scans_completed_{0};
+    mutable std::atomic<uint64_t> files_scanned_{0};
     mutable std::shared_mutex cache_mutex_;
     std::unordered_map<std::filesystem::path, std::vector<FileEntry>> scan_cache_;
     std::unordered_map<std::filesystem::path, DirectoryStats> stats_cache_;
@@ -234,8 +236,10 @@ public:
             }
             
             scanning_.store(true, std::memory_order_release);
-            auto scan_guard = std::unique_ptr<ModernDirectoryScanner, decltype(&stop_scanning)>(
-                const_cast<ModernDirectoryScanner*>(this), &ModernDirectoryScanner::stop_scanning);
+            // Create a non-const copy for the guard
+            auto* non_const_this = const_cast<ModernDirectoryScanner*>(this);
+            auto scan_guard = std::unique_ptr<ModernDirectoryScanner, void(*)(ModernDirectoryScanner*)>(
+                non_const_this, [](ModernDirectoryScanner* ptr) { ptr->stop_scanning(); });
             
             auto start_time = std::chrono::steady_clock::now();
             
@@ -251,7 +255,7 @@ public:
             
             return std::move(*entries_result);
         } catch (const std::filesystem::filesystem_error& e) {
-            return map_filesystem_error(e);
+            return std::unexpected(map_filesystem_error(e));
         } catch (const std::bad_alloc&) {
             return std::unexpected(DirectoryError::OutOfMemory);
         } catch (...) {
@@ -322,7 +326,7 @@ public:
                 dir_path
             };
         } catch (const std::filesystem::filesystem_error& e) {
-            return map_filesystem_error(e);
+            return std::unexpected(map_filesystem_error(e));
         } catch (...) {
             return std::unexpected(DirectoryError::Unknown);
         }
@@ -436,7 +440,7 @@ private:
             return entries;
             
         } catch (const std::filesystem::filesystem_error& e) {
-            return map_filesystem_error(e);
+            return std::unexpected(map_filesystem_error(e));
         } catch (...) {
             return std::unexpected(DirectoryError::Unknown);
         }
@@ -481,10 +485,17 @@ private:
             }
             
             // Get timestamps
-            auto modified_time = std::chrono::clock_cast<std::chrono::system_clock::time_point>(
-                std::filesystem::last_write_time(path));
-            auto created_time = std::chrono::clock_cast<std::chrono::system_clock::time_point>(
-                std::filesystem::creation_time(path));
+            auto modified_fs_time = std::filesystem::last_write_time(path);
+            auto modified_time = std::chrono::system_clock::now(); // Default
+            try {
+                modified_time = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
+                    modified_fs_time - std::filesystem::file_time_type::clock::now() + std::chrono::system_clock::now());
+            } catch (...) {
+                // Use current time as fallback
+            }
+            
+            // creation_time may not be available on all platforms, use modified_time as fallback
+            auto created_time = modified_time;
             
             // Get file type
             std::string file_type = get_file_type(path, is_directory);
@@ -506,7 +517,7 @@ private:
             };
             
         } catch (const std::filesystem::filesystem_error& e) {
-            return map_filesystem_error(e);
+            return std::unexpected(map_filesystem_error(e));
         } catch (...) {
             return std::unexpected(DirectoryError::Unknown);
         }
