@@ -1,6 +1,6 @@
 use async_nats::Client;
-use mini_msp_shared::{BrokerMessage, CommandRequest, CommandResponse, Heartbeat};
-use tracing::{error, info, warn};
+use mini_msp_shared::{CommandRequest, CommandResponse, Heartbeat};
+use tracing::{info};
 use anyhow::Result;
 
 /// NATS broker client for server

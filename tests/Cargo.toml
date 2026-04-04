@@ -7,6 +7,22 @@ edition = "2021"
 name = "test-runner"
 path = "test_runner.rs"
 
+[[test]]
+name = "broker_unit_tests"
+path = "broker_unit_tests.rs"
+
+[[test]]
+name = "broker_integration_tests"
+path = "broker_integration_tests.rs"
+
+[[test]]
+name = "broker_module_tests"
+path = "broker_module_tests.rs"
+
+[[test]]
+name = "plugin_tests"
+path = "plugin_tests.rs"
+
 [dependencies]
 mini_msp_agent = { path = "../agent" }
 mini_msp_shared = { path = "../shared" }
@@ -16,6 +32,7 @@ serde_json = "1.0"
 anyhow = "1.0"
 chrono = { version = "0.4" }
 futures-util = "0.3"
+async-nats = "0.35"
 
 [dev-dependencies]
 tokio-test = "0.4"

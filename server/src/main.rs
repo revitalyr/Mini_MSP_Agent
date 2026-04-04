@@ -81,7 +81,7 @@ mod broker;
 use routes::{handle_heartbeat, handle_websocket, send_command as send_command_handler, get_directory_info};
 use websocket::WebSocketManager;
 use config::Config;
-use broker::{BrokerClient, BrokerMessageHandler};
+use broker::BrokerClient;
 
 /// Shared application state for the server
 /// 
