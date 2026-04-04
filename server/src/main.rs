@@ -2,6 +2,7 @@
 //!
 //! Optimized for fast compilation and modular structure
 
+mod simple_handlers;
 mod config;
 mod broker;
 
@@ -22,9 +23,9 @@ use tower_http::{
 };
 use tracing::{info, Level};
 
-use crate::handlers::{AppState, health_check, list_agents, handle_heartbeat, handle_plugin_event};
+use simple_handlers::*;
 use config::Config;
-use crate::broker::BrokerClient;
+use broker::BrokerClient;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -65,32 +66,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     info!("Starting Mini MSP Server on {}", addr);
 
-    // Initialize broker client if URL is provided
-    let mut broker_client: Option<Arc<BrokerClient>> = None;
-    if let Some(url) = &config.broker_url {
-        let mut attempts = 0;
-        let max_attempts = 5;
-        while attempts < max_attempts {
-            match BrokerClient::connect(url).await {
-                Ok(client) => {
-                    broker_client = Some(Arc::new(client));
-                    break;
-                }
-                Err(e) => {
-                    attempts += 1;
-                    tracing::error!("Failed to connect to NATS (attempt {}/{}): {}", attempts, max_attempts, e);
-                    if attempts < max_attempts {
-                        sleep(Duration::from_secs(2)).await;
-                    }
-                }
-            }
-        }
-    }
-
     // Initialize application state
     let app_state = Arc::new(AppState {
-        agents: Mutex::new(HashMap::new()),
-        broker_client,
+        agents: Arc::new(Mutex::new(HashMap::new())),
+        broker_client: None,
     });
 
     // Build router with CORS
@@ -100,10 +79,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .allow_headers(Any);
 
     let app = Router::new()
-        .route("/health", get(health_check))
-        .route("/agents", get(list_agents))
-        .route("/heartbeat", post(handle_heartbeat))
-        .route("/events", post(handle_plugin_event))
+        .route("/health", get(simple_handlers::health_check))
+        .route("/agents", get(simple_handlers::list_agents))
         .nest_service("/static", ServeDir::new("static"))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
