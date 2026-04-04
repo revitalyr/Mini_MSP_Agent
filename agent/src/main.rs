@@ -214,7 +214,7 @@ async fn main() -> Result<()> {
 
     info!("Starting agent with broker-based communication");
 
-    // Run the broker loop (this will handle commands and heartbeats)
+    // Run broker loop (this will handle commands and heartbeats)
     broker_loop.run.await?;
 
     Ok(())

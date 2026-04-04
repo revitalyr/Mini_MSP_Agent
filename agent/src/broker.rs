@@ -9,6 +9,7 @@ use crate::commands::handle_command;
 /// NATS broker client for agent
 /// 
 /// Handles communication with server through message broker
+#[derive(Clone)]
 pub struct BrokerClient {
     nats: Client,
 }
@@ -117,14 +118,17 @@ impl BrokerLoop {
                     info!("Received command: {}", cmd.command_id);
                     
                     // Handle command
-                    let result = handle_command(cmd.command.clone(), &self.plugin_manager).await;
+                    let result = handle_command(cmd.command.clone(), Some(cmd.command_id.clone()), &self.plugin_manager).await;
                     
                     // Create response
                     let response = CommandResponse {
                         command_id: Some(cmd.command_id.clone()),
                         r#type: format!("{:?}", cmd.command),
                         status: if result.is_ok() { "success" } else { "error" }.to_string(),
-                        data: serde_json::to_value(result).unwrap_or(serde_json::Value::Null),
+                        data: match result {
+                            Ok(response) => serde_json::to_value(response)?,
+                            Err(_) => serde_json::Value::Null,
+                        },
                         timestamp: chrono::Utc::now().timestamp(),
                     };
 
@@ -160,8 +164,9 @@ async fn heartbeat_loop(broker: BrokerClient, agent_id: String) {
         // Collect system metrics
         system.refresh_all();
         
+        let cpu_usage = system.global_cpu_info().cpu_usage();
         let metrics = Metrics {
-            cpu: system.global_cpu_usage(),
+            cpu: cpu_usage,
             ram: (system.used_memory() as f32 / system.total_memory() as f32) * 100.0,
             disk: 0.0, // TODO: Implement disk usage calculation
         };
@@ -171,7 +176,7 @@ async fn heartbeat_loop(broker: BrokerClient, agent_id: String) {
             timestamp: chrono::Utc::now().timestamp(),
             metrics,
             hostname: gethostname::gethostname().into_string().unwrap_or_else(|_| "unknown".to_string()),
-            uptime: system.uptime(),
+            uptime: sysinfo::System::uptime(),
         };
 
         if let Err(e) = broker.publish_heartbeat(&agent_id, &heartbeat).await {

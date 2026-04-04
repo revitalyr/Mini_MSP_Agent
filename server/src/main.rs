@@ -167,7 +167,8 @@ async fn main() -> Result<()> {
         .get_matches();
 
     // Load configuration
-    let config_path = matches.get_one::<String>("config").unwrap_or(&"configs/server.toml".to_string());
+    let default_config = "configs/server.toml".to_string();
+    let config_path = matches.get_one::<String>("config").unwrap_or(&default_config);
     let config = Config::load(config_path)?;
 
     // Initialize logging с уровнем из конфига и записью в файл

@@ -1,0 +1,23 @@
+[package]
+name = "mini-msp-tests"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "test-runner"
+path = "test_runner.rs"
+
+[dependencies]
+mini_msp_agent = { path = "../agent" }
+mini_msp_shared = { path = "../shared" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+chrono = { workspace = true }
+futures-util = { workspace = true }
+
+[dev-dependencies]
+tokio-test = { workspace = true }
+tempfile = { workspace = true }
+testcontainers = { workspace = true }
