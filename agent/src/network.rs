@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use futures_util::{SinkExt, StreamExt};
-use mini_msp_shared::{Command, CommandResponse, Heartbeat, CommandRequest, AgentResponse};
+use mini_msp_shared::{CommandResponse, Heartbeat, CommandRequest, AgentResponse};
 use reqwest::Client;
 use serde_json;
 use std::time::Duration;

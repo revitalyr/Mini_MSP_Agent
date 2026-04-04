@@ -4,7 +4,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 use tokio::time::interval;
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 
 use super::loader::PluginLoader;
 use super::ffi::{

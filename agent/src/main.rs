@@ -43,11 +43,7 @@
 
 use anyhow::Result;
 use clap::{Arg, Command};
-use mini_msp_shared::{AgentConfig, Heartbeat, Metrics};
-use std::path::PathBuf;
-use std::time::Duration;
-use tokio::time::{interval, Instant};
-use tracing::{error, info, warn};
+use tracing::{error, info};
 use tracing_subscriber::{self, EnvFilter, prelude::*};
 
 mod config;

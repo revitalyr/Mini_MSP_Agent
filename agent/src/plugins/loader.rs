@@ -5,8 +5,6 @@ use tracing::{debug, error, info, warn};
 
 use super::ffi::{PluginInterface, SafePluginInterface};
 
-const PUBLIC_KEY_PATH: &str = "../security/agent_public.pem";
-
 pub struct PluginLoader {
     library: Option<Library>,
     interface: Option<SafePluginInterface>,

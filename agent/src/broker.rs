@@ -1,6 +1,6 @@
 use async_nats::Client;
-use mini_msp_shared::{BrokerMessage, CommandRequest, CommandResponse, Heartbeat};
-use tracing::{error, info, warn};
+use mini_msp_shared::{CommandRequest, CommandResponse, Heartbeat};
+use tracing::{error, info};
 use anyhow::Result;
 use futures_util::StreamExt;
 use crate::plugins::PluginManager;
@@ -98,7 +98,7 @@ impl BrokerLoop {
     }
 
     /// Run the main broker loop
-    pub async fn run(mut self) -> Result<()> {
+    pub async fn run(self) -> Result<()> {
         info!("Starting broker loop for agent {}", self.agent_id);
 
         // Subscribe to commands

@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use mini_msp_shared::{Command, CommandResponse, AgentResponse};
 use serde_json::json;
 use std::time::SystemTime;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 use crate::plugins::PluginManager;
 

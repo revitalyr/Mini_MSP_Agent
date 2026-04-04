@@ -1,29 +1,194 @@
-cmake_minimum_required(VERSION 3.12)
-project(mini_msp_plugins)
+# Modern C++23 Plugin System for Mini MSP Agent
+# 
+# This CMake configuration builds modern C++23 plugins with:
+# - Latest C++23 features (concepts, modules, coroutines)
+# - Modern CMake practices (target-based configuration)
+# - Cross-platform support (Windows, Linux, macOS)
+# - Advanced compiler optimizations
+# - Proper dependency management
+# - Export configuration for dynamic loading
 
-# Set C standard (C++ removed)
-set(CMAKE_C_STANDARD 99)
-set(CMAKE_C_STANDARD_REQUIRED ON)
+cmake_minimum_required(VERSION 3.25)
 
-# Windows-specific configuration
-if(WIN32)
-    # Enable Windows SDK and standard headers
-    add_definitions(-D_WIN32_WINNT=0x0601)  # Windows 7+
-    add_definitions(-DNOMINMAX)           # Prevent min/max macro conflicts
-    add_definitions(-D_CRT_SECURE_NO_WARNINGS)  # Disable secure warnings
+# Modern project setup
+project(MiniMSPAgentPlugins
+    VERSION 2.0.0
+    DESCRIPTION "Modern C++23 Plugin System for Mini MSP Agent"
+    LANGUAGES CXX
+)
+
+# Set C++23 standard with modern features
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Enable modern CMake features
+set(CMAKE_CXX_SCAN_FOR_MODULES ON)
+set(CMAKE_ENABLE_EXPORTS ON)
+
+# Compiler-specific modern flags
+if(MSVC)
+    # Modern MSVC flags for C++23
+    add_compile_options(
+        /std:c++latest
+        /permissive-
+        /Zc:__cplusplus
+        /Zc:preprocessor
+        /Zc:externConstexpr
+        /Zc:lambda
+        /Zc:throwingNew
+        /Zc:referenceBinding
+        /Zc:rvalueCast
+        /Zc:twoPhaseLookup
+        /Zc:threadSafeInit
+        /W4
+        /WX
+        /utf-8
+        /bigobj
+    )
     
-    # Set compiler flags for MSVC (but not global to avoid conflicts)
-    if(MSVC)
-        # Don't set global flags to avoid conflicts with per-target flags
-        # set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W3 /utf-8")
-        set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MDd")
-        set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MD /O2")
-    endif()
+    # Modern MSVC definitions
+    add_compile_definitions(
+        WIN32_LEAN_AND_MEAN
+        NOMINMAX
+        _WIN32_WINNT=0x0A00
+        WINVER=0x0A00
+        UNICODE
+        _UNICODE
+    )
     
-    # Ensure proper include directories for Windows SDK
-    set(CMAKE_SYSTEM_INCLUDE_PATH ${CMAKE_SYSTEM_INCLUDE_PATH} "$ENV{WindowsSdkDir}include")
-    set(CMAKE_INCLUDE_PATH ${CMAKE_INCLUDE_PATH} "$ENV{INCLUDE}")
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    # Modern GCC flags for C++23
+    add_compile_options(
+        -std=c++23
+        -fmodules-ts
+        -fconcepts-ts
+        -fcoroutines-ts
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Werror
+        -O3
+        -march=native
+    )
+    
+    # Modern GCC definitions
+    add_compile_definitions(
+        _GNU_SOURCE
+    )
+    
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    # Modern Clang flags for C++23
+    add_compile_options(
+        -std=c++23
+        -fmodules
+        -fconcepts-ts
+        -fcoroutines-ts
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Werror
+        -O3
+        -march=native
+    )
+    
+    # Modern Clang definitions
+    add_compile_definitions(
+        __STDC_LIBC1__
+    )
 endif()
+
+# Modern plugin sources
+set(MODERN_PLUGIN_SOURCES
+    src/modern_system_plugin.cpp
+)
+
+# Create modern plugin library
+add_library(modern_system_plugin SHARED ${MODERN_PLUGIN_SOURCES})
+
+# Modern target properties
+set_target_properties(modern_system_plugin PROPERTIES
+    VERSION ${PROJECT_VERSION}
+    SOVERSION ${PROJECT_VERSION_MAJOR}
+    CXX_STANDARD 23
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    POSITION_INDEPENDENT_CODE ON
+    VISIBILITY_INLINES_HIDDEN ON
+)
+
+# Windows-specific modern configuration
+if(WIN32)
+    # Modern Windows libraries
+    target_link_libraries(modern_system_plugin PRIVATE
+        kernel32
+        user32
+        psapi
+        advapi32
+        shell32
+        ole32
+        oleaut32
+        uuid
+        comdlg32
+        gdi32
+        winspool
+    )
+    
+    # Modern Windows DLL configuration
+    set_target_properties(modern_system_plugin PROPERTIES
+        WINDOWS_EXPORT_ALL_SYMBOLS ON
+        LINK_FLAGS "/IGNORE:4221"
+    )
+    
+    # Windows subsystem
+    if(MSVC)
+        set_target_properties(modern_system_plugin PROPERTIES
+            LINK_FLAGS "/SUBSYSTEM:WINDOWS"
+        )
+    endif()
+endif()
+
+# Unix-like configuration
+if(UNIX)
+    # Modern Unix libraries
+    target_link_libraries(modern_system_plugin PRIVATE
+        pthread
+        dl
+        m
+    )
+    
+    # Unix definitions
+    target_compile_definitions(modern_system_plugin PRIVATE
+        _POSIX_C_SOURCE=200809L
+        _XOPEN_SOURCE=700
+    )
+endif()
+
+# Modern include directories
+target_include_directories(modern_system_plugin PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+# Modern installation
+include(GNUInstallDirs)
+
+install(TARGETS modern_system_plugin
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+# Modern configuration summary
+message(STATUS "")
+message(STATUS "Modern Plugin System Configuration:")
+message(STATUS "  Version: ${PROJECT_VERSION}")
+message(STATUS "  C++ Standard: ${CMAKE_CXX_STANDARD}")
+message(STATUS "  Compiler: ${CMAKE_CXX_COMPILER_ID}")
+message(STATUS "  Platform: ${CMAKE_SYSTEM_NAME}")
+message(STATUS "  Architecture: ${CMAKE_SYSTEM_PROCESSOR}")
+message(STATUS "  Install Prefix: ${CMAKE_INSTALL_PREFIX}")
+message(STATUS "")
 
 # --- Security Configuration ---
 find_program(OPENSSL_EXECUTABLE openssl REQUIRED)
