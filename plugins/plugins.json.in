@@ -1,0 +1,9 @@
+{
+  "plugins": [
+    "modern_system_plugin",
+    "modern_directory_info_plugin"
+  ],
+  "version": "@PROJECT_VERSION@",
+  "cpp_standard": 23,
+  "platform": "@PLATFORM@"
+}
