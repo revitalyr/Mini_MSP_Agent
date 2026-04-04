@@ -1,6 +1,5 @@
 use anyhow::Result;
 use mini_msp_shared::Metrics;
-use std::time::SystemTime;
 use tracing::{debug, error};
 
 use crate::plugins::PluginManager;

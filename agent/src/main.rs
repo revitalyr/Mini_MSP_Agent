@@ -49,10 +49,11 @@ use tracing_subscriber::{self, EnvFilter, prelude::*};
 mod config;
 mod telemetry;
 mod network;
-mod commands;
 mod plugins;
 mod broker;
+mod commands;
 
+use crate::network::{HttpClient, WebSocketClient};
 use config::Config;
 use telemetry::TelemetryCollector;
 use std::sync::Arc;
@@ -194,11 +195,20 @@ async fn main() -> Result<()> {
         info!("  - {} ({:?})", plugin_name, status);
     }
     
-    // Show plugin registry
-    let registry = plugin_manager.get_plugin_registry();
-    info!("Plugin registry:");
+    // Load plugins and display status
+    let registry = plugin_manager.list_plugins();
+    info!("Loaded {} plugins:", registry.len());
     for entry in registry {
-        info!("  {} v{} ({}) - {:?}", entry.name, entry.version, entry.platform, entry.status);
+        info!("  {} v{} - {}", entry.name, entry.version, entry.description);
+    }
+
+    // Test plugin functionality
+    if let Ok(system_info) = plugin_manager.get_system_info() {
+        info!("System info plugin loaded successfully");
+    }
+    
+    if let Ok(dir_info) = plugin_manager.get_directory_info_data(".", false, false, 10) {
+        info!("Directory info plugin loaded successfully");
     }
 
     // Initialize broker client
@@ -224,7 +234,15 @@ async fn main() -> Result<()> {
 
     // Initialize broker loop
     let telemetry = TelemetryCollector::new(plugin_manager.clone());
-    let broker_loop = BrokerLoop::new(broker_client, config.agent_id.clone(), plugin_manager.clone(), telemetry);
+    let http_client = HttpClient::new(config.clone());
+    let ws_client = WebSocketClient::new(config.clone(), plugin_manager.clone());
+    let broker_loop = BrokerLoop::new(broker_client, config.agent_id.clone(), plugin_manager.clone(), telemetry, http_client);
+
+    // Start WebSocket client in background
+    let ws_client_clone = ws_client.clone();
+    tokio::spawn(async move {
+        ws_client_clone.run().await;
+    });
 
     info!("Starting agent with broker-based communication");
 

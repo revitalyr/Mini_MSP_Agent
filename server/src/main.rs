@@ -7,15 +7,13 @@ mod config;
 mod broker;
 
 use axum::{
-    routing::{get, post},
+    routing::get,
     Router,
 };
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::time::Duration;
 use tokio::net::TcpListener;
-use tokio::time::sleep;
 use tower_http::{
     cors::{CorsLayer, Any},
     services::ServeDir,
@@ -25,7 +23,6 @@ use tracing::{info, Level};
 
 use simple_handlers::*;
 use config::Config;
-use broker::BrokerClient;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {

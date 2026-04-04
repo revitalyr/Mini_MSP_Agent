@@ -4,6 +4,7 @@ use tracing::{error, info};
 use anyhow::Result;
 use futures_util::StreamExt;
 use crate::plugins::PluginManager;
+use crate::network::HttpClient;
 use crate::telemetry::TelemetryCollector;
 use crate::commands::handle_command;
 
@@ -88,15 +89,17 @@ pub struct BrokerLoop {
     agent_id: String,
     plugin_manager: PluginManager,
     telemetry: TelemetryCollector,
+    http_client: HttpClient,
 }
 
 impl BrokerLoop {
-    pub fn new(broker: BrokerClient, agent_id: String, plugin_manager: PluginManager, telemetry: TelemetryCollector) -> Self {
+    pub fn new(broker: BrokerClient, agent_id: String, plugin_manager: PluginManager, telemetry: TelemetryCollector, http_client: HttpClient) -> Self {
         Self {
             broker,
             agent_id,
             plugin_manager,
             telemetry,
+            http_client,
         }
     }
 
@@ -111,8 +114,9 @@ impl BrokerLoop {
         let heartbeat_broker = self.broker.clone();
         let heartbeat_agent_id = self.agent_id.clone();
         let telemetry = self.telemetry.clone();
+        let http_client = self.http_client.clone();
         let heartbeat_task = tokio::spawn(async move {
-            self::heartbeat_loop(heartbeat_broker, heartbeat_agent_id, telemetry).await;
+            self::heartbeat_loop(heartbeat_broker, heartbeat_agent_id, telemetry, http_client).await;
         });
 
         // Process commands
@@ -154,7 +158,7 @@ impl BrokerLoop {
 }
 
 /// Heartbeat publishing loop
-async fn heartbeat_loop(broker: BrokerClient, agent_id: String, telemetry: TelemetryCollector) {
+async fn heartbeat_loop(broker: BrokerClient, agent_id: String, telemetry: TelemetryCollector, http_client: HttpClient) {
     use tokio::time::{interval, Duration};
 
     let mut interval = interval(Duration::from_secs(30));
@@ -163,19 +167,39 @@ async fn heartbeat_loop(broker: BrokerClient, agent_id: String, telemetry: Telem
         interval.tick().await;
 
         let metrics = telemetry.collect_metrics().await.ok().unwrap_or_default();
+        
+        // Collect additional system information
+        let hostname = telemetry.get_hostname();
+        let uptime = telemetry.get_uptime();
+        let _processes = telemetry.get_processes().unwrap_or_default();
+        let _system_info = telemetry.get_system_info().unwrap_or_else(|_| crate::telemetry::SystemInfo {
+            os_type: "Unknown".to_string(),
+            os_version: "Unknown".to_string(),
+            hostname: "Unknown".to_string(),
+            uptime: 0,
+            cpu_cores: 0,
+            total_memory: 0,
+            available_memory: 0,
+        });
 
         let heartbeat = Heartbeat {
             agent_id: agent_id.clone(),
             timestamp: chrono::Utc::now().timestamp(),
             metrics,
-            hostname: gethostname::gethostname().into_string().unwrap_or_else(|_| "unknown".to_string()),
-            uptime: sysinfo::System::uptime(),
+            hostname,
+            uptime,
         };
 
         if let Err(e) = broker.publish_heartbeat(&agent_id, &heartbeat).await {
-            error!("Failed to publish heartbeat: {}", e);
+            error!("Failed to publish heartbeat via NATS: {}", e);
+            // Fallback to HTTP
+            if let Err(http_err) = http_client.send_heartbeat(heartbeat.clone()).await {
+                error!("Failed to publish heartbeat via HTTP: {}", http_err);
+            } else {
+                info!("Published heartbeat via HTTP fallback");
+            }
         } else {
-            info!("Published heartbeat");
+            info!("Published heartbeat via NATS");
         }
     }
 }

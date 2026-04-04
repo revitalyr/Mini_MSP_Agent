@@ -12,6 +12,7 @@ use crate::commands::handle_command;
 use crate::config::Config;
 use crate::plugins::PluginManager;
 
+#[derive(Clone)]
 pub struct HttpClient {
     client: Client,
     config: Config,
@@ -49,6 +50,7 @@ impl HttpClient {
     }
 }
 
+#[derive(Clone)]
 pub struct WebSocketClient {
     config: Config,
     plugin_manager: PluginManager,

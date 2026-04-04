@@ -5,7 +5,6 @@
 use axum::{
     extract::State,
     response::Json,
-    http::StatusCode,
 };
 use serde_json::json;
 use std::sync::{Arc, Mutex};
