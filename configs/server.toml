@@ -1,0 +1,4 @@
+port = 8081
+log_level = "info"
+log_dir = "logs"
+broker_url = "nats://localhost:4222"

@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use mini_msp_shared::AgentConfig;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -7,27 +6,10 @@ use toml;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    pub server_url: String,
-    pub ws_url: String,
-    pub broker_url: String,
-    pub interval: u64,
-    pub agent_id: String,
+    pub port: u16,
     pub log_level: String,
     pub log_dir: String,
-}
-
-impl From<AgentConfig> for Config {
-    fn from(agent_config: AgentConfig) -> Self {
-        Self {
-            server_url: agent_config.server_url,
-            ws_url: agent_config.ws_url,
-            broker_url: "nats://localhost:4222".to_string(),
-            interval: agent_config.interval,
-            agent_id: agent_config.agent_id,
-            log_level: "info".to_string(),
-            log_dir: "logs".to_string(),
-        }
-    }
+    pub broker_url: String,
 }
 
 impl Config {
@@ -64,13 +46,10 @@ impl Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            server_url: "http://localhost:8081".to_string(),
-            ws_url: "ws://localhost:8081/ws".to_string(),
-            broker_url: "nats://localhost:4222".to_string(),
-            interval: 30,
-            agent_id: uuid::Uuid::new_v4().to_string(),
+            port: 8081,
             log_level: "info".to_string(),
             log_dir: "logs".to_string(),
+            broker_url: "nats://localhost:4222".to_string(),
         }
     }
 }

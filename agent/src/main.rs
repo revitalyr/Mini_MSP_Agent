@@ -133,8 +133,8 @@ async fn main() -> Result<()> {
     // Initialize logging с уровнем из конфига и записью в файл
     let log_level = config.log_level.as_str(); // "debug" | "info" | "warn" | "error"
     
-    // Лог в файл с rotation по дням
-    let file_appender = tracing_appender::rolling::daily("logs", "agent.log");
+    // Лог в файл с rotation по дням в настраиваемую директорию
+    let file_appender = tracing_appender::rolling::daily(&config.log_dir, "agent.log");
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
 
     tracing_subscriber::registry()

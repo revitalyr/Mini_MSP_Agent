@@ -202,3 +202,26 @@ pub struct ProcessingResults {
     pub result_data: serde_json::Value,
     pub processing_time: f64,
 }
+
+/// Message broker message structure
+/// 
+/// Used for communication between agents and server via NATS
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BrokerMessage {
+    pub agent_id: String,
+    pub payload: BrokerPayload,
+    pub timestamp: i64,
+}
+
+/// Broker message payload with tagged enum for different message types
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind")]
+pub enum BrokerPayload {
+    Command(CommandRequest),
+    Response(CommandResponse),
+    Heartbeat(Heartbeat),
+    PluginEvent { 
+        plugin: String, 
+        data: serde_json::Value 
+    },
+}

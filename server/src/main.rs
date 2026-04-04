@@ -75,9 +75,11 @@ use clap::{Arg, Command as ClapCommand};
 mod routes;
 mod websocket;
 mod browse;
+mod config;
 
 use routes::{handle_heartbeat, handle_websocket, send_command as send_command_handler, get_directory_info};
 use websocket::WebSocketManager;
+use config::Config;
 
 /// Shared application state for the server
 /// 
@@ -143,20 +145,32 @@ async fn main() -> Result<()> {
         .version("0.1.0")
         .about("Backend server for Mini MSP Agent")
         .arg(
+            Arg::new("config")
+                .short('c')
+                .long("config")
+                .value_name("FILE")
+                .help("Configuration file path")
+                .default_value("configs/server.toml"),
+        )
+        .arg(
             Arg::new("port")
                 .short('p')
                 .long("port")
                 .value_name("PORT")
                 .help("Sets the server port")
-                .default_value("8080"),
+                .default_value("8081"),
         )
         .get_matches();
 
-    // Initialize logging с уровнем по умолчанию и записью в файл
-    let log_level = "info"; // Сервер использует уровень по умолчанию
+    // Load configuration
+    let config_path = matches.get_one::<String>("config").unwrap_or(&"configs/server.toml".to_string());
+    let config = Config::load(config_path)?;
+
+    // Initialize logging с уровнем из конфига и записью в файл
+    let log_level = config.log_level.as_str(); // "debug" | "info" | "warn" | "error"
     
-    // Лог в файл с rotation по дням
-    let file_appender = tracing_appender::rolling::daily("logs", "server.log");
+    // Лог в файл с rotation по дням в настраиваемую директорию
+    let file_appender = tracing_appender::rolling::daily(&config.log_dir, "server.log");
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
 
     tracing_subscriber::registry()
@@ -168,7 +182,8 @@ async fn main() -> Result<()> {
         .with(tracing_subscriber::fmt::layer().json())                            // stdout
         .init();
 
-    let port: u16 = matches.get_one::<String>("port").unwrap().parse()?;
+    let port: u16 = matches.get_one::<String>("port").unwrap().parse()
+        .unwrap_or(config.port);
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
 
     info!("Starting Mini MSP Server on {}", addr);
