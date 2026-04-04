@@ -67,6 +67,7 @@ use std::{
     time::{Instant, Duration},
 };
 use tracing::info;
+use tracing_subscriber::{self, EnvFilter, prelude::*};
 use tokio::time::interval;
 use tower_http::{cors::CorsLayer, trace::TraceLayer, services::ServeDir};
 use clap::{Arg, Command as ClapCommand};
@@ -151,10 +152,20 @@ async fn main() -> Result<()> {
         )
         .get_matches();
 
-    // Initialize logging
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
-        .json()
+    // Initialize logging с уровнем по умолчанию и записью в файл
+    let log_level = "info"; // Сервер использует уровень по умолчанию
+    
+    // Лог в файл с rotation по дням
+    let file_appender = tracing_appender::rolling::daily("logs", "server.log");
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+
+    tracing_subscriber::registry()
+        .with(
+            EnvFilter::try_from_default_env()           // RUST_LOG имеет приоритет
+                .unwrap_or_else(|_| EnvFilter::new(log_level))
+        )
+        .with(tracing_subscriber::fmt::layer().json().with_writer(non_blocking))  // файл
+        .with(tracing_subscriber::fmt::layer().json())                            // stdout
         .init();
 
     let port: u16 = matches.get_one::<String>("port").unwrap().parse()?;

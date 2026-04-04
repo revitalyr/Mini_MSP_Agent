@@ -48,7 +48,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 use tokio::time::{interval, Instant};
 use tracing::{error, info, warn};
-use tracing_subscriber;
+use tracing_subscriber::{self, EnvFilter, prelude::*};
 
 mod config;
 mod telemetry;
@@ -126,18 +126,27 @@ async fn main() -> Result<()> {
         )
         .get_matches();
 
-    // Initialize logging
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
-        .json()
-        .init();
-
-    info!("Starting Mini MSP Agent with C++ plugin architecture and hot-reload support");
-
     // Load configuration
     let config_path = matches.get_one::<String>("config").unwrap();
     let config = Config::load(config_path)?;
+
+    // Initialize logging с уровнем из конфига и записью в файл
+    let log_level = config.log_level.as_str(); // "debug" | "info" | "warn" | "error"
     
+    // Лог в файл с rotation по дням
+    let file_appender = tracing_appender::rolling::daily("logs", "agent.log");
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+
+    tracing_subscriber::registry()
+        .with(
+            EnvFilter::try_from_default_env()           // RUST_LOG имеет приоритет
+                .unwrap_or_else(|_| EnvFilter::new(log_level))
+        )
+        .with(tracing_subscriber::fmt::layer().json().with_writer(non_blocking))  // файл
+        .with(tracing_subscriber::fmt::layer().json())                            // stdout
+        .init();
+
+    info!("Starting Mini MSP Agent with C++ plugin architecture and hot-reload support");
     info!("Loaded configuration for agent: {}", config.agent_id);
 
     // Initialize plugin manager and load plugins

@@ -5,6 +5,26 @@ project(mini_msp_plugins)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+# Windows-specific configuration
+if(WIN32)
+    # Enable Windows SDK and standard headers
+    add_definitions(-D_WIN32_WINNT=0x0601)  # Windows 7+
+    add_definitions(-DNOMINMAX)           # Prevent min/max macro conflicts
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS)  # Disable secure warnings
+    
+    # Set compiler flags for MSVC (but not global to avoid conflicts)
+    if(MSVC)
+        # Don't set global flags to avoid conflicts with per-target flags
+        # set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W3 /utf-8")
+        set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MDd")
+        set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MD /O2")
+    endif()
+    
+    # Ensure proper include directories for Windows SDK
+    set(CMAKE_SYSTEM_INCLUDE_PATH ${CMAKE_SYSTEM_INCLUDE_PATH} "$ENV{WindowsSdkDir}include")
+    set(CMAKE_INCLUDE_PATH ${CMAKE_INCLUDE_PATH} "$ENV{INCLUDE}")
+endif()
+
 # --- Security Configuration ---
 find_program(OPENSSL_EXECUTABLE openssl REQUIRED)
 set(PLUGIN_PRIVATE_KEY "${CMAKE_CURRENT_SOURCE_DIR}/../security/agent_private.pem")
@@ -41,6 +61,11 @@ add_library(system_plugin SHARED
 target_include_directories(system_plugin PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+
+# Set compiler flags for Windows
+if(WIN32 AND MSVC)
+    target_compile_options(system_plugin PRIVATE /W3 /utf-8)
+endif()
 
 # Add signature generation for system_plugin
 add_custom_command(TARGET system_plugin POST_BUILD
@@ -127,6 +152,15 @@ foreach(PLUGIN_SOURCE ${PLUGIN_SOURCES})
         VERBATIM
     )
 
+    target_include_directories(${PLUGIN_NAME} PUBLIC 
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    
+    # Set compiler flags for Windows
+    if(WIN32 AND MSVC)
+        target_compile_options(${PLUGIN_NAME} PRIVATE /W3 /utf-8)
+    endif()
+    
     target_compile_definitions(${PLUGIN_NAME} PRIVATE ${PLATFORM_DEFINES})
     target_link_libraries(${PLUGIN_NAME} PRIVATE ${PLATFORM_LIBS})
     
