@@ -76,10 +76,12 @@ mod routes;
 mod websocket;
 mod browse;
 mod config;
+mod broker;
 
 use routes::{handle_heartbeat, handle_websocket, send_command as send_command_handler, get_directory_info};
 use websocket::WebSocketManager;
 use config::Config;
+use broker::{BrokerClient, BrokerMessageHandler};
 
 /// Shared application state for the server
 /// 
@@ -90,10 +92,12 @@ use config::Config;
 /// 
 /// * `agents` - Thread-safe hashmap of registered agents indexed by ID
 /// * `ws_manager` - Thread-safe WebSocket connection manager
+/// * `broker_client` - NATS broker client for message handling
 #[derive(Clone)]
 pub struct AppState {
     agents: Arc<tokio::sync::Mutex<HashMap<String, AgentInfo>>>,
     ws_manager: Arc<tokio::sync::Mutex<WebSocketManager>>,
+    broker_client: Arc<BrokerClient>,
 }
 
 /// Information about a connected agent
@@ -188,10 +192,15 @@ async fn main() -> Result<()> {
 
     info!("Starting Mini MSP Server on {}", addr);
 
+    // Connect to NATS broker
+    let broker_client = BrokerClient::connect(&config.broker_url).await
+        .map_err(|e| anyhow::anyhow!("Failed to connect to broker: {}", e))?;
+
     // Initialize application state
     let app_state = AppState {
         agents: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
         ws_manager: Arc::new(tokio::sync::Mutex::new(WebSocketManager::new())),
+        broker_client: Arc::new(broker_client),
     };
 
     // Build router

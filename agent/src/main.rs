@@ -55,11 +55,13 @@ mod telemetry;
 mod network;
 mod commands;
 mod plugins;
+mod broker;
 
 use config::Config;
 use telemetry::TelemetryCollector;
 use network::{HttpClient, WebSocketClient};
 use plugins::{PluginManager, PluginEventType};
+use broker::{BrokerClient, BrokerLoop};
 
 /// Main entry point for the Mini MSP Agent
 /// 
@@ -203,50 +205,17 @@ async fn main() -> Result<()> {
         info!("  {} v{} ({}) - {:?}", entry.name, entry.version, entry.platform, entry.status);
     }
 
-    // Initialize components
-    let telemetry = TelemetryCollector::new(plugin_manager.clone());
-    let http_client = HttpClient::new(config.clone());
-    let ws_client = WebSocketClient::new(config.clone(), plugin_manager.clone());
+    // Initialize broker client
+    let broker_client = BrokerClient::connect(&config.broker_url).await
+        .map_err(|e| anyhow::anyhow!("Failed to connect to broker: {}", e))?;
 
-    // Spawn telemetry and heartbeat task
-    let config_clone = config.clone();
-    let telemetry_task = tokio::spawn(async move {
-        let mut interval = interval(Duration::from_secs(config_clone.interval));
-        
-        loop {
-            interval.tick().await;
-            
-            match telemetry.collect_metrics().await {
-                Ok(metrics) => {
-                    let heartbeat = Heartbeat {
-                        agent_id: config_clone.agent_id.clone(),
-                        timestamp: std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap()
-                            .as_secs() as i64,
-                        metrics,
-                        hostname: telemetry.get_hostname(),
-                        uptime: telemetry.get_uptime(),
-                    };
+    // Initialize broker loop
+    let broker_loop = BrokerLoop::new(broker_client, config.agent_id.clone(), plugin_manager.clone());
 
-                    if let Err(e) = http_client.send_heartbeat(heartbeat).await {
-                        error!("Failed to send heartbeat: {}", e);
-                    }
-                }
-                Err(e) => {
-                    error!("Failed to collect metrics: {}", e);
-                }
-            }
-        }
-    });
+    info!("Starting agent with broker-based communication");
 
-    // Spawn WebSocket control channel task
-    let ws_task = tokio::spawn(async move {
-        ws_client.run().await;
-    });
-
-    // Wait for tasks
-    tokio::try_join!(telemetry_task, ws_task)?;
+    // Run the broker loop (this will handle commands and heartbeats)
+    broker_loop.run.await?;
 
     Ok(())
 }

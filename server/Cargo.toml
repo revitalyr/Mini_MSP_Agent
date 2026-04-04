@@ -26,6 +26,7 @@ futures-util = { workspace = true }
 tokio-tungstenite = { workspace = true }
 clap = { workspace = true }
 jsonwebtoken = "10.3.0"
+chrono = "0.4"
 
 [target.'cfg(windows)'.dependencies]
 rfd = "0.14"   # native file dialog, кроссплатформенный
