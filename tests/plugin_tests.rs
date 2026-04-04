@@ -4,14 +4,11 @@
 
 #[cfg(test)]
 mod plugin_manager_tests {
-    use mini_msp_agent::agent::plugins::PluginManager;
-    use mini_msp_shared::{Command, CommandResponse};
-    use std::path::PathBuf;
-    use tempfile::TempDir;
+    use mini_msp_agent::plugins::PluginManager;
 
     #[test]
     fn test_plugin_manager_creation() {
-        let plugin_manager = PluginManager::new();
+        let mut plugin_manager = PluginManager::new();
         
         // Initially should have no plugins
         let loaded_plugins = plugin_manager.get_loaded_plugins();
@@ -25,7 +22,7 @@ mod plugin_manager_tests {
 
     #[test]
     fn test_plugin_directory_validation() {
-        let plugin_manager = PluginManager::new();
+        let mut plugin_manager = PluginManager::new();
         
         // Test with non-existent directory
         let result = plugin_manager.load_plugins_from_directory("/non/existent/path");
@@ -42,7 +39,7 @@ mod plugin_manager_tests {
         let plugin_manager = PluginManager::new();
         
         // Test status for non-existent plugin
-        let status = plugin_manager.get_plugin_status("non_existent_plugin");
+        let _status = plugin_manager.get_plugin_status("non_existent_plugin");
         // Should handle gracefully - implementation dependent
         
         // Test plugin registry
@@ -65,12 +62,12 @@ mod plugin_manager_tests {
         println!("✅ Hot reload configuration test passed");
     }
 
-    #[test]
-    fn test_command_execution_without_plugins() {
+    #[tokio::test]
+    async fn test_command_execution_without_plugins() {
         let plugin_manager = PluginManager::new();
         
         // Test command execution with no plugins loaded
-        let result = plugin_manager.execute_command(&Command::GetSystemInfo).await;
+        let result = plugin_manager.execute_command("get_system_info");
         
         // Should handle gracefully - implementation dependent
         match result {
@@ -171,13 +168,12 @@ mod plugin_interface_tests {
 
 #[cfg(test)]
 mod system_plugin_tests {
-    use mini_msp_agent::agent::plugins::PluginManager;
+    use mini_msp_agent::plugins::PluginManager;
     use std::fs;
-    use std::path::Path;
     
     #[test]
     fn test_system_plugin_requirement() {
-        let plugin_manager = PluginManager::new();
+        let mut plugin_manager = PluginManager::new();
         
         // Initially should have no system plugin
         assert!(!plugin_manager.is_system_plugin_loaded(), 
@@ -188,7 +184,7 @@ mod system_plugin_tests {
 
     #[test]
     fn test_plugin_loading_from_directory() {
-        let plugin_manager = PluginManager::new();
+        let mut plugin_manager = PluginManager::new();
         
         // Create a temporary directory structure
         let temp_dir = tempfile::tempdir().unwrap();

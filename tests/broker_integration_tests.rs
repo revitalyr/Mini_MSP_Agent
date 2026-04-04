@@ -383,16 +383,18 @@ mod performance_tests {
         println!("Large message size: {} bytes", payload.len());
         
         // Subscribe to response
-        let mut subscriber = client.subscribe(&response_subject).await?;
+        let mut subscriber = client.subscribe(response_subject.clone()).await?;
         
         // Publish large message
         let start = Instant::now();
-        client.publish(&response_subject, payload.into()).await?;
+        client.publish(response_subject.clone(), payload.into()).await?;
         let publish_time = start.elapsed();
         
         // Receive large message
         let start = Instant::now();
-        let received = timeout(Duration::from_secs(30), subscriber.next()).await??;
+        let received = timeout(Duration::from_secs(30), subscriber.next())
+            .await
+            .ok_or_else(|| anyhow::anyhow!("Timeout waiting for message"))??;
         let receive_time = start.elapsed();
         
         let received_response: CommandResponse = serde_json::from_slice(&received.payload)?;
@@ -433,14 +435,16 @@ mod error_handling_tests {
         let client = connect_to_nats().await?;
         
         let subject = format!("commands.{}", TEST_AGENT_ID);
-        let mut subscriber = client.subscribe(&subject).await?;
+        let mut subscriber = client.subscribe(subject.clone()).await?;
         
         // Publish invalid JSON
         let invalid_payload = b"{ invalid json message }";
-        client.publish(subject, invalid_payload.into()).await?;
+        client.publish(subject.clone(), invalid_payload.as_slice()).await?;
         
         // Try to receive and deserialize (should fail gracefully)
-        let received = timeout(TEST_TIMEOUT, subscriber.next()).await??;
+        let received = timeout(TEST_TIMEOUT, subscriber.next())
+            .await
+            .ok_or_else(|| anyhow::anyhow!("Timeout waiting for message"))??;
         let result: Result<CommandRequest, _> = serde_json::from_slice(&received.payload);
         
         assert!(result.is_err(), "Should fail to deserialize invalid JSON");
