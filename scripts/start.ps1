@@ -93,11 +93,11 @@ if ($Build) {
                     
                     # Используем современный CMakeLists.txt для C++23 плагинов
                     Write-Host "🔧 Конфигурация CMake (современные C++23 плагины)..." -ForegroundColor Yellow
-                    & cmake . -DCMAKE_BUILD_TYPE=Release -G "Ninja" 2>$null
+                    & cmake . -DCMAKE_BUILD_TYPE=Release 2>$null
                     
                     if ($LASTEXITCODE -eq 0) {
-                        Write-Host "🔧 Сборка плагинов с Ninja..." -ForegroundColor Yellow
-                        & ninja 2>$null
+                        Write-Host "🔧 Сборка плагинов..." -ForegroundColor Yellow
+                        & cmake --build . --config Release 2>$null
                         
                         if ($LASTEXITCODE -eq 0) {
                             # Создаем директорию для плагинов если нужно
@@ -105,18 +105,22 @@ if ($Build) {
                                 New-Item -ItemType Directory -Path "../$AgentPluginDir" -Force | Out-Null
                             }
                             
-                            # Копирование плагинов
-                            if (Test-Path "plugins/system_plugin.dll") {
-                                Copy-Item "plugins/system_plugin.dll" "../../system_plugin.dll" -Force
-                                Write-Host "✅ system_plugin.dll скопирован" -ForegroundColor Green
+                            # Копирование современных C++23 плагинов
+                            if (Test-Path "plugins/modern_system_plugin.dll") {
+                                Copy-Item "plugins/modern_system_plugin.dll" "../../modern_system_plugin.dll" -Force
+                                Write-Host "✅ Современный system plugin скопирован" -ForegroundColor Green
+                            }
+                            if (Test-Path "plugins/modern_directory_info_plugin.dll") {
+                                Copy-Item "plugins/modern_directory_info_plugin.dll" "../../modern_directory_info_plugin.dll" -Force
+                                Write-Host "✅ Современный directory plugin скопирован" -ForegroundColor Green
                             }
                             
                             Write-Host "✅ Плагины собраны и скопированы" -ForegroundColor Green
                         } else {
-                            Write-Host "❌ Ошибка сборки плагинов с Ninja" -ForegroundColor Red
+                            Write-Host "❌ Ошибка сборки плагинов" -ForegroundColor Red
                         }
                     } else {
-                        Write-Host "❌ Ошибка конфигурации CMake с Ninja" -ForegroundColor Red
+                        Write-Host "❌ Ошибка конфигурации CMake" -ForegroundColor Red
                     }
                 } else {
                     Write-Host "❌ vcvars64.bat не найден: $vcVarsPath" -ForegroundColor Red
@@ -152,6 +156,10 @@ if (-not (Test-Path $AgentPath)) {
     Write-Host "💡 Запустите с параметром -Build для сборки проекта" -ForegroundColor Yellow
     exit 1
 }
+
+Write-Host "✅ Бинарники найдены:" -ForegroundColor Green
+Write-Host "   Сервер: $ServerPath" -ForegroundColor Gray
+Write-Host "   Агент:  $AgentPath" -ForegroundColor Gray
 
 # Проверка конфигурации агента
 if (-not (Test-Path $AgentConfig)) {
@@ -230,7 +238,7 @@ while ($WaitTime -lt $MaxWaitTime -and -not $ServerStarted) {
         Write-Host "✅ Сервер запущен на http://localhost:$ServerPort" -ForegroundColor Green
     }
     catch {
-        Write-Host "🔄 Попытка $WaitTime/$MaxWaitTime: сервер еще не готов..." -ForegroundColor Yellow
+        Write-Host "🔄 Попытка ${WaitTime}/${MaxWaitTime}: сервер еще не готов..." -ForegroundColor Yellow
     }
 }
 
