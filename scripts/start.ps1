@@ -30,7 +30,7 @@ if (-not (Test-Command "cargo")) {
 # Сборка проекта если нужно
 if ($Build) {
     Write-Host "📦 Сборка проекта..." -ForegroundColor Yellow
-    & cargo build --quiet 2>$null
+    & cargo build --release --quiet 2>$null
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host "❌ Ошибка сборки Rust проекта" -ForegroundColor Red
@@ -80,7 +80,7 @@ if ($Build) {
                     Write-Host "🔧 Настройка окружения Visual Studio..." -ForegroundColor Yellow
                     
                     # Запускаем vcvars64.bat и импортируем окружение
-                    $vcVarsOutput = & cmd /c "`"$vcVarsPath`" && set" | Out-String
+                    $vcVarsOutput = cmd /c "`"$vcVarsPath`" && set" | Out-String
                     $vcVarsLines = $vcVarsOutput -split "`r`n"
                     
                     foreach ($line in $vcVarsLines) {
@@ -91,10 +91,8 @@ if ($Build) {
                         }
                     }
                     
-                    # Пробуем простой CMakeLists.txt сначала
-                    Write-Host "🔧 Конфигурация CMake (простой плагин)..." -ForegroundColor Yellow
-                    # Копируем простой CMakeLists.txt временно
-                    Copy-Item "../simple_CMakeLists.txt" "CMakeLists.txt" -Force
+                    # Используем современный CMakeLists.txt для C++23 плагинов
+                    Write-Host "🔧 Конфигурация CMake (современные C++23 плагины)..." -ForegroundColor Yellow
                     & cmake . -DCMAKE_BUILD_TYPE=Release -G "Ninja" 2>$null
                     
                     if ($LASTEXITCODE -eq 0) {
@@ -134,8 +132,13 @@ if ($Build) {
 }
 
 # Пути к бинарникам
-$ServerPath = "target/debug/server.exe"
-$AgentPath = "target/debug/agent.exe"
+if ($Build) {
+    $ServerPath = "target/release/server.exe"
+    $AgentPath = "target/release/agent.exe"
+} else {
+    $ServerPath = "target/debug/server.exe"
+    $AgentPath = "target/debug/agent.exe"
+}
 
 # Проверка существования бинарников
 if (-not (Test-Path $ServerPath)) {
@@ -194,21 +197,55 @@ if (-not (Test-Path "logs")) {
     New-Item -ItemType Directory -Name "logs" | Out-Null
 }
 
+# Проверка доступности порта
+try {
+    $PortCheck = Test-NetConnection -ComputerName "localhost" -Port $ServerPort -InformationLevel Quiet -ErrorAction Stop
+    if ($PortCheck) {
+        Write-Host "❌ Порт $ServerPort уже используется" -ForegroundColor Red
+        Write-Host "💡 Выберите другой порт: .\scripts\start.ps1 -Port 8081" -ForegroundColor Yellow
+        exit 1
+    }
+}
+catch {
+    # Порт свободен, продолжаем
+}
+
 # Запуск сервера в фоновом режиме
 Write-Host "🖥️ Запуск веб-сервера на порту $ServerPort..." -ForegroundColor Yellow
 $ServerProcess = Start-Process -FilePath $ServerPath -ArgumentList "--port", $ServerPort -PassThru -WindowStyle Hidden
 
 # Ожидание запуска сервера
 Write-Host "⏳ Ожидание запуска сервера..." -ForegroundColor Yellow
-Start-Sleep -Seconds 3
+$MaxWaitTime = 10
+$WaitTime = 0
+$ServerStarted = $false
 
-# Проверка доступности сервера
-try {
-    $Response = Invoke-WebRequest -Uri "http://localhost:$ServerPort/health" -TimeoutSec 5 -ErrorAction Stop
-    Write-Host "✅ Сервер запущен на http://localhost:$ServerPort" -ForegroundColor Green
+while ($WaitTime -lt $MaxWaitTime -and -not $ServerStarted) {
+    Start-Sleep -Seconds 1
+    $WaitTime++
+    
+    try {
+        $null = Invoke-WebRequest -Uri "http://localhost:$ServerPort/health" -TimeoutSec 2 -ErrorAction Stop
+        $ServerStarted = $true
+        Write-Host "✅ Сервер запущен на http://localhost:$ServerPort" -ForegroundColor Green
+    }
+    catch {
+        Write-Host "🔄 Попытка $WaitTime/$MaxWaitTime: сервер еще не готов..." -ForegroundColor Yellow
+    }
 }
-catch {
-    Write-Host "❌ Сервер не запустился или недоступен" -ForegroundColor Red
+
+if (-not $ServerStarted) {
+    Write-Host "❌ Сервер не запустился или недоступен после $MaxWaitTime секунд" -ForegroundColor Red
+    Write-Host "🔍 Проверка логов сервера..." -ForegroundColor Yellow
+    
+    # Показываем последние строки из логов если они есть
+    if (Test-Path "logs") {
+        Get-ChildItem "logs\*.log" -ErrorAction SilentlyContinue | ForEach-Object {
+            Write-Host "📄 Лог файл: $($_.Name)" -ForegroundColor Cyan
+            Get-Content $_.FullName | Select-Object -Last 10 | ForEach-Object { Write-Host "   $_" -ForegroundColor Gray }
+        }
+    }
+    
     Stop-Process -Id $ServerProcess.Id -Force -ErrorAction SilentlyContinue
     exit 1
 }
