@@ -57,6 +57,16 @@ pub struct Metrics {
     pub disk: f32,
 }
 
+impl Default for Metrics {
+    fn default() -> Self {
+        Self {
+            cpu: 0.0,
+            ram: 0.0,
+            disk: 0.0,
+        }
+    }
+}
+
 /// Command enumeration for agent operations
 /// 
 /// Represents different types of commands that can be

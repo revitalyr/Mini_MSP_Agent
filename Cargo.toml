@@ -33,3 +33,22 @@ gethostname = "0.4"
 tempfile = "3.8"
 testcontainers = "0.15"
 tokio-test = "0.4"
+
+[profile.dev]
+opt-level = 1          # Базовая оптимизация для dev
+debug = true
+overflow-checks = false
+lto = false
+panic = "unwind"
+incremental = true
+codegen-units = 256    # Параллельная компиляция
+
+[profile.release]
+opt-level = 3          # Максимальная оптимизация
+debug = false
+overflow-checks = false
+lto = "thin"         # Link-time optimization
+panic = "abort"       # Уменьшает размер бинарника
+incremental = false
+codegen-units = 1      # Максимальная оптимизация линковки
+strip = true

@@ -30,7 +30,7 @@ if (-not (Test-Command "cargo")) {
 # Сборка проекта если нужно
 if ($Build) {
     Write-Host "📦 Сборка проекта..." -ForegroundColor Yellow
-    & cargo build --release --quiet 2>$null
+    & cargo build --release
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host "❌ Ошибка сборки Rust проекта" -ForegroundColor Red

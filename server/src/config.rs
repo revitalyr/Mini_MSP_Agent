@@ -8,7 +8,7 @@ pub struct Config {
     pub port: u16,
     pub log_level: String,
     pub log_dir: String,
-    pub broker_url: String,
+    pub broker_url: Option<String>,
 }
 
 impl Config {
@@ -48,7 +48,7 @@ impl Default for Config {
             port: 8081,
             log_level: "info".to_string(),
             log_dir: "logs".to_string(),
-            broker_url: "nats://localhost:4222".to_string(),
+            broker_url: None, // Optional broker
         }
     }
 }

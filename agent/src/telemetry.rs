@@ -5,16 +5,15 @@ use tracing::{debug, error};
 
 use crate::plugins::PluginManager;
 
+#[derive(Clone)]
 pub struct TelemetryCollector {
     plugin_manager: PluginManager,
-    start_time: SystemTime,
 }
 
 impl TelemetryCollector {
     pub fn new(plugin_manager: PluginManager) -> Self {
         Self {
             plugin_manager,
-            start_time: SystemTime::now(),
         }
     }
 

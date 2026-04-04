@@ -55,9 +55,9 @@ mod broker;
 
 use config::Config;
 use telemetry::TelemetryCollector;
-use network::{HttpClient, WebSocketClient};
+use std::sync::Arc;
 use plugins::{PluginManager, PluginEventType};
-use broker::{BrokerClient, BrokerLoop};
+use broker::{BrokerClient, BrokerLoop, PluginEventPublisher};
 
 /// Main entry point for the Mini MSP Agent
 /// 
@@ -205,8 +205,26 @@ async fn main() -> Result<()> {
     let broker_client = BrokerClient::connect(&config.broker_url).await
         .map_err(|e| anyhow::anyhow!("Failed to connect to broker: {}", e))?;
 
+    // Initialize event publisher to bridge PluginManager events to NATS
+    let event_publisher = PluginEventPublisher::new(broker_client.clone(), config.agent_id.clone());
+    let publisher_clone = Arc::new(event_publisher);
+
+    plugin_manager.set_event_callback(move |event_type, name, msg| {
+        let pub_inner = publisher_clone.clone();
+        let name_inner = name.to_string();
+        let msg_inner = msg.to_string();
+        tokio::spawn(async move {
+            let data = serde_json::json!({ "event": format!("{:?}", event_type), "message": msg_inner });
+            let _ = pub_inner.publish_event(&name_inner, data).await;
+        });
+    });
+
+    // Start sensor polling to fill the queue
+    plugin_manager.start_sensor_polling(1000);
+
     // Initialize broker loop
-    let broker_loop = BrokerLoop::new(broker_client, config.agent_id.clone(), plugin_manager.clone());
+    let telemetry = TelemetryCollector::new(plugin_manager.clone());
+    let broker_loop = BrokerLoop::new(broker_client, config.agent_id.clone(), plugin_manager.clone(), telemetry);
 
     info!("Starting agent with broker-based communication");
 

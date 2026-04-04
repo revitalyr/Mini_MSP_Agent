@@ -4,6 +4,7 @@ use tracing::{error, info};
 use anyhow::Result;
 use futures_util::StreamExt;
 use crate::plugins::PluginManager;
+use crate::telemetry::TelemetryCollector;
 use crate::commands::handle_command;
 
 /// NATS broker client for agent
@@ -86,14 +87,16 @@ pub struct BrokerLoop {
     broker: BrokerClient,
     agent_id: String,
     plugin_manager: PluginManager,
+    telemetry: TelemetryCollector,
 }
 
 impl BrokerLoop {
-    pub fn new(broker: BrokerClient, agent_id: String, plugin_manager: PluginManager) -> Self {
+    pub fn new(broker: BrokerClient, agent_id: String, plugin_manager: PluginManager, telemetry: TelemetryCollector) -> Self {
         Self {
             broker,
             agent_id,
             plugin_manager,
+            telemetry,
         }
     }
 
@@ -107,8 +110,9 @@ impl BrokerLoop {
         // Start heartbeat task
         let heartbeat_broker = self.broker.clone();
         let heartbeat_agent_id = self.agent_id.clone();
+        let telemetry = self.telemetry.clone();
         let heartbeat_task = tokio::spawn(async move {
-            self::heartbeat_loop(heartbeat_broker, heartbeat_agent_id).await;
+            self::heartbeat_loop(heartbeat_broker, heartbeat_agent_id, telemetry).await;
         });
 
         // Process commands
@@ -150,26 +154,15 @@ impl BrokerLoop {
 }
 
 /// Heartbeat publishing loop
-async fn heartbeat_loop(broker: BrokerClient, agent_id: String) {
+async fn heartbeat_loop(broker: BrokerClient, agent_id: String, telemetry: TelemetryCollector) {
     use tokio::time::{interval, Duration};
-    use mini_msp_shared::Metrics;
-    use sysinfo::System;
 
     let mut interval = interval(Duration::from_secs(30));
-    let mut system = System::new_all();
 
     loop {
         interval.tick().await;
 
-        // Collect system metrics
-        system.refresh_all();
-        
-        let cpu_usage = system.global_cpu_info().cpu_usage();
-        let metrics = Metrics {
-            cpu: cpu_usage,
-            ram: (system.used_memory() as f32 / system.total_memory() as f32) * 100.0,
-            disk: 0.0, // TODO: Implement disk usage calculation
-        };
+        let metrics = telemetry.collect_metrics().await.ok().unwrap_or_default();
 
         let heartbeat = Heartbeat {
             agent_id: agent_id.clone(),

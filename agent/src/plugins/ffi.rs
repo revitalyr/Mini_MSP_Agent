@@ -105,6 +105,8 @@ pub struct CWatchersData {
 #[derive(Debug, Clone, Copy)]
 pub struct CFileReaderData {
     pub m_path: *mut c_char,
+    pub m_content: *mut c_char,
+    pub m_content_size: u64,
     pub m_size: u64,
     pub m_encoding: [c_char; 32],
     pub m_is_locked: bool,
@@ -234,18 +236,6 @@ impl Default for SystemInfo {
             available_memory: 0,
         }
     }
-}
-
-// Helper functions for safe string conversion
-pub unsafe fn c_string_to_string(ptr: *const c_char) -> Result<String> {
-    if ptr.is_null() {
-        return Err(anyhow!("Null pointer"));
-    }
-    
-    let c_str = CStr::from_ptr(ptr);
-    c_str.to_str()
-        .map(|s| s.to_string())
-        .map_err(|e| anyhow!("Invalid UTF-8: {}", e))
 }
 
 pub unsafe fn c_string_to_string_lossy(ptr: *const c_char) -> String {
@@ -520,10 +510,8 @@ impl SafePluginInterface {
             };
 
             if let Some(free_fn) = self.free_memory {
-                // We need to free both the internal buffer and the struct
-                // This assumes the C++ side provided a structure where m_data needs explicit freeing
-                // if it wasn't part of the same allocation. Adjust based on C++ impl.
-                // For now, we free the struct.
+                // Освобождаем внутренний буфер данных, затем саму структуру
+                free_fn(c_frame.m_data as *mut c_void);
                 free_fn(ptr as *mut c_void);
             }
 
@@ -612,7 +600,11 @@ impl FileReaderData {
     unsafe fn from_c_struct(data: CFileReaderData) -> Self {
         Self {
             path: c_string_to_string_lossy(data.m_path),
-            content: String::new(), // No content field in C struct
+            content: if !data.m_content.is_null() {
+                c_string_to_string_lossy(data.m_content)
+            } else {
+                String::new()
+            },
             size: data.m_size as u64,
             encoding: c_string_to_string_lossy(data.m_encoding.as_ptr()),
         }

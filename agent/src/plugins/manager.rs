@@ -93,10 +93,27 @@ impl PluginManager {
 
     pub fn load_plugin<P: AsRef<Path>>(&mut self, name: &str, path: P) -> Result<()> {
         let path = path.as_ref();
-        info!("Loading plugin '{}' from: {:?}", name, path);
+        let path_str = path.to_string_lossy().to_string();
+        info!("Loading plugin '{}' from: {}", name, path_str);
         
         let mut loader = PluginLoader::new();
-        loader.load_plugin(path)?;
+        self.notify_event(PluginEventType::StatusChanged, name, "Loading started");
+        
+        if let Err(e) = loader.load_plugin(path) {
+            self.notify_event(PluginEventType::Error, name, &e.to_string());
+            let mut registry = self.registry.lock().unwrap();
+            registry.insert(name.to_string(), PluginRegistryEntry {
+                name: name.to_string(),
+                version: "unknown".to_string(),
+                platform: "unknown".to_string(),
+                library_path: path_str,
+                status: PluginStatus::Error,
+                status_message: e.to_string(),
+                last_loaded: None,
+                last_unloaded: None,
+            });
+            return Err(e);
+        }
         
         // Get plugin info to determine type
         let plugin_info = loader.get_plugin_info()?;
@@ -107,7 +124,7 @@ impl PluginManager {
             name: name.to_string(),
             version: plugin_info.version.clone(),
             platform: plugin_info.name.clone(), // Simplified
-            library_path: path.to_string_lossy().to_string(),
+            library_path: path_str,
             status: PluginStatus::Active,
             status_message: "Plugin loaded successfully".to_string(),
             last_loaded: Some(std::time::SystemTime::now()),
