@@ -215,7 +215,9 @@ async fn main() -> Result<()> {
     info!("Starting agent with broker-based communication");
 
     // Run broker loop (this will handle commands and heartbeats)
-    broker_loop.run.await?;
+    if let Err(e) = broker_loop.run().await {
+        error!("Broker loop failed: {}", e);
+    }
 
     Ok(())
 }

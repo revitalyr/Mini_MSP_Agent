@@ -4,6 +4,9 @@ members = [
     "server", 
     "shared"
 ]
+exclude = [
+    "tests"
+]
 resolver = "2"
 
 [workspace.dependencies]
@@ -27,3 +30,6 @@ tower = "0.4"
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 chrono = "0.4"
 gethostname = "0.4"
+tempfile = "3.8"
+testcontainers = "0.15"
+tokio-test = "0.4"

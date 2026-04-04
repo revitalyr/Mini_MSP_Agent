@@ -28,3 +28,7 @@ clap = { workspace = true }
 libloading = "0.8"
 chrono = "0.4"
 gethostname = "0.4"
+
+[[test]]
+name = "agent_broker_unit_tests"
+path = "tests/broker_unit_tests.rs"
