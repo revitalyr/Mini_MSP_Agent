@@ -91,12 +91,17 @@ impl BrokerMessageHandler {
         Self { broker }
     }
 
+    /// Get broker client reference
+    pub fn broker(&self) -> &Arc<BrokerClient> {
+        &self.broker
+    }
+
     /// Process incoming heartbeat message
     pub async fn handle_heartbeat(&self, agent_id: &str, heartbeat: Heartbeat) -> Result<()> {
         info!("Received heartbeat from agent {}: CPU={}%, RAM={}%, DISK={}%", 
               agent_id, heartbeat.metrics.cpu, heartbeat.metrics.ram, heartbeat.metrics.disk);
         
-        // Use the client for additional operations if needed
+        // Use client for additional operations if needed
         let _client = self.broker.client();
         
         // Acknowledge heartbeat using broker client

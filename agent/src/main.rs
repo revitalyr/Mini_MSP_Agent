@@ -205,8 +205,7 @@ async fn main() -> Result<()> {
     // Test plugin functionality
     if let Ok(system_info) = plugin_manager.get_system_info() {
         info!("✓ System info plugin available");
-        info!("  OS: {} {} on {}", system_info.os_type, system_info.os_version, system_info.hostname);
-        info!("  Uptime: {:.1}h, CPU cores: {}", system_info.uptime as f64 / 3600.0, system_info.cpu_cores);
+        info!("  {}", system_info.get_system_summary());
         info!("  Memory: {:.1}/{:.1} GB ({:.1}%)", 
                system_info.available_memory as f64 / 1024.0 / 1024.0 / 1024.0,
                system_info.total_memory as f64 / 1024.0 / 1024.0 / 1024.0,
@@ -218,6 +217,7 @@ async fn main() -> Result<()> {
     if let Ok(dir_info) = plugin_manager.get_directory_info_data(".", false, false, 10) {
         info!("✓ Directory info plugin available");
         info!("  {}", dir_info.get_summary());
+        info!("  {}", dir_info.get_scan_details());
     } else {
         warn!("✗ Directory info plugin not available");
     }
@@ -241,13 +241,19 @@ async fn main() -> Result<()> {
         }
         
         // Test camera data
-        if let Ok(_camera_data) = plugin_manager.get_camera_data() {
+        if let Ok(camera_data) = plugin_manager.get_camera_data() {
             info!("✓ Camera data available");
+            info!("  {}", camera_data.get_camera_info());
+        } else {
+            info!("✗ Camera data not available");
         }
         
         // Test processing results
-        if let Ok(_processing_results) = plugin_manager.get_processing_results() {
+        if let Ok(processing_results) = plugin_manager.get_processing_results() {
             info!("✓ Processing results available");
+            info!("  {}", processing_results.get_processing_summary());
+        } else {
+            info!("✗ Processing results not available");
         }
         
         // Test command execution
@@ -261,20 +267,33 @@ async fn main() -> Result<()> {
         }
         
         // Test additional plugin methods
-        if let Ok(_event_data) = plugin_manager.get_event_data("/tmp") {
+        if let Ok(event_data) = plugin_manager.get_event_data("/tmp") {
             info!("✓ Event data available");
+            info!("  {}", event_data.get_event_summary());
+        } else {
+            info!("✗ Event data not available");
         }
         
-        if let Ok(_watchers_data) = plugin_manager.get_watchers_data() {
+        if let Ok(watchers_data) = plugin_manager.get_watchers_data() {
             info!("✓ Watchers data available");
+            info!("  {}", watchers_data.get_watchers_summary());
+        } else {
+            info!("✗ Watchers data not available");
         }
         
-        if let Ok(_file_reader_data) = plugin_manager.get_file_reader_data("/tmp/test.txt") {
+        if let Ok(file_reader_data) = plugin_manager.get_file_reader_data("/tmp/test.txt") {
             info!("✓ File reader data available");
+            info!("  {}", file_reader_data.get_file_info());
+            info!("  Preview: {}", file_reader_data.get_content_preview());
+        } else {
+            info!("✗ File reader data not available");
         }
         
-        if let Ok(_video_frame) = plugin_manager.get_video_frame() {
+        if let Ok(video_frame) = plugin_manager.get_video_frame() {
             info!("✓ Video frame available");
+            info!("  {}", video_frame.get_frame_info());
+        } else {
+            info!("✗ Video frame not available");
         }
     }
 

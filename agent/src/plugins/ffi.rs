@@ -555,9 +555,16 @@ impl DirectoryInfoData {
     }
     
     pub fn get_summary(&self) -> String {
-        format!("Directory '{}': {} files ({} hidden), {} directories, {} bytes total, scan {}% complete",
+        format!("Directory '{}': {} files ({} hidden), {} directories, {} bytes total, scan {}% complete, scanned at {}",
                 self.path, self.total_files, self.hidden_files, 
-                self.total_directories, self.total_size_bytes, self.scan_progress)
+                self.total_directories, self.total_size_bytes, self.scan_progress,
+                self.scan_timestamp)
+    }
+    
+    pub fn get_scan_details(&self) -> String {
+        format!("Path: {}, Files: {}, Dirs: {}, Hidden files: {}, Hidden dirs: {}, Progress: {}%",
+                self.path, self.total_files, self.total_directories,
+                self.hidden_files, self.hidden_directories, self.scan_progress)
     }
 }
 
@@ -580,6 +587,12 @@ impl EventData {
             timestamp: event.m_timestamp,
         }
     }
+    
+    pub fn get_event_summary(&self) -> String {
+        format!("Path: {}, Events: {}, Buffer: {}%, Last: {} at {}",
+                self.path, self.events_count, self.buffer_usage,
+                self.last_event, self.timestamp)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -596,8 +609,14 @@ impl WatchersData {
             active_watchers: data.m_active_watchers as u64,
             total_notifications: data.m_total_notifications as u64,
             cpu_usage: data.m_cpu_usage,
-            memory_usage_kb: data.m_memory_usage_kb,
+            memory_usage_kb: data.m_memory_usage_kb as u64,
         }
+    }
+    
+    pub fn get_watchers_summary(&self) -> String {
+        format!("Active: {}, Total notifications: {}, CPU: {:.1}%, Memory: {} KB",
+                self.active_watchers, self.total_notifications,
+                self.cpu_usage, self.memory_usage_kb)
     }
 }
 
@@ -612,14 +631,33 @@ pub struct FileReaderData {
 impl FileReaderData {
     unsafe fn from_c_struct(data: CFileReaderData) -> Self {
         Self {
-            path: c_string_to_string_lossy(data.m_path),
+            path: c_string_to_string_lossy(data.m_path.as_ptr()),
             content: if !data.m_content.is_null() {
-                c_string_to_string_lossy(data.m_content)
+                // Convert array to string properly - use first element
+                let c_str = std::ffi::CStr::from_ptr(data.m_content.as_ptr());
+                c_str.to_string_lossy().into_owned()
             } else {
                 String::new()
             },
             size: data.m_size as u64,
-            encoding: c_string_to_string_lossy(data.m_encoding.as_ptr()),
+            encoding: {
+                // Convert array to string properly - use first element
+                let c_str = std::ffi::CStr::from_ptr(data.m_encoding.as_ptr());
+                c_str.to_string_lossy().into_owned()
+            },
+        }
+    }
+    
+    pub fn get_file_info(&self) -> String {
+        format!("Path: {}, Size: {} bytes, Encoding: {}",
+                self.path, self.size, self.encoding)
+    }
+    
+    pub fn get_content_preview(&self) -> String {
+        if self.content.len() > 100 {
+            format!("{}...", &self.content[..100])
+        } else {
+            self.content.clone()
         }
     }
 }
@@ -670,6 +708,11 @@ impl CameraData {
             timestamp: data.m_timestamp as i64,
         }
     }
+    
+    pub fn get_camera_info(&self) -> String {
+        format!("Camera: {}, Resolution: {}, FPS: {}, Timestamp: {}",
+                self.camera_id, self.resolution, self.frame_rate, self.timestamp)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -689,6 +732,11 @@ impl ProcessingResults {
             processing_time: data.m_load_index as f64, // Use available field
         }
     }
+    
+    pub fn get_processing_summary(&self) -> String {
+        format!("Task {}: {} ({:.2}ms)", 
+                self.task_id, self.status, self.processing_time)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -697,6 +745,29 @@ pub struct VideoFrameData {
     pub width: u32,
     pub height: u32,
     pub timestamp: u64,
+}
+
+impl VideoFrameData {
+    unsafe fn from_c_struct(frame: CVideoFrame) -> Self {
+        let data_size = frame.m_size as usize;
+        let data = if !frame.m_data.is_null() && data_size > 0 {
+            std::slice::from_raw_parts(frame.m_data as *const u8, data_size).to_vec()
+        } else {
+            Vec::new()
+        };
+        
+        Self {
+            data,
+            width: frame.m_width,
+            height: frame.m_height,
+            timestamp: frame.m_timestamp,
+        }
+    }
+    
+    pub fn get_frame_info(&self) -> String {
+        format!("Frame: {}x{}, {} bytes, timestamp {}",
+                self.width, self.height, self.data.len(), self.timestamp)
+    }
 }
 
 #[derive(Debug, Clone)]

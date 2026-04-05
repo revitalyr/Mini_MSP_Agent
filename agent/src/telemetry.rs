@@ -169,4 +169,10 @@ impl SystemInfo {
     pub fn get_uptime_hours(&self) -> f64 {
         self.uptime as f64 / 3600.0
     }
+    
+    pub fn get_system_summary(&self) -> String {
+        format!("{} {} on {} ({} cores, {:.1} GB RAM, uptime {:.1}h)",
+                self.os_type, self.os_version, self.hostname,
+                self.cpu_cores, self.get_total_memory_gb(), self.get_uptime_hours())
+    }
 }
