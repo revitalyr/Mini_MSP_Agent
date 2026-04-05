@@ -137,8 +137,6 @@ if ($Build) {
                     } else {
                         Write-Host "❌ Visual Studio не найдена" -ForegroundColor Red
                     }
-                } else {
-                    Write-Host "❌ Visual Studio не найдена" -ForegroundColor Red
                 }
             }
             catch {
