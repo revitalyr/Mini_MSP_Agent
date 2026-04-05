@@ -60,11 +60,20 @@ impl TelemetryCollector {
                 e
             })?;
 
+        debug!("Got {} processes from plugin", plugin_processes.len());
+
         let mut processes = Vec::new();
         for proc in plugin_processes {
+            // Log top processes for debugging
+            if processes.len() <= 5 {
+                let proc_info: &ProcessInfo = &processes[processes.len() - 1];
+                debug!("Process: {} (PID: {}) - CPU: {:.1}%, Memory: {:.1} MB, Duration: {}", 
+                       proc_info.name, proc_info.pid, proc_info.cpu_usage, proc_info.get_memory_mb(), proc_info.get_duration());
+            }
+            
             processes.push(ProcessInfo {
                 pid: proc.pid,
-                name: proc.name,
+                name: proc.name.clone(),
                 cpu_usage: proc.cpu_usage,
                 memory_usage: proc.memory_usage,
                 start_time: proc.start_time,
@@ -82,21 +91,31 @@ impl TelemetryCollector {
             return Err(anyhow::anyhow!("No system plugin loaded"));
         }
 
-        let plugin_info = self.plugin_manager.get_system_info()
-            .map_err(|e| {
-                error!("Failed to get system info from plugin: {}", e);
-                e
-            })?;
+        let info = self.plugin_manager.get_system_info()?;
+        
+        debug!("System info: {} {} on {} ({} cores, {:.1} GB RAM, {:.1}% used, uptime {:.1}h)", 
+               info.os_type, info.os_version, info.hostname, 
+               info.cpu_cores, info.total_memory as f64 / 1024.0 / 1024.0 / 1024.0, 
+               ((info.total_memory - info.available_memory) as f64 / info.total_memory as f64) * 100.0,
+               info.uptime as f64 / 3600.0);
 
-        Ok(SystemInfo {
-            os_type: plugin_info.os_type,
-            os_version: plugin_info.os_version,
-            hostname: plugin_info.hostname,
-            uptime: plugin_info.uptime,
-            cpu_cores: plugin_info.cpu_cores,
-            total_memory: plugin_info.total_memory,
-            available_memory: plugin_info.available_memory,
-        })
+        let system_info = SystemInfo {
+            os_type: info.os_type,
+            os_version: info.os_version,
+            hostname: info.hostname,
+            uptime: info.uptime,
+            cpu_cores: info.cpu_cores,
+            total_memory: info.total_memory,
+            available_memory: info.available_memory,
+        };
+        
+        // Use system info fields
+        debug!("Memory usage: {:.1}/{:.1} GB ({:.1}%)", 
+               system_info.get_available_memory_gb(), 
+               system_info.get_total_memory_gb(),
+               system_info.get_memory_usage_percent());
+
+        Ok(system_info)
     }
 }
 
@@ -109,6 +128,16 @@ pub struct ProcessInfo {
     pub start_time: u64,
 }
 
+impl ProcessInfo {
+    pub fn get_memory_mb(&self) -> f64 {
+        self.memory_usage as f64 / 1024.0 / 1024.0
+    }
+    
+    pub fn get_duration(&self) -> String {
+        format!("{}s", self.start_time)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct SystemInfo {
     pub os_type: String,
@@ -118,4 +147,26 @@ pub struct SystemInfo {
     pub cpu_cores: u32,
     pub total_memory: u64,
     pub available_memory: u64,
+}
+
+impl SystemInfo {
+    pub fn get_total_memory_gb(&self) -> f64 {
+        self.total_memory as f64 / 1024.0 / 1024.0 / 1024.0
+    }
+    
+    pub fn get_available_memory_gb(&self) -> f64 {
+        self.available_memory as f64 / 1024.0 / 1024.0 / 1024.0
+    }
+    
+    pub fn get_memory_usage_percent(&self) -> f64 {
+        if self.total_memory > 0 {
+            ((self.total_memory - self.available_memory) as f64 / self.total_memory as f64) * 100.0
+        } else {
+            0.0
+        }
+    }
+    
+    pub fn get_uptime_hours(&self) -> f64 {
+        self.uptime as f64 / 3600.0
+    }
 }

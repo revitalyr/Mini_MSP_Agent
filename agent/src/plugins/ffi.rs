@@ -1,7 +1,7 @@
-use std::ffi::{CStr, CString};
-use std::os::raw::{c_char, c_void};
+use std::ffi::{CStr, CString, c_char, c_void};
 use std::ptr;
 use anyhow::{anyhow, Result};
+use tracing::debug;
 
 // --- Semantic Type Aliases ---
 pub type FileSize = u64;
@@ -535,16 +535,29 @@ pub struct DirectoryInfoData {
 
 impl DirectoryInfoData {
     unsafe fn from_c_struct(info: CDirectoryInfoData) -> Self {
+        let path = c_string_to_string_lossy(info.m_path);
+        
+        // Log directory scan information
+        debug!("Directory scan for '{}': {} files, {} dirs, {} bytes ({}% progress)", 
+               path, info.m_total_files, info.m_total_directories, 
+               info.m_total_size_bytes, info.m_scan_progress);
+        
         Self {
-            path: c_string_to_string_lossy(info.m_path),
+            path,
             total_files: info.m_total_files as u64,
             total_directories: info.m_total_directories as u64,
-            total_size_bytes: info.m_total_size_bytes as u64,
+            total_size_bytes: info.m_total_size_bytes,
             hidden_files: info.m_hidden_files as u64,
             hidden_directories: info.m_hidden_directories as u64,
             scan_timestamp: info.m_scan_timestamp,
             scan_progress: info.m_scan_progress,
         }
+    }
+    
+    pub fn get_summary(&self) -> String {
+        format!("Directory '{}': {} files ({} hidden), {} directories, {} bytes total, scan {}% complete",
+                self.path, self.total_files, self.hidden_files, 
+                self.total_directories, self.total_size_bytes, self.scan_progress)
     }
 }
 
@@ -621,12 +634,22 @@ pub struct SensorData {
 
 impl SensorData {
     unsafe fn from_c_struct(data: CSensorData) -> Self {
+        let value = data.m_temperature as f64;
+        let timestamp = data.m_timestamp as i64;
+        
+        debug!("Sensor reading: {}°C at timestamp {}", value, timestamp);
+        
         Self {
-            sensor_type: "temperature".to_string(), // Use available field
-            value: data.m_temperature as f64,
-            unit: "celsius".to_string(), // Default unit
-            timestamp: data.m_timestamp as i64,
+            sensor_type: "temperature".to_string(),
+            value,
+            unit: "celsius".to_string(),
+            timestamp,
         }
+    }
+    
+    pub fn get_formatted(&self) -> String {
+        format!("{}: {:.2} {} (at {})", 
+                self.sensor_type, self.value, self.unit, self.timestamp)
     }
 }
 
@@ -768,15 +791,38 @@ pub struct CommandResultData {
 
 impl CommandResultData {
     unsafe fn from_c_struct(result: &CommandResult) -> Self {
+        let output = if !result.output.is_null() {
+            c_string_to_string_lossy(result.output)
+        } else {
+            String::new()
+        };
+        let error = c_string_to_string_lossy(result.error.as_ptr());
+        
+        // Log command execution results
+        if result.success {
+            debug!("Command executed successfully, exit code: {}", result.exit_code);
+        } else {
+            debug!("Command failed, exit code: {}, error: {}", result.exit_code, error);
+        }
+        
         Self {
-            output: if !result.output.is_null() {
-                c_string_to_string_lossy(result.output)
-            } else {
-                String::new()
-            },
+            output,
             exit_code: result.exit_code,
             success: result.success,
-            error: c_string_to_string_lossy(result.error.as_ptr()),
+            error,
+        }
+    }
+    
+    pub fn get_summary(&self) -> String {
+        if self.success {
+            format!("Success (exit code {}): {}", self.exit_code, 
+                   if self.output.len() > 100 { 
+                       format!("{}...", &self.output[..100]) 
+                   } else { 
+                       self.output.clone() 
+                   })
+        } else {
+            format!("Failed (exit code {}): {}", self.exit_code, self.error)
         }
     }
 }

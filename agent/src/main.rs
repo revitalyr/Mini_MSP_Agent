@@ -43,7 +43,7 @@
 
 use anyhow::Result;
 use clap::{Arg, Command};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use tracing_subscriber::{self, EnvFilter, prelude::*};
 
 mod config;
@@ -203,12 +203,45 @@ async fn main() -> Result<()> {
     }
 
     // Test plugin functionality
-    if let Ok(system_info) = plugin_manager.get_system_info() {
-        info!("System info plugin loaded successfully");
+    if let Ok(_system_info) = plugin_manager.get_system_info() {
+        info!("✓ System info plugin available");
+    } else {
+        warn!("✗ System info plugin not available");
     }
-    
-    if let Ok(dir_info) = plugin_manager.get_directory_info_data(".", false, false, 10) {
-        info!("Directory info plugin loaded successfully");
+
+    if let Ok(_dir_info) = plugin_manager.get_directory_info_data(".", false, false, 10) {
+        info!("✓ Directory info plugin available");
+    } else {
+        warn!("✗ Directory info plugin not available");
+    }
+
+    // Test additional plugin functionality
+    if plugin_manager.is_plugin_loaded("modern_system_plugin") {
+        info!("✓ System plugin is loaded");
+        
+        // Test individual plugin loader status
+        if let Ok(plugin) = plugin_manager.get_plugin("modern_system_plugin") {
+            info!("✓ Plugin loader status: loaded={}", plugin.is_loaded());
+        }
+        
+        // Test sensor data
+        let sensors = plugin_manager.get_sensor_history();
+        info!("✓ Sensor data available: {} readings", sensors.len());
+        
+        // Use sensor data fields
+        for sensor in sensors.iter().take(3) {
+            info!("  {}", sensor.get_formatted());
+        }
+        
+        // Test camera data
+        if let Ok(_camera_data) = plugin_manager.get_camera_data() {
+            info!("✓ Camera data available");
+        }
+        
+        // Test processing results
+        if let Ok(_processing_results) = plugin_manager.get_processing_results() {
+            info!("✓ Processing results available");
+        }
     }
 
     // Initialize broker client

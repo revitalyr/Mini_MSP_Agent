@@ -8,8 +8,7 @@ use axum::{
     http::StatusCode,
 };
 use serde_json::json;
-use std::sync::{Arc, Mutex};
-use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::AppState;
 

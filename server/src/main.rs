@@ -23,7 +23,6 @@ use tower_http::{
 };
 use tracing::{info, Level};
 
-use simple_handlers::*;
 use config::Config;
 use broker::BrokerClient;
 
@@ -79,6 +78,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         agents: Arc::new(Mutex::new(HashMap::new())),
         broker_client,
     });
+
+    // Initialize broker message handler if broker is available
+    if let Some(ref broker) = app_state.broker_client {
+        let handler = broker::BrokerMessageHandler::new(broker.clone());
+        info!("Broker message handler initialized");
+        
+        // Start background task to handle broker messages
+        let handler_arc = Arc::new(handler);
+        let app_state_clone = app_state.clone();
+        tokio::spawn(async move {
+            // Example: handle heartbeats in background
+            // This would normally subscribe to broker topics
+            info!("Broker message handler task started");
+            loop {
+                tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+                
+                // Log current agent count
+                let agents = app_state_clone.agents.lock().unwrap();
+                info!("Current registered agents: {}", agents.len());
+            }
+        });
+    }
 
     // Build router with CORS
     let cors = CorsLayer::new()

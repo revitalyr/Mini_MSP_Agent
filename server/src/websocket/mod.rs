@@ -64,6 +64,10 @@ async fn handle_socket(socket: WebSocket, app_state: Arc<AppState>) {
     let ws_manager = WebSocketManager::new();
     ws_manager.add_connection(agent_id.clone()).await;
     
+    // Log connected agents count
+    let connected_agents = ws_manager.get_connected_agents().await;
+    info!("Connected agents: {:?}", connected_agents);
+    
     // Add to app state agents
     {
         let mut agents = app_state.agents.lock().unwrap();

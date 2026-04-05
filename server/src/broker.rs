@@ -2,10 +2,12 @@ use async_nats::Client;
 use mini_msp_shared::{CommandRequest, CommandResponse, Heartbeat};
 use tracing::{info};
 use anyhow::Result;
+use std::sync::Arc;
 
 /// NATS broker client for server
 /// 
 /// Handles communication with agents through message broker
+#[derive(Clone)]
 pub struct BrokerClient {
     nats: Client,
 }
@@ -81,11 +83,11 @@ impl BrokerClient {
 
 /// Broker message handler for processing incoming messages
 pub struct BrokerMessageHandler {
-    broker: BrokerClient,
+    broker: Arc<BrokerClient>,
 }
 
 impl BrokerMessageHandler {
-    pub fn new(broker: BrokerClient) -> Self {
+    pub fn new(broker: Arc<BrokerClient>) -> Self {
         Self { broker }
     }
 
@@ -93,6 +95,9 @@ impl BrokerMessageHandler {
     pub async fn handle_heartbeat(&self, agent_id: &str, heartbeat: Heartbeat) -> Result<()> {
         info!("Received heartbeat from agent {}: CPU={}%, RAM={}%, DISK={}%", 
               agent_id, heartbeat.metrics.cpu, heartbeat.metrics.ram, heartbeat.metrics.disk);
+        
+        // Use the client for additional operations if needed
+        let _client = self.broker.client();
         
         // Acknowledge heartbeat
         self.broker.publish_heartbeat_ack(agent_id, &heartbeat).await?;

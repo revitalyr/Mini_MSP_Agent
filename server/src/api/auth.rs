@@ -2,12 +2,11 @@
 //! 
 //! JWT аутентификация и авторизация
 
-use axum::{extract::State, response::Json, http::StatusCode};
+use axum::{response::Json, http::StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use jsonwebtoken::{encode, EncodingKey, Header};
 use chrono::{Duration, Utc};
-use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LoginRequest {
