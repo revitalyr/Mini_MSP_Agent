@@ -205,7 +205,17 @@ async fn main() -> Result<()> {
     // Test plugin functionality
     if let Ok(system_info) = plugin_manager.get_system_info() {
         info!("✓ System info plugin available");
-        info!("  {}", system_info.get_system_summary());
+        // Convert SystemInfoData to SystemInfo to use get_system_summary
+        let telemetry_system_info = telemetry::SystemInfo {
+            os_type: system_info.os_type.clone(),
+            os_version: system_info.os_version.clone(),
+            hostname: system_info.hostname.clone(),
+            uptime: system_info.uptime,
+            cpu_cores: system_info.cpu_cores,
+            total_memory: system_info.total_memory,
+            available_memory: system_info.available_memory,
+        };
+        info!("  {}", telemetry_system_info.get_system_summary());
         info!("  Memory: {:.1}/{:.1} GB ({:.1}%)", 
                system_info.available_memory as f64 / 1024.0 / 1024.0 / 1024.0,
                system_info.total_memory as f64 / 1024.0 / 1024.0 / 1024.0,

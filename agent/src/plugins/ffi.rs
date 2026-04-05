@@ -631,17 +631,17 @@ pub struct FileReaderData {
 impl FileReaderData {
     unsafe fn from_c_struct(data: CFileReaderData) -> Self {
         Self {
-            path: c_string_to_string_lossy(data.m_path.as_ptr()),
+            path: c_string_to_string_lossy(data.m_path),
             content: if !data.m_content.is_null() {
-                // Convert array to string properly - use first element
-                let c_str = std::ffi::CStr::from_ptr(data.m_content.as_ptr());
+                // Convert pointer to string
+                let c_str = std::ffi::CStr::from_ptr(data.m_content);
                 c_str.to_string_lossy().into_owned()
             } else {
                 String::new()
             },
             size: data.m_size as u64,
             encoding: {
-                // Convert array to string properly - use first element
+                // Convert array to string properly
                 let c_str = std::ffi::CStr::from_ptr(data.m_encoding.as_ptr());
                 c_str.to_string_lossy().into_owned()
             },

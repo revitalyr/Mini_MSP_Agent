@@ -21,7 +21,7 @@ use tower_http::{
     services::ServeDir,
     trace::TraceLayer,
 };
-use tracing::{info, Level};
+use tracing::{info, debug, Level};
 
 use config::Config;
 use broker::BrokerClient;
