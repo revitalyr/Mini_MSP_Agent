@@ -149,7 +149,8 @@ async fn main() -> Result<()> {
     info!("Loaded configuration for agent: {}", config.agent_id);
 
     // Initialize plugin manager and load plugins
-    let mut plugin_manager = PluginManager::new();
+    let mut plugin_manager = PluginManager::new()
+        .with_signature_check(config.disable_signature_check);
     let plugin_dir = matches.get_one::<String>("plugin-dir").unwrap();
     let hot_reload_enabled = matches.get_flag("hot-reload");
     

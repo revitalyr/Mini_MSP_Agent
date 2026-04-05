@@ -9,6 +9,7 @@ pub struct PluginLoader {
     library: Option<Library>,
     interface: Option<SafePluginInterface>,
     plugin_path: String,
+    disable_signature_check: bool,
 }
 
 impl PluginLoader {
@@ -17,6 +18,16 @@ impl PluginLoader {
             library: None,
             interface: None,
             plugin_path: String::new(),
+            disable_signature_check: false,
+        }
+    }
+    
+    pub fn with_signature_check(disable: bool) -> Self {
+        Self {
+            library: None,
+            interface: None,
+            plugin_path: String::new(),
+            disable_signature_check: disable,
         }
     }
     
@@ -76,8 +87,8 @@ impl PluginLoader {
     }
     
     fn verify_signature(&self, path: &Path) -> bool {
-        if cfg!(debug_assertions) {
-            debug!("Debug mode: skipping signature verification for {:?}", path);
+        if cfg!(debug_assertions) || self.disable_signature_check {
+            debug!("Debug mode or signature check disabled: skipping signature verification for {:?}", path);
             return true;
         }
 

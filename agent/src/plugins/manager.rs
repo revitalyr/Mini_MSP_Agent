@@ -42,6 +42,7 @@ pub struct PluginManager {
     plugins: Arc<Mutex<HashMap<String, Arc<PluginLoader>>>>,
     registry: Arc<Mutex<HashMap<String, PluginRegistryEntry>>>,
     sensor_queue: Arc<Mutex<VecDeque<SensorData>>>,
+    disable_signature_check: bool,
     system_plugin: Option<String>,
     hot_reload_enabled: bool,
     plugin_directory: Option<String>,
@@ -62,11 +63,17 @@ impl PluginManager {
             plugins: Arc::new(Mutex::new(HashMap::new())),
             registry: Arc::new(Mutex::new(HashMap::new())),
             sensor_queue: Arc::new(Mutex::new(VecDeque::with_capacity(MAX_SENSOR_QUEUE_SIZE))),
+            disable_signature_check: false,
             system_plugin: None,
             hot_reload_enabled: false,
             plugin_directory: None,
             event_callback: None,
         }
+    }
+    
+    pub fn with_signature_check(mut self, disable: bool) -> Self {
+        self.disable_signature_check = disable;
+        self
     }
 
     pub fn enable_hot_reload(&mut self, enable: bool) {
@@ -96,7 +103,7 @@ impl PluginManager {
         let path_str = path.to_string_lossy().to_string();
         info!("Loading plugin '{}' from: {}", name, path_str);
         
-        let mut loader = PluginLoader::new();
+        let mut loader = PluginLoader::with_signature_check(self.disable_signature_check);
         self.notify_event(PluginEventType::StatusChanged, name, "Loading started");
         
         if let Err(e) = loader.load_plugin(path) {

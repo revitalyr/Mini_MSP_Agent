@@ -1,7 +1,0 @@
-D:/work/Projects/Mini_MSP_Agent/plugins/CMakeFiles/modern_system_plugin.dir
-D:/work/Projects/Mini_MSP_Agent/plugins/CMakeFiles/modern_directory_info_plugin.dir
-D:/work/Projects/Mini_MSP_Agent/plugins/CMakeFiles/edit_cache.dir
-D:/work/Projects/Mini_MSP_Agent/plugins/CMakeFiles/rebuild_cache.dir
-D:/work/Projects/Mini_MSP_Agent/plugins/CMakeFiles/list_install_components.dir
-D:/work/Projects/Mini_MSP_Agent/plugins/CMakeFiles/install.dir
-D:/work/Projects/Mini_MSP_Agent/plugins/CMakeFiles/install/local.dir

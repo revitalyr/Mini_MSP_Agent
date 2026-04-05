@@ -14,6 +14,7 @@ pub struct Config {
     pub agent_id: String,
     pub log_level: String,
     pub log_dir: String,
+    pub disable_signature_check: bool,
 }
 
 impl From<AgentConfig> for Config {
@@ -26,6 +27,7 @@ impl From<AgentConfig> for Config {
             agent_id: agent_config.agent_id,
             log_level: "info".to_string(),
             log_dir: "logs".to_string(),
+            disable_signature_check: false,
         }
     }
 }
@@ -71,6 +73,7 @@ impl Default for Config {
             agent_id: uuid::Uuid::new_v4().to_string(),
             log_level: "info".to_string(),
             log_dir: "logs".to_string(),
+            disable_signature_check: false,
         }
     }
 }
