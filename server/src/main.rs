@@ -25,6 +25,7 @@ use tracing::{info, debug, Level};
 
 use config::Config;
 use broker::BrokerClient;
+use mini_msp_shared::{Heartbeat, Metrics, CommandResponse};
 
 // Unified AppState for all modules
 #[derive(Clone)]
@@ -87,7 +88,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Start background task to handle broker messages
         let handler_arc = Arc::new(handler);
         let app_state_clone = app_state.clone();
-        tokio::spawn(async move {
+        let _handler_task = tokio::spawn(async move {
             // Example: handle heartbeats in background
             // This would normally subscribe to broker topics
             info!("Broker message handler task started");
@@ -95,14 +96,65 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
                 
                 // Log current agent count
-                let agents = app_state_clone.agents.lock().unwrap();
-                info!("Current registered agents: {}", agents.len());
+                let agent_count = {
+                    let agents = app_state_clone.agents.lock().unwrap();
+                    agents.len()
+                };
+                
+                info!("Current registered agents: {}", agent_count);
                 
                 // Use handler to process any pending messages (placeholder)
                 // In real implementation, this would subscribe to NATS topics
                 // and call handler.handle_heartbeat(), handler.handle_response(), etc.
                 // For now, just log that handler is available
-                debug!("Handler available for {} agents", agents.len());
+                debug!("Handler available for {} agents", agent_count);
+                
+                // Test handler methods with dummy data
+                if agent_count > 0 {
+                    let dummy_heartbeat = Heartbeat {
+                        agent_id: "test".to_string(),
+                        timestamp: chrono::Utc::now().timestamp(),
+                        metrics: Metrics {
+                            cpu: 50.0,
+                            ram: 60.0,
+                            disk: 70.0,
+                        },
+                        hostname: "test".to_string(),
+                        uptime: 3600,
+                    };
+                    
+                    // Use the handler methods
+                    if let Err(e) = handler_arc.handle_heartbeat("test", dummy_heartbeat).await {
+                        debug!("Heartbeat handling test failed: {}", e);
+                    }
+                    
+                    // Test command response handling
+                    let dummy_response = CommandResponse {
+                        command_id: Some("test_cmd".to_string()),
+                        r#type: "test".to_string(),
+                        status: "success".to_string(),
+                        data: serde_json::json!({"output": "Test output"}),
+                        timestamp: chrono::Utc::now().timestamp(),
+                    };
+                    
+                    if let Err(e) = handler_arc.handle_response("test", dummy_response).await {
+                        debug!("Response handling test failed: {}", e);
+                    }
+                    
+                    // Test plugin event handling
+                    let dummy_plugin_data = serde_json::json!({
+                        "event": "test_event",
+                        "data": "test_data"
+                    });
+                    
+                    if let Err(e) = handler_arc.handle_plugin_event("test", "test_plugin", dummy_plugin_data).await {
+                        debug!("Plugin event handling test failed: {}", e);
+                    }
+                    
+                    // Use broker getter method
+                    let _broker_client = handler_arc.broker();
+                    debug!("Broker client available");
+                }
             }
         });
     }

@@ -191,14 +191,19 @@ impl PluginManager {
                 .clone()
         };
         
+        // Set unloading status
+        self.set_plugin_status(name, PluginStatus::Unloading)?;
+        
         // Unload first
         self.unload_plugin(name)?;
+        
+        // Set loading status
+        self.set_plugin_status(name, PluginStatus::Loading)?;
         
         // Load again
         self.load_plugin(name, &library_path)?;
         
-        self.notify_event(PluginEventType::StatusChanged, name, "Plugin reloaded successfully");
-        
+        info!("Plugin '{}' reloaded successfully", name);
         Ok(())
     }
 
@@ -210,6 +215,76 @@ impl PluginManager {
         plugins.get(plugin_name)
             .cloned()
             .ok_or_else(|| anyhow!("System plugin not found in registry"))
+    }
+    
+    /// Set plugin status with timestamp tracking
+    pub fn set_plugin_status(&self, name: &str, status: PluginStatus) -> Result<()> {
+        let mut registry = self.registry.lock().unwrap();
+        if let Some(entry) = registry.get_mut(name) {
+            entry.status = status.clone();
+            entry.status_message = match &status {
+                PluginStatus::Loading => "Plugin is loading...".to_string(),
+                PluginStatus::Loaded => "Plugin loaded successfully".to_string(),
+                PluginStatus::Unloading => "Plugin is unloading...".to_string(),
+                PluginStatus::Active => "Plugin is active and processing".to_string(),
+                PluginStatus::Error => "Plugin encountered errors".to_string(),
+                PluginStatus::Unloaded => "Plugin is unloaded".to_string(),
+            };
+            
+            // Update timestamps
+            match status {
+                PluginStatus::Loaded => {
+                    entry.last_loaded = Some(std::time::SystemTime::now());
+                    entry.last_unloaded = None;
+                }
+                PluginStatus::Unloaded => {
+                    entry.last_unloaded = Some(std::time::SystemTime::now());
+                }
+                _ => {}
+            }
+            
+            info!("Plugin '{}' status changed to: {:?}", name, status);
+            Ok(())
+        } else {
+            Err(anyhow!("Plugin '{}' not found in registry", name))
+        }
+    }
+    
+    /// Asynchronously load a plugin with status tracking
+    pub async fn load_plugin_async(&mut self, name: &str, library_path: &str) -> Result<()> {
+        info!("Starting async load of plugin: {}", name);
+        
+        // Set loading status
+        self.set_plugin_status(name, PluginStatus::Loading)?;
+        
+        // Simulate async loading (in real implementation, this could be I/O bound)
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        
+        // Load the plugin
+        self.load_plugin(name, library_path)?;
+        
+        // Set loaded status
+        self.set_plugin_status(name, PluginStatus::Loaded)?;
+        
+        info!("Plugin '{}' loaded asynchronously", name);
+        Ok(())
+    }
+    
+    /// Gracefully unload a plugin with cleanup
+    pub fn unload_plugin_graceful(&mut self, name: &str) -> Result<()> {
+        info!("Starting graceful unload of plugin: {}", name);
+        
+        // Set unloading status
+        self.set_plugin_status(name, PluginStatus::Unloading)?;
+        
+        // Give plugin time to cleanup
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        
+        // Perform actual unload
+        self.unload_plugin(name)?;
+        
+        info!("Plugin '{}' unloaded gracefully", name);
+        Ok(())
     }
 
     pub fn get_plugin(&self, name: &str) -> Result<Arc<PluginLoader>> {
@@ -229,6 +304,14 @@ impl PluginManager {
         }
         
         plugins_info
+    }
+    
+    /// Get detailed registry entry for a plugin
+    pub fn get_registry_entry(&self, name: &str) -> Result<PluginRegistryEntry> {
+        let registry = self.registry.lock().unwrap();
+        registry.get(name)
+            .cloned()
+            .ok_or_else(|| anyhow!("Plugin '{}' not found in registry", name))
     }
 
     pub fn get_plugin_registry(&self) -> Vec<PluginRegistryEntry> {

@@ -200,6 +200,13 @@ async fn main() -> Result<()> {
     info!("Loaded {} plugins:", registry.len());
     for entry in registry {
         info!("  {} v{} - {}", entry.name, entry.version, entry.description);
+        
+        // Get detailed registry entry to access library_path
+        if let Ok(registry_entry) = plugin_manager.get_registry_entry(&entry.name) {
+            info!("    📂 Library: {}", registry_entry.library_path);
+            info!("    🕒 Last loaded: {:?}", registry_entry.last_loaded);
+            info!("    🕒 Last unloaded: {:?}", registry_entry.last_unloaded);
+        }
     }
 
     // Test plugin functionality
@@ -274,6 +281,18 @@ async fn main() -> Result<()> {
         // Test plugin reload
         if let Ok(_) = plugin_manager.reload_plugin("modern_system_plugin") {
             info!("✓ Plugin reload successful");
+        }
+        
+        // Test async plugin loading
+        info!("Testing async plugin loading...");
+        let test_plugin_path = "plugins/modern_system_plugin.dll";
+        if let Ok(_) = plugin_manager.load_plugin_async("test_async_plugin", test_plugin_path).await {
+            info!("✓ Async plugin loading successful");
+        }
+        
+        // Test graceful plugin unload
+        if let Ok(_) = plugin_manager.unload_plugin_graceful("test_async_plugin") {
+            info!("✓ Graceful plugin unload successful");
         }
         
         // Test plugin status management
@@ -370,6 +389,32 @@ async fn main() -> Result<()> {
             let data = serde_json::json!({ "event": format!("{:?}", event_type), "message": msg_inner });
             let _ = pub_inner.publish_event(&name_inner, data).await;
         });
+    });
+
+    // Start plugin lifecycle monitoring
+    let plugin_manager_clone = plugin_manager.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(30));
+        loop {
+            interval.tick().await;
+            
+            // Monitor plugin statuses and health
+            let registry = plugin_manager_clone.get_plugin_registry();
+            for entry in registry {
+                match entry.status {
+                    plugins::manager::PluginStatus::Error => {
+                        warn!("⚠️ Plugin '{}' in error state: {}", entry.name, entry.status_message);
+                    }
+                    plugins::manager::PluginStatus::Loading => {
+                        info!("⏳ Plugin '{}' still loading...", entry.name);
+                    }
+                    plugins::manager::PluginStatus::Unloading => {
+                        info!("⏹️ Plugin '{}' unloading...", entry.name);
+                    }
+                    _ => {}
+                }
+            }
+        }
     });
 
     // Start sensor polling to fill the queue
