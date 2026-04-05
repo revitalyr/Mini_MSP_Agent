@@ -2,7 +2,7 @@
 # Запускает бинарник агента и веб-сервер
 
 param(
-    [string]$ServerPort = "8080",
+    [string]$ServerPort = "8081",
     [string]$AgentConfig = "configs/config.toml",
     [switch]$Build = $false
 )
@@ -52,76 +52,90 @@ if ($Build) {
     }
     
     # Сборка плагинов через CMake
-    Push-Location $BuildDir
+    Push-Location $PluginDir
     try {
-        # Проверяем наличие CMake и Ninja
-        $cmake = Get-Command cmake -ErrorAction SilentlyContinue
-        $ninja = Get-Command ninja -ErrorAction SilentlyContinue
+        # Проверяем наличие уже собранных плагинов
+        $existingPlugins = @("modern_system_plugin.dll", "modern_directory_info_plugin.dll")
+        $allPluginsExist = $true
         
-        if (-not $cmake) {
-            Write-Host "⚠️ CMake не найден. Пропускаю сборку плагинов." -ForegroundColor Yellow
-        } elseif (-not $ninja) {
-            Write-Host "⚠️ Ninja не найден. Пропускаю сборку плагинов." -ForegroundColor Yellow
-        } else {
-            # Очистка кэша CMake если нужно
-            if (Test-Path "CMakeCache.txt") {
-                Write-Host "🧹 Очистка кэша CMake..." -ForegroundColor Yellow
-                Remove-Item "CMakeCache.txt" -Force
-                Remove-Item "CMakeFiles" -Recurse -Force -ErrorAction SilentlyContinue
+        foreach ($plugin in $existingPlugins) {
+            if (-not (Test-Path $plugin)) {
+                $allPluginsExist = $false
+                break
             }
+        }
+        
+        if ($allPluginsExist) {
+            Write-Host "✅ Плагины уже собраны, пропускаем CMake сборку" -ForegroundColor Green
+        } else {
+            # Проверяем наличие CMake и Ninja
+            $cmake = Get-Command cmake -ErrorAction SilentlyContinue
+            $ninja = Get-Command ninja -ErrorAction SilentlyContinue
             
-            # Находим компилятор для Windows
-            $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-            if (Test-Path $vswhere) {
-                $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-                $vcVarsPath = "$vsPath\VC\Auxiliary\Build\vcvars64.bat"
+            if (-not $cmake) {
+                Write-Host "⚠️ CMake не найден. Пропускаю сборку плагинов." -ForegroundColor Yellow
+            } elseif (-not $ninja) {
+                Write-Host "⚠️ Ninja не найден. Пропускаю сборку плагинов." -ForegroundColor Yellow
+            } else {
+                # Создаем build директорию если нужно
+                if (-not (Test-Path "build")) {
+                    New-Item -ItemType Directory -Path "build" | Out-Null
+                }
                 
-                if (Test-Path $vcVarsPath) {
-                    Write-Host "🔧 Настройка окружения Visual Studio..." -ForegroundColor Yellow
-                    
-                    # Запускаем vcvars64.bat и импортируем окружение
-                    $vcVarsOutput = cmd /c "`"$vcVarsPath`" && set" | Out-String
-                    $vcVarsLines = $vcVarsOutput -split "`r`n"
-                    
-                    foreach ($line in $vcVarsLines) {
-                        if ($line -match "^(.+?)=(.*)$") {
-                            $varName = $matches[1]
-                            $varValue = $matches[2]
-                            Set-Item -Path "env:$varName" -Value $varValue
-                        }
+                Push-Location "build"
+                try {
+                    # Очистка кэша CMake если нужно
+                    if (Test-Path "CMakeCache.txt") {
+                        Write-Host "🧹 Очистка кэша CMake..." -ForegroundColor Yellow
+                        Remove-Item "CMakeCache.txt" -Force
+                        Remove-Item "CMakeFiles" -Recurse -Force -ErrorAction SilentlyContinue
                     }
                     
-                    # Используем современный CMakeLists.txt для C++23 плагинов с Ninja
-                    Write-Host "🔧 Конфигурация CMake (современные C++23 плагины с Ninja)..." -ForegroundColor Yellow
-                    & cmake . -DCMAKE_BUILD_TYPE=Release -G "Ninja"
-                    
-                    if ($LASTEXITCODE -eq 0) {
-                        Write-Host "🔧 Сборка плагинов с Ninja..." -ForegroundColor Yellow
-                        & ninja -C . 2>&1
-                        Write-Host "Ninja exit code: $LASTEXITCODE" -ForegroundColor Yellow
+                    # Находим компилятор для Windows
+                    $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+                    if (Test-Path $vswhere) {
+                        $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+                        $vcVarsPath = "$vsPath\VC\Auxiliary\Build\vcvars64.bat"
                         
-                        if ($LASTEXITCODE -eq 0) {
-                            # Создаем директорию для плагинов если нужно
-                            if (-not (Test-Path "../$AgentPluginDir")) {
-                                New-Item -ItemType Directory -Path "../$AgentPluginDir" -Force | Out-Null
+                        if (Test-Path $vcVarsPath) {
+                            Write-Host "🔧 Настройка окружения Visual Studio..." -ForegroundColor Yellow
+                            
+                            # Запускаем vcvars64.bat и импортируем окружение
+                            $vcVarsOutput = cmd /c "`"$vcVarsPath`" && set" | Out-String
+                            $vcVarsLines = $vcVarsOutput -split "`r`n"
+                            
+                            foreach ($line in $vcVarsLines) {
+                                if ($line -match "^(.+?)=(.*)$") {
+                                    $varName = $matches[1]
+                                    $varValue = $matches[2]
+                                    Set-Item -Path "env:$varName" -Value $varValue
+                                }
                             }
                             
-                            # Копирование современных C++23 плагинов
-                            if (Test-Path "plugins/modern_system_plugin.dll") {
-                                Copy-Item "plugins/modern_system_plugin.dll" "../../modern_system_plugin.dll" -Force
-                                Write-Host "✅ Современный system plugin скопирован" -ForegroundColor Green
-                            }
-                            if (Test-Path "plugins/modern_directory_info_plugin.dll") {
-                                Copy-Item "plugins/modern_directory_info_plugin.dll" "../../modern_directory_info_plugin.dll" -Force
-                                Write-Host "✅ Современный directory plugin скопирован" -ForegroundColor Green
-                            }
+                            # Используем современный CMakeLists.txt для C++23 плагинов с Ninja
+                            Write-Host "🔧 Конфигурация CMake (современные C++23 плагины с Ninja)..." -ForegroundColor Yellow
+                            & cmake .. -DCMAKE_BUILD_TYPE=Release -G "Ninja"
                             
-                            Write-Host "✅ Плагины собраны и скопированы" -ForegroundColor Green
+                            if ($LASTEXITCODE -eq 0) {
+                                Write-Host "🔧 Сборка плагинов с Ninja..." -ForegroundColor Yellow
+                                & ninja 2>&1
+                                Write-Host "Ninja exit code: $LASTEXITCODE" -ForegroundColor Yellow
+                                
+                                if ($LASTEXITCODE -eq 0) {
+                                    # Копирование плагинов в корневую директорию
+                                    Write-Host "📋 Копирование плагинов..." -ForegroundColor Yellow
+                                    Copy-Item "*.dll" "..\" -Force -ErrorAction SilentlyContinue
+                                } else {
+                                    Write-Host "❌ Ошибка сборки плагинов с Ninja" -ForegroundColor Red
+                                }
+                            } else {
+                                Write-Host "❌ Ошибка конфигурации CMake с Ninja" -ForegroundColor Red
+                            }
                         } else {
-                            Write-Host "❌ Ошибка сборки плагинов с Ninja" -ForegroundColor Red
+                            Write-Host "❌ vcvars64.bat не найден" -ForegroundColor Red
                         }
                     } else {
-                        Write-Host "❌ Ошибка конфигурации CMake с Ninja" -ForegroundColor Red
+                        Write-Host "❌ Visual Studio не найдена" -ForegroundColor Red
                     }
                 } else {
                     Write-Host "❌ vcvars64.bat не найден: $vcVarsPath" -ForegroundColor Red

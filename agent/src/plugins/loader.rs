@@ -13,15 +13,6 @@ pub struct PluginLoader {
 }
 
 impl PluginLoader {
-    pub fn new() -> Self {
-        Self {
-            library: None,
-            interface: None,
-            plugin_path: String::new(),
-            disable_signature_check: false,
-        }
-    }
-    
     pub fn with_signature_check(disable: bool) -> Self {
         Self {
             library: None,
