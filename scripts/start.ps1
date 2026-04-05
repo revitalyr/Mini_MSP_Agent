@@ -138,10 +138,8 @@ if ($Build) {
                         Write-Host "❌ Visual Studio не найдена" -ForegroundColor Red
                     }
                 } else {
-                    Write-Host "❌ vcvars64.bat не найден: $vcVarsPath" -ForegroundColor Red
+                    Write-Host "❌ Visual Studio не найдена" -ForegroundColor Red
                 }
-            } else {
-                Write-Host "❌ Visual Studio не найдена" -ForegroundColor Red
             }
         }
     }
