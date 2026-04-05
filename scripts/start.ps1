@@ -141,6 +141,12 @@ if ($Build) {
                     Write-Host "❌ Visual Studio не найдена" -ForegroundColor Red
                 }
             }
+            catch {
+                Write-Host "❌ Ошибка при сборке плагинов: $_" -ForegroundColor Red
+            }
+            finally {
+                Pop-Location
+            }
         }
     }
     finally {
