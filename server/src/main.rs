@@ -3,11 +3,13 @@
 //! Optimized for fast compilation and modular structure
 
 mod simple_handlers;
+mod api;
+mod websocket;
 mod config;
 mod broker;
 
 use axum::{
-    routing::get,
+    routing::{get, post},
     Router,
 };
 use std::sync::{Arc, Mutex};
@@ -23,6 +25,14 @@ use tracing::{info, Level};
 
 use simple_handlers::*;
 use config::Config;
+use broker::BrokerClient;
+
+// Unified AppState for all modules
+#[derive(Clone)]
+pub struct AppState {
+    pub agents: Arc<Mutex<HashMap<String, String>>>,
+    pub broker_client: Option<Arc<BrokerClient>>,
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -64,9 +74,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     info!("Starting Mini MSP Server on {}", addr);
 
     // Initialize application state
+    let broker_client = None; // Will be initialized later if needed
     let app_state = Arc::new(AppState {
         agents: Arc::new(Mutex::new(HashMap::new())),
-        broker_client: None,
+        broker_client,
     });
 
     // Build router with CORS
@@ -76,8 +87,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .allow_headers(Any);
 
     let app = Router::new()
-        .route("/health", get(simple_handlers::health_check))
-        .route("/agents", get(simple_handlers::list_agents))
+        // Health checks
+        .route("/health", get(api::health_check))
+        .route("/health/simple", get(simple_handlers::health_check))
+        
+        // Authentication
+        .route("/login", post(api::auth::login))
+        .route("/refresh", post(api::auth::refresh_token))
+        
+        // Agent management
+        .route("/agents", get(api::agents::list_agents))
+        .route("/agents/simple", get(simple_handlers::list_agents))
+        .route("/heartbeat", post(simple_handlers::handle_heartbeat))
+        
+        // WebSocket
+        .route("/ws", get(websocket::handle_websocket))
+        
+        // Static files
         .nest_service("/static", ServeDir::new("static"))
         .layer(cors)
         .layer(TraceLayer::new_for_http())

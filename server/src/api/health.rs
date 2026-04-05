@@ -2,11 +2,8 @@
 //! 
 //! Предоставляет endpoints для проверки состояния сервера
 
-use axum::{extract::State, response::Json, http::StatusCode};
+use axum::response::Json;
 use serde_json::json;
-use std::time::SystemTime;
-
-use crate::AppState;
 
 /// Health check endpoint
 /// 

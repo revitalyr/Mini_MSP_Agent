@@ -16,13 +16,13 @@ use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
 use uuid::Uuid;
 use chrono::Utc;
-use axum::response::IntoResponse;
+use tracing::{info, error};
 
 use crate::AppState;
 
-/// WebSocket connection manager
+/// Simple WebSocket manager for agent connections
 pub struct WebSocketManager {
-    connections: Arc<Mutex<HashMap<String, tokio_tungstenite::tungstenite::WebSocket<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>>>,
+    connections: Arc<Mutex<HashMap<String, String>>>, // Simplified to just track agent IDs
 }
 
 impl WebSocketManager {
@@ -32,13 +32,9 @@ impl WebSocketManager {
         }
     }
 
-    pub async fn add_connection(
-        &self,
-        agent_id: String,
-        ws: tokio_tungstenite::tungstenite::WebSocket<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
-    ) {
+    pub async fn add_connection(&self, agent_id: String) {
         let mut connections = self.connections.lock().await;
-        connections.insert(agent_id, ws);
+        connections.insert(agent_id, "connected".to_string());
     }
 
     pub async fn remove_connection(&self, agent_id: &str) {
@@ -46,22 +42,9 @@ impl WebSocketManager {
         connections.remove(agent_id);
     }
 
-    pub async fn broadcast(&self, message: &Value) {
-        let mut connections = self.connections.lock().await;
-        for (_id, ws) in connections.iter_mut() {
-            let _ = ws.send(Message::Text(message.to_string())).await;
-        }
-    }
-
     pub async fn get_connected_agents(&self) -> Vec<String> {
         let connections = self.connections.lock().await;
         connections.keys().cloned().collect()
-    }
-}
-
-impl Default for WebSocketManager {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -73,28 +56,72 @@ pub async fn handle_websocket(
     ws.on_upgrade(move |socket| handle_socket(socket, app_state))
 }
 
-/// Handle individual WebSocket connection
-async fn handle_socket(
-    socket: tokio_tungstenite::tungstenite::WebSocket<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
-    app_state: Arc<AppState>,
-) {
+/// Handle WebSocket connection
+async fn handle_socket(socket: WebSocket, app_state: Arc<AppState>) {
     let agent_id = Uuid::new_v4().to_string();
     
     // Add connection to manager
-    app_state.ws_manager.add_connection(agent_id.clone(), socket).await;
+    let ws_manager = WebSocketManager::new();
+    ws_manager.add_connection(agent_id.clone()).await;
+    
+    // Add to app state agents
+    {
+        let mut agents = app_state.agents.lock().unwrap();
+        agents.insert(agent_id.clone(), "connected".to_string());
+    }
+
+    let (mut sender, mut receiver) = socket.split();
     
     // Send welcome message
-    let welcome_msg = json!({
+    let welcome = json!({
         "type": "welcome",
         "agent_id": agent_id,
-        "timestamp": chrono::Utc::now()
+        "timestamp": Utc::now().timestamp()
     });
     
-    let mut connections = app_state.ws_manager.connections.lock().await;
-    if let Some(ws) = connections.get_mut(&agent_id) {
-        let _ = ws.send(Message::Text(welcome_msg.to_string())).await;
+    if let Err(e) = sender.send(Message::Text(welcome.to_string())).await {
+        error!("Failed to send welcome message: {}", e);
+        return;
+    }
+
+    // Handle messages
+    while let Some(msg) = receiver.next().await {
+        match msg {
+            Ok(Message::Text(text)) => {
+                if let Ok(value) = serde_json::from_str::<Value>(&text) {
+                    info!("Received message from {}: {}", agent_id, value);
+                    
+                    // Echo back
+                    let response = json!({
+                        "type": "echo",
+                        "original": value,
+                        "timestamp": Utc::now().timestamp()
+                    });
+                    
+                    if let Err(e) = sender.send(Message::Text(response.to_string())).await {
+                        error!("Failed to send echo: {}", e);
+                        break;
+                    }
+                }
+            }
+            Ok(Message::Close(_)) => {
+                info!("WebSocket closed for agent: {}", agent_id);
+                break;
+            }
+            Err(e) => {
+                error!("WebSocket error for agent {}: {}", agent_id, e);
+                break;
+            }
+            _ => {}
+        }
+    }
+
+    // Cleanup
+    ws_manager.remove_connection(&agent_id).await;
+    {
+        let mut agents = app_state.agents.lock().unwrap();
+        agents.remove(&agent_id);
     }
     
-    // Here you would handle the actual WebSocket communication
-    // For now, we'll just keep the connection alive
+    info!("WebSocket connection cleaned up for agent: {}", agent_id);
 }

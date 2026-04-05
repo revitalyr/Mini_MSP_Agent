@@ -38,7 +38,7 @@ pub async fn login(
         let token = encode(
             &Header::default(),
             &claims,
-            &EncodingKey::from_secret("your-secret-key"),
+            &EncodingKey::from_secret(b"your-secret-key"),
         ).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
         Ok(Json(LoginResponse {
@@ -54,6 +54,6 @@ pub async fn login(
 pub async fn refresh_token() -> Json<serde_json::Value> {
     Json(json!({
         "message": "Token refreshed",
-        "timestamp": Utc::now()
+        "timestamp": Utc::now().timestamp()
     }))
 }
