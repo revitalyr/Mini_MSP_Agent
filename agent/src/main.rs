@@ -203,14 +203,21 @@ async fn main() -> Result<()> {
     }
 
     // Test plugin functionality
-    if let Ok(_system_info) = plugin_manager.get_system_info() {
+    if let Ok(system_info) = plugin_manager.get_system_info() {
         info!("✓ System info plugin available");
+        info!("  OS: {} {} on {}", system_info.os_type, system_info.os_version, system_info.hostname);
+        info!("  Uptime: {:.1}h, CPU cores: {}", system_info.uptime as f64 / 3600.0, system_info.cpu_cores);
+        info!("  Memory: {:.1}/{:.1} GB ({:.1}%)", 
+               system_info.available_memory as f64 / 1024.0 / 1024.0 / 1024.0,
+               system_info.total_memory as f64 / 1024.0 / 1024.0 / 1024.0,
+               ((system_info.total_memory - system_info.available_memory) as f64 / system_info.total_memory as f64) * 100.0);
     } else {
         warn!("✗ System info plugin not available");
     }
 
-    if let Ok(_dir_info) = plugin_manager.get_directory_info_data(".", false, false, 10) {
+    if let Ok(dir_info) = plugin_manager.get_directory_info_data(".", false, false, 10) {
         info!("✓ Directory info plugin available");
+        info!("  {}", dir_info.get_summary());
     } else {
         warn!("✗ Directory info plugin not available");
     }
@@ -241,6 +248,33 @@ async fn main() -> Result<()> {
         // Test processing results
         if let Ok(_processing_results) = plugin_manager.get_processing_results() {
             info!("✓ Processing results available");
+        }
+        
+        // Test command execution
+        if let Ok(cmd_result) = plugin_manager.execute_command("echo test") {
+            info!("✓ Command execution available: {}", cmd_result.get_summary());
+        }
+        
+        // Test plugin reload
+        if let Ok(_) = plugin_manager.reload_plugin("modern_system_plugin") {
+            info!("✓ Plugin reload successful");
+        }
+        
+        // Test additional plugin methods
+        if let Ok(_event_data) = plugin_manager.get_event_data("/tmp") {
+            info!("✓ Event data available");
+        }
+        
+        if let Ok(_watchers_data) = plugin_manager.get_watchers_data() {
+            info!("✓ Watchers data available");
+        }
+        
+        if let Ok(_file_reader_data) = plugin_manager.get_file_reader_data("/tmp/test.txt") {
+            info!("✓ File reader data available");
+        }
+        
+        if let Ok(_video_frame) = plugin_manager.get_video_frame() {
+            info!("✓ Video frame available");
         }
     }
 

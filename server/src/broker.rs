@@ -99,7 +99,7 @@ impl BrokerMessageHandler {
         // Use the client for additional operations if needed
         let _client = self.broker.client();
         
-        // Acknowledge heartbeat
+        // Acknowledge heartbeat using broker client
         self.broker.publish_heartbeat_ack(agent_id, &heartbeat).await?;
         
         Ok(())

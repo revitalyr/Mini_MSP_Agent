@@ -68,6 +68,9 @@ impl BrokerClient {
         let payload = serde_json::to_vec(&data)
             .map_err(|e| anyhow::anyhow!("Failed to serialize plugin event: {}", e))?;
         
+        // Use the client for direct NATS operations if needed
+        let _client = self.client();
+        
         self.nats.publish(subject, payload.into()).await
             .map_err(|e| anyhow::anyhow!("Failed to publish plugin event: {}", e))?;
         

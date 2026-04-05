@@ -97,6 +97,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 // Log current agent count
                 let agents = app_state_clone.agents.lock().unwrap();
                 info!("Current registered agents: {}", agents.len());
+                
+                // Use handler to process any pending messages (placeholder)
+                // In real implementation, this would subscribe to NATS topics
+                // and call handler.handle_heartbeat(), handler.handle_response(), etc.
             }
         });
     }
