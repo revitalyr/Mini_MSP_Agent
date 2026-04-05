@@ -339,27 +339,29 @@ impl SafePluginInterface {
     }
     
     pub fn execute_command(&self, command: &str) -> Result<CommandResultData> {
-        unsafe {
-            let exec_cmd = self.interface.execute_command
-                .ok_or_else(|| anyhow!("execute_command function not available"))?;
-            
-            let cmd_cstr = string_to_c_string(command)?;
+        let c_command = CString::new(command)?;
+        
+        if let Some(execute_command) = self.interface.execute_command {
             let mut result = CommandResult::default();
             
-            if exec_cmd(cmd_cstr.as_ptr(), &mut result) {
-                let data = CommandResultData::from_c_struct(&result);
-                
-                // Free allocated memory
-                if !result.output.is_null() {
-                    if let Some(free_fn) = self.free_memory {
-                        free_fn(result.output as *mut c_void);
+            unsafe {
+                if execute_command(c_command.as_ptr(), &mut result) {
+                    let data = CommandResultData::from_c_struct(&result);
+                    
+                    // Free allocated memory
+                    if !result.output.is_null() {
+                        if let Some(free_fn) = self.free_memory {
+                            free_fn(result.output as *mut c_void);
+                        }
                     }
+                    
+                    Ok(data)
+                } else {
+                    Err(anyhow!("Failed to execute command"))
                 }
-                
-                Ok(data)
-            } else {
-                Err(anyhow!("Failed to execute command"))
             }
+        } else {
+            Err(anyhow!("execute_command function not available"))
         }
     }
     
@@ -500,22 +502,13 @@ impl SafePluginInterface {
             let ptr = func();
             if ptr.is_null() { return Err(anyhow!("Plugin returned null")); }
             
-            let c_frame = *ptr;
-            let data_slice = std::slice::from_raw_parts(c_frame.m_data, c_frame.m_size as usize);
-            let frame_data = VideoFrameData {
-                data: data_slice.to_vec(),
-                width: c_frame.m_width,
-                height: c_frame.m_height,
-                timestamp: c_frame.m_timestamp,
-            };
+            let data = VideoFrameData::from_c_struct(*ptr);
 
             if let Some(free_fn) = self.free_memory {
-                // Освобождаем внутренний буфер данных, затем саму структуру
-                free_fn(c_frame.m_data as *mut c_void);
                 free_fn(ptr as *mut c_void);
             }
-
-            Ok(frame_data)
+            
+            Ok(data)
         }
     }
 }
@@ -734,8 +727,12 @@ impl ProcessingResults {
     }
     
     pub fn get_processing_summary(&self) -> String {
-        format!("Task {}: {} ({:.2}ms)", 
-                self.task_id, self.status, self.processing_time)
+        format!("Task {}: {} ({:.2}ms) - Data: {}",
+                self.task_id, self.status, self.processing_time,
+                match self.result_data.get("processed_items") {
+                    Some(serde_json::Value::Number(n)) => format!("{} items processed", n),
+                    _ => "No data".to_string()
+                })
     }
 }
 

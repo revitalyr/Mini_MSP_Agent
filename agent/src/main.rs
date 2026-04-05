@@ -276,10 +276,41 @@ async fn main() -> Result<()> {
             info!("✓ Plugin reload successful");
         }
         
+        // Test plugin status management
+        info!("Plugin status management:");
+        for plugin_name in &["modern_system_plugin", "modern_directory_info_plugin"] {
+            let status = plugin_manager.get_plugin_status(plugin_name);
+            match status {
+                plugins::manager::PluginStatus::Loading => {
+                    info!("  🔄 {} is currently loading...", plugin_name);
+                }
+                plugins::manager::PluginStatus::Loaded => {
+                    info!("  ✅ {} is loaded and ready", plugin_name);
+                }
+                plugins::manager::PluginStatus::Unloading => {
+                    info!("  ⏹️ {} is unloading...", plugin_name);
+                }
+                plugins::manager::PluginStatus::Active => {
+                    info!("  🚀 {} is active and processing", plugin_name);
+                }
+                plugins::manager::PluginStatus::Error => {
+                    info!("  ❌ {} has errors", plugin_name);
+                }
+                plugins::manager::PluginStatus::Unloaded => {
+                    info!("  ⭕ {} is unloaded", plugin_name);
+                }
+            }
+        }
+        
         // Test additional plugin methods
         if let Ok(event_data) = plugin_manager.get_event_data("/tmp") {
             info!("✓ Event data available");
             info!("  {}", event_data.get_event_summary());
+            
+            // Real-time event monitoring simulation
+            if event_data.events_count > 0 {
+                info!("  📁 Active file monitoring detected");
+            }
         } else {
             info!("✗ Event data not available");
         }
@@ -287,6 +318,11 @@ async fn main() -> Result<()> {
         if let Ok(watchers_data) = plugin_manager.get_watchers_data() {
             info!("✓ Watchers data available");
             info!("  {}", watchers_data.get_watchers_summary());
+            
+            // File system watcher management
+            if watchers_data.active_watchers > 0 {
+                info!("  👁️  {} active directory watchers", watchers_data.active_watchers);
+            }
         } else {
             info!("✗ Watchers data not available");
         }
@@ -295,6 +331,11 @@ async fn main() -> Result<()> {
             info!("✓ File reader data available");
             info!("  {}", file_reader_data.get_file_info());
             info!("  Preview: {}", file_reader_data.get_content_preview());
+            
+            // Advanced file reading with encoding detection
+            if file_reader_data.size > 0 {
+                info!("  📄 File content successfully read with {} encoding", file_reader_data.encoding);
+            }
         } else {
             info!("✗ File reader data not available");
         }
@@ -302,6 +343,12 @@ async fn main() -> Result<()> {
         if let Ok(video_frame) = plugin_manager.get_video_frame() {
             info!("✓ Video frame available");
             info!("  {}", video_frame.get_frame_info());
+            
+            // Video capture and processing
+            if video_frame.data.len() > 0 {
+                info!("  🎥 Video frame captured successfully");
+                info!("  📐 Resolution: {}x{}", video_frame.width, video_frame.height);
+            }
         } else {
             info!("✗ Video frame not available");
         }
