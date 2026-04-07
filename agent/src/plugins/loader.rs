@@ -6,8 +6,8 @@ use tracing::{debug, error, info, warn};
 use super::ffi::{PluginInterface, SafePluginInterface};
 
 pub struct PluginLoader {
-    library: Option<Library>,
     interface: Option<SafePluginInterface>,
+    library: Option<Library>,
     plugin_path: String,
     disable_signature_check: bool,
 }
@@ -121,9 +121,10 @@ impl PluginLoader {
 
 impl Drop for PluginLoader {
     fn drop(&mut self) {
-        if let Some(ref mut _interface) = self.interface {
-            debug!("Unloading plugin: {}", self.plugin_path);
-            // Interface cleanup is handled in SafePluginInterface::drop
+        if let Some(interface) = self.interface.as_ref() {
+            debug!("Calling C cleanup for plugin at {}", self.plugin_path);
+            interface.cleanup();
         }
+        // library will be dropped next, unloading the DLL/SO
     }
 }

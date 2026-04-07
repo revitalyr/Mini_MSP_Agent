@@ -107,7 +107,7 @@ async fn main() -> Result<()> {
                 .long("plugin-dir")
                 .value_name("DIR")
                 .help("Directory containing C++ plugins")
-                .default_value("./plugins"),
+                .default_value("agent/plugins"),
         )
         .arg(
             Arg::new("hot-reload")
@@ -184,8 +184,8 @@ async fn main() -> Result<()> {
     
     // Check if system plugin is loaded
     if !plugin_manager.is_system_plugin_loaded() {
-        error!("No system plugin loaded! Agent cannot function without system plugin.");
-        return Err(anyhow::anyhow!("System plugin required but not found"));
+        warn!("No system plugin loaded! Agent will run with limited functionality.");
+        // Don't return error, continue with limited functionality
     }
     
     // List loaded plugins
@@ -276,17 +276,25 @@ async fn main() -> Result<()> {
         
         // Test command execution
         if let Ok(cmd_result) = plugin_manager.execute_command("echo test") {
-            info!("✓ Command execution available: {}", cmd_result.get_summary());
+            info!("Command execution available: {}", cmd_result.get_summary());
         }
         
-        // Test plugin reload
-        if let Ok(_) = plugin_manager.reload_plugin("modern_system_plugin") {
-            info!("✓ Plugin reload successful");
+        // Load plugins
+        info!("Loading plugins...");
+        if let Err(e) = plugin_manager.load_plugins_from_directory(&plugin_dir) {
+            error!("Failed to load plugins: {}", e);
+            // Don't exit, continue without plugins for now
         }
         
         // Test async plugin loading
         info!("Testing async plugin loading...");
-        let test_plugin_path = "plugins/modern_system_plugin.dll";
+        let test_plugin_path = if cfg!(target_os = "windows") {
+            "plugins/modern_system_plugin.dll"
+        } else if cfg!(target_os = "macos") {
+            "plugins/modern_system_plugin.dylib"
+        } else {
+            "plugins/modern_system_plugin.so"
+        };
         if let Ok(_) = plugin_manager.load_plugin_async("test_async_plugin", test_plugin_path).await {
             info!("✓ Async plugin loading successful");
         }
@@ -375,8 +383,16 @@ async fn main() -> Result<()> {
     }
 
     // Initialize broker client
-    let broker_client = BrokerClient::connect(&config.broker_url).await
-        .map_err(|e| anyhow::anyhow!("Failed to connect to broker: {}", e))?;
+    info!("🔍 Attempting to connect to broker with URL: '{}'", &config.broker_url);
+    let broker_client = if config.broker_url.is_empty() {
+        info!("⚠️  Broker URL is empty, skipping broker connection");
+        None
+    } else {
+        let client = BrokerClient::connect(&config.broker_url).await
+            .map_err(|e| anyhow::anyhow!("Failed to connect to broker: {}", e))?;
+        info!("✅ Successfully connected to broker");
+        Some(client)
+    };
 
     // Initialize event publisher to bridge PluginManager events to NATS
     let event_publisher = PluginEventPublisher::new(broker_client.clone(), config.agent_id.clone());
@@ -425,7 +441,7 @@ async fn main() -> Result<()> {
     let telemetry = TelemetryCollector::new(plugin_manager.clone());
     let http_client = HttpClient::new(config.clone());
     let ws_client = WebSocketClient::new(config.clone(), plugin_manager.clone());
-    let broker_loop = BrokerLoop::new(broker_client, config.agent_id.clone(), plugin_manager.clone(), telemetry, http_client);
+    let broker_loop = BrokerLoop::new(broker_client, config.agent_id.clone(), plugin_manager.clone(), telemetry, http_client, config.allowed_commands.clone(), config.max_file_size);
 
     // Start WebSocket client in background
     let ws_client_clone = ws_client.clone();

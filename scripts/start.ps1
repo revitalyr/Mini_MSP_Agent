@@ -101,7 +101,7 @@ if ($Build) {
                             Write-Host "🔧 Настройка окружения Visual Studio..." -ForegroundColor Yellow
                             
                             # Запускаем vcvars64.bat и импортируем окружение
-                            $vcVarsOutput = cmd /c "`"$vcVarsPath`" && set" | Out-String
+                            $vcVarsOutput = & cmd /c "`"$vcVarsPath`" && set" 2>&1 | Out-String
                             $vcVarsLines = $vcVarsOutput -split "`r`n"
                             
                             foreach ($line in $vcVarsLines) {
@@ -138,12 +138,12 @@ if ($Build) {
                         Write-Host "❌ Visual Studio не найдена" -ForegroundColor Red
                     }
                 }
-            }
-            catch {
-                Write-Host "❌ Ошибка при сборке плагинов: $_" -ForegroundColor Red
-            }
-            finally {
-                Pop-Location
+                catch {
+                    Write-Host "❌ Ошибка при сборке плагинов: $_" -ForegroundColor Red
+                }
+                finally {
+                    Pop-Location
+                }
             }
         }
     }

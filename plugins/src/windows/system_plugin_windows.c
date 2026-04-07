@@ -15,7 +15,7 @@
 #include <tchar.h>
 
 // Plugin information
-static const char* PLUGIN_NAME = "windows_system_plugin";
+static const char* PLUGIN_NAME = "modern_system_plugin";
 static const char* PLUGIN_VERSION = "1.0.0";
 static const char* PLUGIN_DESCRIPTION = "Windows-specific system metrics plugin";
 
@@ -126,42 +126,26 @@ static void get_memory_info(uint64_t* total, uint64_t* available) {
     }
 }
 
-// Get OS version information
+// Get OS version information (Simplified for compatibility)
 static void get_os_info(char* os_type, char* os_version) {
-    OSVERSIONINFOEX os_info;
-    os_info.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
-    
-    if (GetVersionEx((OSVERSIONINFO*)&os_info)) {
-        strcpy(os_type, "Windows");
-        
-        if (os_info.dwMajorVersion == 10) {
-            if (os_info.dwMinorVersion == 0) {
-                if (os_info.wProductType == VER_NT_WORKSTATION) {
-                    strcpy(os_version, "10");
-                } else {
-                    strcpy(os_version, "Server 2016/2019/2022");
-                }
-            }
-        } else if (os_info.dwMajorVersion == 6) {
-            switch (os_info.dwMinorVersion) {
-                case 1:
-                    strcpy(os_version, "7");
-                    break;
-                case 2:
-                    strcpy(os_version, "8");
-                    break;
-                case 3:
-                    strcpy(os_version, "8.1");
-                    break;
-                default:
-                    snprintf(os_version, 128, "Server 2008/R2");
-                    break;
-            }
+    strcpy(os_type, "Windows");
+
+    // GetVersionEx is deprecated and unreliable without manifest.
+    // Using a more stable way to check for modern Windows.
+    HMODULE hKernel = GetModuleHandleA("kernel32.dll");
+    if (hKernel) {
+        // Just a placeholder: in a real scenario, you'd check file version of kernel32.dll
+        // or use RtlGetVersion from ntdll.dll
+        OSVERSIONINFOEXW osvi = { sizeof(osvi), 0, 0, 0, 0, {0}, 0, 0 };
+        typedef NTSTATUS (WINAPI *RtlGetVersionPtr)(PRTL_OSVERSIONINFOEXW);
+        RtlGetVersionPtr fn = (RtlGetVersionPtr)GetProcAddress(GetModuleHandleA("ntdll.dll"), "RtlGetVersion");
+        if (fn && fn(&osvi) == 0) {
+            snprintf(os_version, 128, "%d.%d (Build %d)", 
+                osvi.dwMajorVersion, osvi.dwMinorVersion, osvi.dwBuildNumber);
         } else {
-            snprintf(os_version, 128, "%d.%d", os_info.dwMajorVersion, os_info.dwMinorVersion);
+            strcpy(os_version, "NT Family");
         }
     } else {
-        strcpy(os_type, "Windows");
         strcpy(os_version, "Unknown");
     }
 }
@@ -188,12 +172,10 @@ static bool get_system_metrics_impl(system_metrics_t* metrics) {
     
     memset(metrics, 0, sizeof(system_metrics_t));
     
-    // Get hostname
-    if (gethostname(metrics->hostname, sizeof(metrics->hostname) - 1) != 0) {
-        DWORD size = sizeof(metrics->hostname);
-        if (!GetComputerNameA(metrics->hostname, &size)) {
-            strncpy(metrics->hostname, "unknown", sizeof(metrics->hostname) - 1);
-        }
+    // Get hostname using Windows API directly
+    DWORD size = sizeof(metrics->hostname);
+    if (!GetComputerNameA(metrics->hostname, &size)) {
+        strncpy(metrics->hostname, "unknown", sizeof(metrics->hostname) - 1);
     }
     metrics->hostname[sizeof(metrics->hostname) - 1] = '\0';
     
@@ -206,15 +188,15 @@ static bool get_system_metrics_impl(system_metrics_t* metrics) {
     return true;
 }
 
-static bool get_processes_impl(process_info_t** processes, size_t* count) {
-    if (!processes || !count) return false;
+static bool get_processes_impl(process_info_t** out_processes, size_t* out_count) {
+    if (!out_processes || !out_count) return false;
     
-    *processes = NULL;
-    *count = 0;
+    *out_processes = NULL;
+    *out_count = 0;
     
     // Get process list
-    DWORD processes[1024], needed;
-    if (!EnumProcesses(processes, sizeof(processes), &needed)) {
+    DWORD process_ids[1024], needed;
+    if (!EnumProcesses(process_ids, sizeof(process_ids), &needed)) {
         return false;
     }
     
@@ -222,29 +204,29 @@ static bool get_processes_impl(process_info_t** processes, size_t* count) {
     if (process_count == 0) return true;
     
     // Allocate memory
-    *processes = malloc(process_count * sizeof(process_info_t));
-    if (!*processes) return false;
+    process_info_t* list = (process_info_t*)malloc(process_count * sizeof(process_info_t));
+    if (!list) return false;
     
     size_t index = 0;
     
     for (size_t i = 0; i < process_count && index < process_count; i++) {
-        if (processes[i] == 0) continue;
+        if (process_ids[i] == 0) continue;
         
-        HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, processes[i]);
+        HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, process_ids[i]);
         if (!hProcess) continue;
         
-        process_info_t* proc = &(*processes)[index];
+        process_info_t* proc = &list[index];
         memset(proc, 0, sizeof(process_info_t));
         
-        proc->pid = processes[i];
+        proc->pid = process_ids[i];
         
         // Get process name
         HMODULE hMod;
         DWORD cbNeeded;
         if (EnumProcessModules(hProcess, &hMod, sizeof(hMod), &cbNeeded)) {
-            TCHAR modName[MAX_PATH];
-            if (GetModuleBaseNameA(hProcess, hMod, modName, sizeof(modName))) {
-                strncpy(proc->name, modName, sizeof(proc->name) - 1);
+            char process_name[MAX_PATH];
+            if (GetModuleBaseNameA(hProcess, hMod, process_name, sizeof(process_name))) {
+                strncpy(proc->name, process_name, sizeof(proc->name) - 1);
                 proc->name[sizeof(proc->name) - 1] = '\0';
             }
         }
@@ -262,7 +244,8 @@ static bool get_processes_impl(process_info_t** processes, size_t* count) {
         index++;
     }
     
-    *count = index;
+    *out_processes = list;
+    *out_count = index;
     return true;
 }
 

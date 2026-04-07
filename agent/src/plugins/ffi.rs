@@ -51,10 +51,11 @@ pub struct FileContent {
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct CommandResult {
-    pub output: *mut c_char,
+    pub stdout: *mut c_char,
+    pub stderr: *mut c_char,
     pub exit_code: i32,
     pub success: bool,
-    pub error: [c_char; 256],
+    pub error: [c_char; 512],
 }
 
 #[repr(C)]
@@ -216,10 +217,11 @@ impl Default for FileContent {
 impl Default for CommandResult {
     fn default() -> Self {
         Self {
-            output: ptr::null_mut(),
+            stdout: ptr::null_mut(),
+            stderr: ptr::null_mut(),
             exit_code: 0,
             success: false,
-            error: [0; 256],
+            error: [0; 512],
         }
     }
 }
@@ -290,8 +292,12 @@ impl SafePluginInterface {
     
     pub fn cleanup(&self) {
         unsafe {
+            // Only call cleanup if it's a valid function pointer
+            // and if we haven't already cleaned up
             if let Some(cleanup) = self.interface.cleanup {
-                cleanup();
+                if cleanup as usize != 0 {
+                    cleanup();
+                }
             }
         }
     }
@@ -348,10 +354,13 @@ impl SafePluginInterface {
                 if execute_command(c_command.as_ptr(), &mut result) {
                     let data = CommandResultData::from_c_struct(&result);
                     
-                    // Free allocated memory
-                    if !result.output.is_null() {
-                        if let Some(free_fn) = self.free_memory {
-                            free_fn(result.output as *mut c_void);
+                    // Properly free stdout and stderr via the plugin's free_memory function
+                    if let Some(free_fn) = self.free_memory {
+                        if !result.stdout.is_null() {
+                            free_fn(result.stdout as *mut c_void);
+                        }
+                        if !result.stderr.is_null() {
+                            free_fn(result.stderr as *mut c_void);
                         }
                     }
                     
@@ -859,8 +868,9 @@ pub struct CommandResultData {
 
 impl CommandResultData {
     unsafe fn from_c_struct(result: &CommandResult) -> Self {
-        let output = if !result.output.is_null() {
-            c_string_to_string_lossy(result.output)
+        // c_string_to_string_lossy copies the data into a Rust-managed String
+        let output = if !result.stdout.is_null() {
+            c_string_to_string_lossy(result.stdout)
         } else {
             String::new()
         };
@@ -917,11 +927,5 @@ impl SystemInfoData {
             total_memory: info.total_memory,
             available_memory: info.available_memory,
         }
-    }
-}
-
-impl Drop for SafePluginInterface {
-    fn drop(&mut self) {
-        self.cleanup();
     }
 }

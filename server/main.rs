@@ -55,7 +55,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     // Initialize logging
     tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
+        .with_max_level(tracing::Level::INFO)
         .init();
 
     let port: u16 = matches.get_one::<String>("port").unwrap().parse()
@@ -79,6 +79,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let app = Router::new()
         .route("/health", get(simple_handlers::health_check))
         .route("/agents", get(simple_handlers::list_agents))
+        .route("/", get(|| async { axum::response::Redirect::permanent("/static/plugin_control.html") }))
         .nest_service("/static", ServeDir::new("static"))
         .layer(cors)
         .layer(TraceLayer::new_for_http())

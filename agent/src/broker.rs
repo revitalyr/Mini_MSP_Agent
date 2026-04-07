@@ -88,21 +88,25 @@ impl BrokerClient {
 /// 
 /// Handles incoming commands and publishes responses/heartbeats
 pub struct BrokerLoop {
-    broker: BrokerClient,
+    broker: Option<BrokerClient>,
     agent_id: String,
     plugin_manager: PluginManager,
     telemetry: TelemetryCollector,
     http_client: HttpClient,
+    allowed_commands: Vec<String>,
+    max_file_size: u64,
 }
 
 impl BrokerLoop {
-    pub fn new(broker: BrokerClient, agent_id: String, plugin_manager: PluginManager, telemetry: TelemetryCollector, http_client: HttpClient) -> Self {
+    pub fn new(broker: Option<BrokerClient>, agent_id: String, plugin_manager: PluginManager, telemetry: TelemetryCollector, http_client: HttpClient, allowed_commands: Vec<String>, max_file_size: u64) -> Self {
         Self {
             broker,
             agent_id,
             plugin_manager,
             telemetry,
             http_client,
+            allowed_commands,
+            max_file_size,
         }
     }
 
@@ -110,26 +114,28 @@ impl BrokerLoop {
     pub async fn run(self) -> Result<()> {
         info!("Starting broker loop for agent {}", self.agent_id);
 
-        // Subscribe to commands
-        let mut command_sub = self.broker.subscribe_commands(&self.agent_id).await?;
+        match self.broker {
+            Some(broker) => {
+                // Subscribe to commands
+                let mut command_sub = broker.subscribe_commands(&self.agent_id).await?;
 
-        // Start heartbeat task
-        let heartbeat_broker = self.broker.clone();
-        let heartbeat_agent_id = self.agent_id.clone();
-        let telemetry = self.telemetry.clone();
-        let http_client = self.http_client.clone();
-        let heartbeat_task = tokio::spawn(async move {
-            self::heartbeat_loop(heartbeat_broker, heartbeat_agent_id, telemetry, http_client).await;
-        });
+                // Start heartbeat task
+                let heartbeat_broker = broker.clone();
+                let heartbeat_agent_id = self.agent_id.clone();
+                let telemetry = self.telemetry.clone();
+                let http_client = self.http_client.clone();
+                let heartbeat_task = tokio::spawn(async move {
+                    self::heartbeat_loop(heartbeat_broker, heartbeat_agent_id, telemetry, http_client).await;
+                });
 
-        // Process commands
-        while let Some(msg) = command_sub.next().await {
-            match serde_json::from_slice::<CommandRequest>(&msg.payload) {
+                // Process commands
+                while let Some(msg) = command_sub.next().await {
+                    match serde_json::from_slice::<CommandRequest>(&msg.payload) {
                 Ok(cmd) => {
                     info!("Received command: {}", cmd.command_id);
                     
                     // Handle command
-                    let result = handle_command(cmd.command.clone(), Some(cmd.command_id.clone()), &self.plugin_manager).await;
+                    let result = handle_command(cmd.command.clone(), Some(cmd.command_id.clone()), &self.plugin_manager, &self.allowed_commands, self.max_file_size).await;
                     
                     // Create response
                     let response = CommandResponse {
@@ -144,7 +150,7 @@ impl BrokerLoop {
                     };
 
                     // Publish response
-                    if let Err(e) = self.broker.publish_response(&self.agent_id, response).await {
+                    if let Err(e) = broker.publish_response(&self.agent_id, response).await {
                         error!("Failed to publish response: {}", e);
                     }
                 }
@@ -157,6 +163,16 @@ impl BrokerLoop {
         // Clean up heartbeat task
         heartbeat_task.abort();
         Ok(())
+            }
+            None => {
+                info!("⚠️  Broker not available, running in standalone mode");
+                // Run without broker - just keep the agent alive
+                loop {
+                    tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+                    info!("🔄 Agent running in standalone mode (no broker)");
+                }
+            }
+        }
     }
 }
 
@@ -209,18 +225,27 @@ async fn heartbeat_loop(broker: BrokerClient, agent_id: String, telemetry: Telem
 
 /// Plugin event publisher
 pub struct PluginEventPublisher {
-    broker: BrokerClient,
+    broker: Option<BrokerClient>,
     agent_id: String,
 }
 
 impl PluginEventPublisher {
-    pub fn new(broker: BrokerClient, agent_id: String) -> Self {
+    pub fn new(broker: Option<BrokerClient>, agent_id: String) -> Self {
         Self { broker, agent_id }
     }
 
     /// Publish plugin event
     pub async fn publish_event(&self, plugin: &str, data: serde_json::Value) -> Result<()> {
-        self.broker.publish_plugin_event(&self.agent_id, plugin, data).await
+        match &self.broker {
+            Some(broker) => {
+                broker.publish_plugin_event(&self.agent_id, plugin, data).await
+            }
+            None => {
+                // Broker not available, skip publishing
+                tracing::debug!("Skipping event publishing - broker not available");
+                Ok(())
+            }
+        }
     }
 }
 

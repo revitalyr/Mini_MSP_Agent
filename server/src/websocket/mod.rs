@@ -16,7 +16,7 @@ use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
 use uuid::Uuid;
 use chrono::Utc;
-use tracing::{info, error};
+use tracing::{info, error, debug};
 
 use crate::AppState;
 
@@ -48,6 +48,16 @@ impl WebSocketManager {
     }
 }
 
+/*
+/// Get WebSocket socket for specific agent
+async fn get_agent_socket(_agent_id: &str) -> Option<WebSocket> {
+    // This is a simplified implementation
+    // In a real scenario, you'd maintain a map of agent connections
+    // For now, we'll return None to indicate the limitation
+    None
+}
+*/
+
 /// Handle WebSocket upgrade
 pub async fn handle_websocket(
     ws: WebSocketUpgrade,
@@ -59,6 +69,8 @@ pub async fn handle_websocket(
 /// Handle WebSocket connection
 async fn handle_socket(socket: WebSocket, app_state: Arc<AppState>) {
     let agent_id = Uuid::new_v4().to_string();
+    
+    debug!("New WebSocket connection from agent: {}", agent_id);
     
     // Add connection to manager
     let ws_manager = WebSocketManager::new();
@@ -72,6 +84,7 @@ async fn handle_socket(socket: WebSocket, app_state: Arc<AppState>) {
     {
         let mut agents = app_state.agents.lock().unwrap();
         agents.insert(agent_id.clone(), "connected".to_string());
+        debug!("Added agent {} to app state", agent_id);
     }
 
     let (mut sender, mut receiver) = socket.split();
@@ -83,6 +96,8 @@ async fn handle_socket(socket: WebSocket, app_state: Arc<AppState>) {
         "timestamp": Utc::now().timestamp()
     });
     
+    debug!("Sending welcome message to agent: {}", agent_id);
+    
     if let Err(e) = sender.send(Message::Text(welcome.to_string())).await {
         error!("Failed to send welcome message: {}", e);
         return;
@@ -92,19 +107,76 @@ async fn handle_socket(socket: WebSocket, app_state: Arc<AppState>) {
     while let Some(msg) = receiver.next().await {
         match msg {
             Ok(Message::Text(text)) => {
+                debug!("Received WebSocket message from {}: {}", agent_id, text);
+                
                 if let Ok(value) = serde_json::from_str::<Value>(&text) {
                     info!("Received message from {}: {}", agent_id, value);
                     
-                    // Echo back
-                    let response = json!({
-                        "type": "echo",
-                        "original": value,
-                        "timestamp": Utc::now().timestamp()
-                    });
-                    
-                    if let Err(e) = sender.send(Message::Text(response.to_string())).await {
-                        error!("Failed to send echo: {}", e);
-                        break;
+                    // Check if this is a command from web interface
+                    if let Some(_command_type) = value.get("type").and_then(|v| v.as_str()) {
+                        if _command_type == "register" {
+                            // Handle agent registration
+                            info!("Agent registration: {}", value);
+                            
+                            // Extract agent info from registration message
+                            if let Some(agent_id) = value.get("agent_id").and_then(|v| v.as_str()) {
+                                // Add agent to app state for API
+                                {
+                                    let mut agents = app_state.agents.lock().unwrap();
+                                    agents.insert(agent_id.to_string(), "connected".to_string());
+                                    info!("Added agent {} to app state via registration", agent_id);
+                                }
+                                
+                                // Store mapping from WebSocket UUID to agent_id
+                                // This allows us to forward commands to the correct agent
+                                // For now, we'll use the agent_id from registration
+                            }
+                        } else if let Some(target_agent_id) = value.get("agent_id").and_then(|v| v.as_str()) {
+                            if let Some(command) = value.get("command").and_then(|v| v.as_str()) {
+                                // This is a command from web client - check if we have this agent connected
+                                let connected_agents = ws_manager.get_connected_agents().await;
+                                if connected_agents.contains(&target_agent_id.to_string()) {
+                                    // Forward command to agent
+                                    info!("Forwarding command {} to agent {}", command, target_agent_id);
+                                    
+                                    let command_msg = json!({
+                                        "command": command,
+                                        "command_id": value.get("command_id").and_then(|v| v.as_str()).unwrap_or(&uuid::Uuid::new_v4().to_string()),
+                                        "timestamp": Utc::now().timestamp()
+                                    });
+                                    
+                                    // Send back to the same connection (assuming it's the agent)
+                                    if let Err(e) = sender.send(Message::Text(command_msg.to_string())).await {
+                                        error!("Failed to forward command to agent {}: {}", target_agent_id, e);
+                                    } else {
+                                        info!("Command {} forwarded to agent {}", command, target_agent_id);
+                                    }
+                                } else {
+                                    error!("Agent {} not connected", target_agent_id);
+                                    let error_response = json!({
+                                        "type": "error",
+                                        "message": format!("Agent {} not connected", target_agent_id),
+                                        "timestamp": Utc::now().timestamp()
+                                    });
+                                    if let Err(e) = sender.send(Message::Text(error_response.to_string())).await {
+                                        error!("Failed to send error response: {}", e);
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // Echo back for other messages
+                        debug!("Echoing message from agent: {}", agent_id);
+                        let response = json!({
+                            "type": "echo",
+                            "original": value,
+                            "timestamp": Utc::now().timestamp()
+                        });
+                        
+                        if let Err(e) = sender.send(Message::Text(response.to_string())).await {
+                            error!("Failed to send echo: {}", e);
+                            break;
+                        }
                     }
                 }
             }

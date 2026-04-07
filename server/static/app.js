@@ -57,6 +57,9 @@ class AgentDashboard {
             const data = JSON.parse(event.data);
             
             switch (data.type) {
+                case 'register':
+                    this.handleAgentRegister(data);
+                    break;
                 case 'heartbeat':
                     this.updateAgentHeartbeat(data.agent_id, data);
                     break;
@@ -94,7 +97,62 @@ class AgentDashboard {
 
     handleSystemInfoResponse(data) {
         this.showSuccess(`System info received from ${data.agent_id}`);
-        // Could update modal with system info
+        
+        // Update agent with system info
+        if (this.agents.has(data.agent_id)) {
+            const agent = this.agents.get(data.agent_id);
+            if (data.data) {
+                agent.hostname = data.data.hostname || agent.hostname;
+                agent.uptime = data.data.uptime || agent.uptime;
+                agent.cpu_cores = data.data.cpu?.cores || agent.cpu_cores;
+                agent.total_memory = data.data.memory?.total || agent.total_memory;
+                agent.available_memory = data.data.memory?.available || agent.available_memory;
+                agent.os_type = data.data.os?.type || agent.os_type;
+                agent.os_version = data.data.os?.version || agent.os_version;
+            }
+            this.updateAgentsDisplay();
+        }
+        
+        // Show system info in modal
+        this.showSystemInfoModal(data.agent_id, data.data);
+    }
+
+    showSystemInfoModal(agentId, systemInfo) {
+        const modalTitle = document.getElementById('modalTitle');
+        const modalBody = document.getElementById('modalBody');
+        
+        if (!modalTitle || !modalBody) {
+            console.error('Modal elements not found');
+            return;
+        }
+        
+        modalTitle.textContent = `System Information: ${agentId}`;
+        
+        modalBody.innerHTML = `
+            <div style="display: grid; gap: 1rem;">
+                <div><strong>Hostname:</strong> ${systemInfo.hostname || 'N/A'}</div>
+                <div><strong>OS Type:</strong> ${systemInfo.os?.type || 'N/A'}</div>
+                <div><strong>OS Version:</strong> ${systemInfo.os?.version || 'N/A'}</div>
+                <div><strong>Uptime:</strong> ${systemInfo.uptime ? this.formatUptime(systemInfo.uptime) : 'N/A'}</div>
+                <div><strong>CPU Cores:</strong> ${systemInfo.cpu?.cores || 'N/A'}</div>
+                <div><strong>Total Memory:</strong> ${systemInfo.memory?.total ? this.formatBytes(systemInfo.memory.total) : 'N/A'}</div>
+                <div><strong>Available Memory:</strong> ${systemInfo.memory?.available ? this.formatBytes(systemInfo.memory.available) : 'N/A'}</div>
+            </div>
+        `;
+        
+        // Show modal (assuming modal exists)
+        const modal = document.getElementById('modal');
+        if (modal) {
+            modal.style.display = 'block';
+        }
+    }
+
+    formatBytes(bytes) {
+        if (!bytes) return 'N/A';
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+        if (bytes === 0) return '0 Bytes';
+        const i = Math.floor(Math.log(bytes) / Math.log(1024));
+        return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
     }
 
     handleProcessesResponse(data) {
@@ -104,24 +162,33 @@ class AgentDashboard {
 
     async loadAgents() {
         try {
+            console.log('Loading agents from API...');
             const response = await fetch('/agents');
             const data = await response.json();
             
-            console.log('Loaded agents data:', data);
+            console.log('Received agents data:', data);
+            console.log('Agents array:', data.agents);
+            console.log('Current agents map size:', this.agents.size);
             
+            // Clear current agents
+            this.agents.clear();
+            
+            // Add agents from API response
             data.agents.forEach(agent => {
+                console.log('Adding agent:', agent);
                 this.agents.set(agent.id, {
                     ...agent,
-                    last_seen: Date.now()
+                    hostname: agent.hostname || 'Unknown Agent',
+                    last_seen: agent.last_seen === 'now' ? Date.now() : new Date(agent.last_seen).getTime()
                 });
-                console.log('Added agent to map:', agent.id, agent.hostname);
             });
             
             console.log('Final agents map:', Array.from(this.agents.entries()));
+            console.log('Final agents map size:', this.agents.size);
             
             this.updateAgentsDisplay();
-            this.updateStats();
             this.updateAgentSelector();
+            this.updateStats();
         } catch (error) {
             console.error('Failed to load agents:', error);
             this.showError('Failed to load agents');
@@ -174,6 +241,11 @@ class AgentDashboard {
 
     updateAgentsDisplay() {
         const grid = document.getElementById('agentsGrid');
+        if (!grid) {
+            console.error('Agents grid element not found');
+            return;
+        }
+        
         grid.innerHTML = '';
         
         this.agents.forEach((agent, id) => {
@@ -398,6 +470,24 @@ class AgentDashboard {
         if (data.processes) return `${data.processes.length} processes`;
         if (data.error) return `Error: ${data.error}`;
         return JSON.stringify(data, null, 2);
+    }
+
+    handleAgentRegister(data) {
+        console.log('Handling agent registration:', data);
+        
+        const agent = {
+            id: data.agent_id,
+            hostname: data.hostname || 'Unknown Agent',
+            last_seen: Date.now(),
+            status: 'connected'
+        };
+        
+        this.agents.set(data.agent_id, agent);
+        console.log('Added agent to map:', agent.id, agent.hostname);
+        
+        this.updateAgentsDisplay();
+        this.updateAgentSelector();
+        this.updateStats();
     }
 
     updateAgentHeartbeat(agentId, data) {

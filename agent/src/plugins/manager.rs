@@ -43,9 +43,9 @@ pub struct PluginManager {
     registry: Arc<Mutex<HashMap<String, PluginRegistryEntry>>>,
     sensor_queue: Arc<Mutex<VecDeque<SensorData>>>,
     disable_signature_check: bool,
-    system_plugin: Option<String>,
+    system_plugin: Arc<Mutex<Option<String>>>,
     hot_reload_enabled: bool,
-    plugin_directory: Option<String>,
+    plugin_directory: Arc<Mutex<Option<String>>>,
     event_callback: Option<Arc<dyn Fn(PluginEventType, &str, &str) + Send + Sync>>,
 }
 
@@ -80,7 +80,7 @@ impl PluginManager {
         self.hot_reload_enabled = enable;
         info!("Hot reload {}", if enable { "enabled" } else { "disabled" });
         
-        if enable && self.plugin_directory.is_some() {
+        if enable && self.plugin_directory.lock().unwrap().is_some() {
             self.start_hot_reload_monitor();
         }
     }
@@ -98,7 +98,7 @@ impl PluginManager {
         }
     }
 
-    pub fn load_plugin<P: AsRef<Path>>(&mut self, name: &str, path: P) -> Result<()> {
+    pub fn load_plugin<P: AsRef<Path>>(&self, name: &str, path: P) -> Result<()> {
         let path = path.as_ref();
         let path_str = path.to_string_lossy().to_string();
         info!("Loading plugin '{}' from: {}", name, path_str);
@@ -142,10 +142,11 @@ impl PluginManager {
         
         // Check if this is a system plugin
         if plugin_info.name.contains("system") || plugin_info.description.contains("system") {
-            if let Some(ref existing) = self.system_plugin {
+            let mut sys_plugin = self.system_plugin.lock().unwrap();
+            if let Some(ref existing) = *sys_plugin {
                 warn!("System plugin already loaded ({}), replacing with {}", existing, name);
             }
-            self.system_plugin = Some(name.to_string());
+            *sys_plugin = Some(name.to_string());
             info!("Registered '{}' as system plugin", name);
         }
         
@@ -157,7 +158,7 @@ impl PluginManager {
         Ok(())
     }
 
-    pub fn unload_plugin(&mut self, name: &str) -> Result<()> {
+    pub fn unload_plugin(&self, name: &str) -> Result<()> {
         info!("Unloading plugin: {}", name);
         
         // Remove from plugins
@@ -175,9 +176,10 @@ impl PluginManager {
         }
         
         // Clear system plugin reference if needed
-        if let Some(ref system_plugin) = self.system_plugin {
-            if system_plugin == name {
-                self.system_plugin = None;
+        let mut sys_plugin = self.system_plugin.lock().unwrap();
+        if let Some(ref sp_name) = *sys_plugin {
+            if sp_name == name {
+                *sys_plugin = None;
                 info!("System plugin unloaded");
             }
         }
@@ -187,7 +189,7 @@ impl PluginManager {
         Ok(())
     }
 
-    pub fn reload_plugin(&mut self, name: &str) -> Result<()> {
+    pub fn reload_plugin(&self, name: &str) -> Result<()> {
         info!("Reloading plugin: {}", name);
         
         let library_path = {
@@ -215,7 +217,8 @@ impl PluginManager {
     }
 
     pub fn get_system_plugin(&self) -> Result<Arc<PluginLoader>> {
-        let plugin_name = self.system_plugin.as_ref()
+        let sys_lock = self.system_plugin.lock().unwrap();
+        let plugin_name = sys_lock.as_ref()
             .ok_or_else(|| anyhow!("No system plugin loaded"))?;
         
         let plugins = self.plugins.lock().unwrap();
@@ -258,7 +261,7 @@ impl PluginManager {
     }
     
     /// Asynchronously load a plugin with status tracking
-    pub async fn load_plugin_async(&mut self, name: &str, library_path: &str) -> Result<()> {
+    pub async fn load_plugin_async(&self, name: &str, library_path: &str) -> Result<()> {
         info!("Starting async load of plugin: {}", name);
         
         // Set loading status
@@ -278,7 +281,7 @@ impl PluginManager {
     }
     
     /// Gracefully unload a plugin with cleanup
-    pub fn unload_plugin_graceful(&mut self, name: &str) -> Result<()> {
+    pub fn unload_plugin_graceful(&self, name: &str) -> Result<()> {
         info!("Starting graceful unload of plugin: {}", name);
         
         // Set unloading status
@@ -438,9 +441,9 @@ impl PluginManager {
         self.system_plugin.is_some()
     }
 
-    pub fn load_plugins_from_directory<P: AsRef<Path>>(&mut self, dir: P) -> Result<()> {
+    pub fn load_plugins_from_directory<P: AsRef<Path>>(&self, dir: P) -> Result<()> {
         let dir = dir.as_ref();
-        self.plugin_directory = Some(dir.to_string_lossy().to_string());
+        *self.plugin_directory.lock().unwrap() = Some(dir.to_string_lossy().to_string());
         
         if !dir.exists() || !dir.is_dir() {
             warn!("Plugin directory does not exist: {:?}", dir);
@@ -462,7 +465,8 @@ impl PluginManager {
                 if file_name.ends_with(".dll") || file_name.ends_with(".so") || file_name.ends_with(".dylib") {
                     let plugin_name = file_name.split('.')
                         .next()
-                        .unwrap_or(file_name);
+                        .unwrap_or(file_name)
+                        .trim_start_matches("lib"); // Remove 'lib' prefix for .so files
                     
                     match self.load_plugin(plugin_name, &path) {
                         Ok(_) => info!("Successfully loaded plugin: {}", plugin_name),
@@ -485,10 +489,9 @@ impl PluginManager {
             return;
         }
 
-        let plugin_dir = self.plugin_directory.clone().unwrap();
+        let plugin_dir = self.plugin_directory.lock().unwrap().clone().unwrap();
+        let pm = self.clone();
         let registry = Arc::clone(&self.registry);
-        let _plugins = Arc::clone(&self.plugins);
-        let _event_callback = self.event_callback.as_ref().map(|cb| cb as *const _);
         
         tokio::spawn(async move {
             let mut interval = interval(Duration::from_secs(1));
@@ -512,7 +515,8 @@ impl PluginManager {
                                         if let Ok(modified) = metadata.modified() {
                                             let plugin_name = file_name.split('.')
                                                 .next()
-                                                .unwrap_or(file_name);
+                                                .unwrap_or(file_name)
+                                                .trim_start_matches("lib"); // Remove 'lib' prefix for .so files
                                             
                                             let mut registry = registry.lock().unwrap();
                                             
@@ -520,11 +524,13 @@ impl PluginManager {
                                                 // Check if file is newer than last load time
                                                 if let Some(last_loaded) = entry.last_loaded {
                                                     if let Ok(duration) = modified.duration_since(last_loaded) {
-                                                        if duration > Duration::from_secs(1) {
-                                                            // File was modified, log that we detected a change
-                                                            tracing::info!("Detected modification for plugin {}: {:?}", plugin_name, modified);
-                                                            // Note: Actual reload functionality would need to be handled differently
-                                                            // since we can't call self methods from within this async block
+                                                        if duration > Duration::from_secs(2) {
+                                                            tracing::info!("Hot-reload: Detected modification for plugin {}", plugin_name);
+                                                            drop(registry); // Release lock before reload
+                                                            if let Err(e) = pm.reload_plugin(plugin_name) {
+                                                                tracing::error!("Hot-reload failed for {}: {}", plugin_name, e);
+                                                            }
+                                                            return; // Exit loop to re-acquire locks next tick
                                                         }
                                                     }
                                                 }
@@ -551,14 +557,8 @@ impl Drop for PluginManager {
     fn drop(&mut self) {
         info!("Shutting down plugin manager");
         
-        // Unload all plugins
-        let plugin_names: Vec<String> = self.registry.lock().unwrap()
-            .keys()
-            .cloned()
-            .collect();
-        
-        for name in plugin_names {
-            let _ = self.unload_plugin(&name);
-        }
+        // Don't unload plugins automatically to avoid double free issues
+        // Let the system cleanup handle it naturally
+        info!("Plugin manager shutdown complete (plugins will be cleaned up naturally)");
     }
 }

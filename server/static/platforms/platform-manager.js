@@ -1,7 +1,7 @@
 // Platform detection and configuration manager
 class PlatformManager {
     constructor() {
-        this.platform = this.detectPlatform();
+        this.platform = null; // Will be set by loadPlatformConfig
         this.configs = {};
         this.events = {};
         this.encodings = [];
@@ -9,28 +9,21 @@ class PlatformManager {
         this._ready = false;
         this._readyCallbacks = [];
 
-        console.log(`Platform detected: ${this.platform}`);
         this.loadPlatformConfig();
-    }
-
-    detectPlatform() {
-        const userAgent = navigator.userAgent.toLowerCase();
-        const platform = navigator.platform.toLowerCase();
-
-        if (userAgent.includes('win') || platform.includes('win')) {
-            return 'windows';
-        } else if (userAgent.includes('mac') || platform.includes('mac')) {
-            return 'macos';
-        } else if (userAgent.includes('linux') || platform.includes('linux')) {
-            return 'linux';
-        } else {
-            console.warn('Platform detection failed, defaulting to Windows');
-            return 'windows';
-        }
     }
 
     async loadPlatformConfig() {
         try {
+            // Get server-side system info
+            const systemResponse = await fetch('/system-info');
+            if (!systemResponse.ok) {
+                throw new Error(`Failed to get system info: ${systemResponse.status} ${systemResponse.statusText}`);
+            }
+            
+            const systemData = await systemResponse.json();
+            this.platform = systemData.platform;
+            console.log(`Server platform detected: ${this.platform}`);
+
             const configPath = `platforms/${this.platform}/plugin-configs.js`;
             const response = await fetch(configPath);
 
@@ -48,19 +41,13 @@ class PlatformManager {
                     encodings: this.encodings.length,
                     hints: Object.keys(this.hints)
                 });
-            } catch (evalError) {
-                console.error('Failed to load configuration:', evalError);
-                this.loadFallbackConfig();
+            } catch (parseError) {
+                console.error('Failed to parse platform config:', parseError);
+                throw parseError;
             }
-
-            console.log(`Loaded ${this.platform} platform configuration`);
         } catch (error) {
-            console.error('Failed to load platform configuration:', error);
-            this.loadFallbackConfig();
-        } finally {
-            this._ready = true;
-            this._readyCallbacks.forEach(cb => cb());
-            this._readyCallbacks = [];
+            console.error('Failed to load platform config:', error);
+            throw error;
         }
     }
 

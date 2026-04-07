@@ -22,6 +22,7 @@ use tower_http::{
     trace::TraceLayer,
 };
 use tracing::{info, debug, Level};
+use anyhow::Context;
 
 use config::Config;
 use broker::BrokerClient;
@@ -51,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .short('p')
                 .long("port")
                 .help("Sets the server port")
-                .default_value("8081"),
+                .default_value("8080"),
         )
         .get_matches();
 
@@ -63,13 +64,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let config = Config::load(config_path)?;
 
     // Initialize logging
+    let log_file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&format!("{}/server.log", config.log_dir))
+        .with_context(|| format!("Failed to create log file: {}/server.log", config.log_dir))?;
+
+    // Parse log level from config
+    let log_level = match config.log_level.to_lowercase().as_str() {
+        "debug" => Level::DEBUG,
+        "info" => Level::INFO,
+        "warn" => Level::WARN,
+        "error" => Level::ERROR,
+        "trace" => Level::TRACE,
+        _ => Level::INFO, // Default to INFO if invalid
+    };
+
     tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
+        .with_max_level(log_level)
+        .with_target(false)
+        .with_thread_ids(true)
+        .with_file(true)
+        .with_line_number(true)
+        .with_writer(std::sync::Mutex::new(log_file))
+        .with_ansi(false) // Disable ANSI colors for file output
         .init();
 
-    let port: u16 = matches.get_one::<String>("port").unwrap().parse()
+    let port: u16 = matches.get_one::<String>("port")
+        .map(|p| p.parse().unwrap_or(config.port))
         .unwrap_or(config.port);
-    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    let addr = SocketAddr::from(([0, 0, 0, 0], port)); // Listen on all interfaces
 
     info!("Starting Mini MSP Server on {}", addr);
 
@@ -177,13 +201,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Agent management
         .route("/agents", get(api::agents::list_agents))
         .route("/agents/simple", get(simple_handlers::list_agents))
+        .route("/agents/:id/command", post(api::agents::send_command))
         .route("/heartbeat", post(simple_handlers::handle_heartbeat))
+        .route("/system-info", get(api::system::get_system_info))
         
         // WebSocket
         .route("/ws", get(websocket::handle_websocket))
         
         // Static files
-        .nest_service("/static", ServeDir::new("static"))
+        .nest_service("/static", ServeDir::new("server/static"))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(app_state);

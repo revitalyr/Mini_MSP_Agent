@@ -102,9 +102,15 @@ impl WebSocketClient {
         let (mut write, mut read) = ws_stream.split();
 
         // Send initial agent registration
+        let hostname = std::process::Command::new("hostname")
+            .output()
+            .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
+            .unwrap_or_else(|_| "unknown".to_string());
+        
         let registration = serde_json::json!({
             "type": "register",
             "agent_id": self.config.agent_id,
+            "hostname": hostname,
             "timestamp": std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
@@ -173,12 +179,25 @@ impl WebSocketClient {
     async fn handle_message(&self, message: String) -> Result<Option<Message>> {
         info!("Handling WebSocket message: {}", message);
         
-        let request: CommandRequest = serde_json::from_str(&message)
+        // Try to parse as JSON to check message type
+        let json_value: serde_json::Value = serde_json::from_str(&message)
+            .with_context(|| "Failed to parse JSON message")?;
+        
+        // Check if this is a welcome message
+        if let Some(msg_type) = json_value.get("type").and_then(|v| v.as_str()) {
+            if msg_type == "welcome" {
+                info!("Received welcome message, ignoring");
+                return Ok(None); // Don't respond to welcome messages
+            }
+        }
+        
+        // Parse as command request
+        let request: CommandRequest = serde_json::from_value(json_value)
             .with_context(|| "Failed to parse command request")?;
 
         info!("Parsed command: {:?}", request.command);
 
-        match handle_command(request.command, Some(request.command_id.clone()), &self.plugin_manager).await {
+        match handle_command(request.command, Some(request.command_id.clone()), &self.plugin_manager, &self.config.allowed_commands, self.config.max_file_size).await {
             Ok(AgentResponse::Json(resp)) => {
                 let text = serde_json::to_string(&resp)?;
                 Ok(Some(Message::Text(text)))

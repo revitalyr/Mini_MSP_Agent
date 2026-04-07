@@ -45,7 +45,7 @@ impl Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            port: 8081,
+            port: 8080,
             log_level: "info".to_string(),
             log_dir: "logs".to_string(),
             broker_url: None, // Optional broker

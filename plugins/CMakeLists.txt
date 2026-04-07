@@ -83,8 +83,80 @@ if(WIN32)
     )
 endif()
 
-# Installation
-install(TARGETS modern_system_plugin modern_directory_info_plugin
+# Simple plugins that work on Windows
+add_library(minimal_system_plugin SHARED
+    src/minimal_system_plugin.cpp
+)
+
+set_target_properties(minimal_system_plugin PROPERTIES
+    VERSION ${PROJECT_VERSION}
+    CXX_STANDARD 11
+    CXX_STANDARD_REQUIRED ON
+    POSITION_INDEPENDENT_CODE ON
+)
+
+# Use C++17 for MSVC compatibility
+if(MSVC)
+    set_target_properties(minimal_system_plugin PROPERTIES
+        CXX_STANDARD 17
+    )
+endif()
+
+install(TARGETS minimal_system_plugin
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
+)
+
+# Safe system plugin (working version)
+add_library(safe_system_plugin SHARED
+    src/safe_system_plugin.cpp
+)
+
+set_target_properties(safe_system_plugin PROPERTIES
+    VERSION ${PROJECT_VERSION}
+    CXX_STANDARD 11
+    CXX_STANDARD_REQUIRED ON
+    POSITION_INDEPENDENT_CODE ON
+)
+
+# Use C++17 for MSVC compatibility
+if(MSVC)
+    set_target_properties(safe_system_plugin PROPERTIES
+        CXX_STANDARD 17
+    )
+endif()
+
+install(TARGETS safe_system_plugin
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
+)
+
+# NULL system plugin (minimal test)
+add_library(null_system_plugin SHARED
+    src/null_system_plugin.cpp
+)
+
+set_target_properties(null_system_plugin PROPERTIES
+    VERSION ${PROJECT_VERSION}
+    CXX_STANDARD 11
+    CXX_STANDARD_REQUIRED ON
+    POSITION_INDEPENDENT_CODE ON
+)
+
+# Use C++17 for MSVC compatibility
+if(MSVC)
+    set_target_properties(null_system_plugin PROPERTIES
+        CXX_STANDARD 17
+    )
+endif()
+
+install(TARGETS null_system_plugin
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
+)
+
+# Installation (only working plugins for now)
+install(TARGETS safe_system_plugin null_system_plugin
     LIBRARY DESTINATION lib
     RUNTIME DESTINATION bin
 )

@@ -18,6 +18,25 @@
 #include <span>
 #include <ranges>
 #include <vector>
+#include <chrono>
+#include <filesystem>
+#include <algorithm>
+#include <mutex>
+#include <atomic>
+#include <thread>
+
+#ifdef _WIN32
+#include <windows.h>
+#include <shlobj.h>
+#endif
+
+// Common Unix includes
+#if defined(__unix__) || defined(__APPLE__)
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#endif
 #include <filesystem>
 #include <chrono>
 #include <thread>
@@ -214,8 +233,8 @@ public:
     // Non-copyable, movable
     ModernDirectoryScanner(const ModernDirectoryScanner&) = delete;
     ModernDirectoryScanner& operator=(const ModernDirectoryScanner&) = delete;
-    ModernDirectoryScanner(ModernDirectoryScanner&&) noexcept = default;
-    ModernDirectoryScanner& operator=(ModernDirectoryScanner&&) noexcept = default;
+    ModernDirectoryScanner(ModernDirectoryScanner&&) noexcept = delete;
+    ModernDirectoryScanner& operator=(ModernDirectoryScanner&&) noexcept = delete;
     
     // Modern destructor
     ~ModernDirectoryScanner() noexcept = default;
@@ -547,7 +566,7 @@ private:
     
     // Check if file is hidden
     [[nodiscard]] static auto is_file_hidden(
-        const std::filesystem::path& path,
+        const std::filesystem::path& /*path*/,
         const std::string& filename
     ) -> bool {
         
@@ -681,14 +700,96 @@ auto create_directory_scanner() -> std::unique_ptr<T> {
 
 // Modern C++23 exported functions
 extern "C" {
+    // FFI structures for Rust compatibility
+    struct PluginInfo {
+        char* name;
+        char* version;
+        char* description;
+        char* author;
+        char* license;
+        uint64_t m_timestamp;
+    };
+    
+    struct PluginInterface {
+        void* get_plugin_info;
+        void* init;
+        void* cleanup;
+        void* get_system_metrics;
+        void* get_processes;
+        void* execute_command;
+        void* read_file;
+        void* get_system_info;
+        void* get_directory_info_data;
+        void* free_directory_info_data;
+        void* get_file_signature_data;
+        void* free_file_signature_data;
+        void* get_root_directory_info;
+        void* scan_directory;
+        void* free_scan_result;
+        void* create_folder_watcher;
+        void* destroy_folder_watcher;
+        void* create_file_listener;
+        void* destroy_file_listener;
+        void* get_watcher_events;
+        void* free_watcher_events;
+    };
+    
     [[nodiscard]] const char* get_plugin_info() {
         static constexpr const char* info = "modern_directory_info_plugin:2.0.0:Modern C++23 directory scanner";
         return info;
     }
     
-    [[nodiscard]] ModernDirectoryScanner* get_plugin_instance() {
-        static auto scanner = std::make_unique<ModernDirectoryScanner>();
-        return scanner.get();
+    // Modern plugin interface getter for Rust agent
+    [[nodiscard]] PluginInterface* get_plugin_interface() {
+        static PluginInterface interface{};
+        static bool initialized = false;
+        
+        if (!initialized) {
+            // Initialize function pointers only once
+            interface.get_plugin_info = reinterpret_cast<void*>(+[]() -> PluginInfo* {
+                static PluginInfo info{
+                    .name = const_cast<char*>("modern_directory_info_plugin"),
+                    .version = const_cast<char*>("2.0.0"),
+                    .description = const_cast<char*>("Modern C++23 directory scanner"),
+                    .author = const_cast<char*>("Mini MSP Agent Team"),
+                    .license = const_cast<char*>("MIT"),
+                    .m_timestamp = static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count())
+                };
+                return &info;
+            });
+            
+            interface.init = reinterpret_cast<void*>(+[]() -> bool {
+                return true; // Simplified initialization
+            });
+            
+            interface.cleanup = reinterpret_cast<void*>(+[]() -> void {
+                // No cleanup needed
+            });
+            
+            // Set other functions to nullptr for now
+            interface.get_system_metrics = nullptr;
+            interface.get_processes = nullptr;
+            interface.execute_command = nullptr;
+            interface.read_file = nullptr;
+            interface.get_system_info = nullptr;
+            interface.get_directory_info_data = nullptr;
+            interface.free_directory_info_data = nullptr;
+            interface.get_file_signature_data = nullptr;
+            interface.free_file_signature_data = nullptr;
+            interface.get_root_directory_info = nullptr;
+            interface.scan_directory = nullptr;
+            interface.free_scan_result = nullptr;
+            interface.create_folder_watcher = nullptr;
+            interface.destroy_folder_watcher = nullptr;
+            interface.create_file_listener = nullptr;
+            interface.destroy_file_listener = nullptr;
+            interface.get_watcher_events = nullptr;
+            interface.free_watcher_events = nullptr;
+            
+            initialized = true;
+        }
+        
+        return &interface;
     }
 }
 
