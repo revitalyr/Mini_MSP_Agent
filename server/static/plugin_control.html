@@ -446,14 +446,12 @@
                 this.refreshAgents(); // Load agents on startup
                 this.initWebSocket(); // Initialize WebSocket connection
                 
-                // Initialize charts after DOM is fully loaded
-                await nextTick(); 
-                this.initializeCharts();
+                // Charts will be initialized after plugins load in loadPlugins method
             },
             methods: {
                 async initializePlatform() {
                     // Wait for platform manager to load
-                    if (typeof window !== 'undefined' && window.platformManager) {
+                    if (typeof window !== 'undefined' && window.platformManager && typeof window.platformManager.initialize === 'function') {
                         try {
                             await window.platformManager.initialize();
                             console.log('Platform manager initialized successfully');
@@ -462,8 +460,8 @@
                             this.showError('Failed to initialize platform manager');
                         }
                     } else {
-                        console.error('Platform manager not found');
-                        this.showError('Platform manager not available');
+                        console.warn('Platform manager not found or initialize method not available');
+                        // Don't show error for missing platform manager - it's optional
                     }
                 },
 
@@ -790,8 +788,7 @@
                     const diskCanvas = document.getElementById('diskChart');
                     
                     if (!cpuCanvas || !ramCanvas || !diskCanvas) {
-                        console.warn('Chart canvas elements not found, retrying...');
-                        setTimeout(() => this.initializeCharts(), 100);
+                        console.warn('Chart canvas elements not found, skipping initialization');
                         return;
                     }
 
@@ -1191,10 +1188,13 @@
                     
                     console.log('Plugin statuses:', this.plugins.map(p => ({name: p.name, status: p.status})));
                     
-                    setTimeout(() => {
+                    setTimeout(async () => {
                         this.loading = false;
-                        console.log('Loading complete, pluginStats:', this.pluginStats);
                         this.showSuccess('Plugin system loaded successfully');
+                        
+                        // Ждем, пока Vue уберет спиннер и отрисует canvas
+                        await nextTick(); 
+                        this.initializeCharts();
                     }, 500);
                 },
 
