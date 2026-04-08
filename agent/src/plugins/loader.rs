@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use libloading::{Library, Symbol};
 use std::path::Path;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 use super::ffi::{PluginInterface, SafePluginInterface};
 
@@ -59,7 +59,7 @@ impl PluginLoader {
         
         // Initialize plugin
         if !interface.init()? {
-            warn!("Plugin initialization returned false");
+            return Err(anyhow!("Plugin initialization failed"));
         }
         
         self.library = Some(library);

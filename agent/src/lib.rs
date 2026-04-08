@@ -7,6 +7,7 @@ pub mod commands;
 pub mod config;
 pub mod network;
 pub mod plugins;
+pub mod security;
 pub mod telemetry;
 
 // Re-export main types for testing

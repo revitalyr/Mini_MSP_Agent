@@ -9,6 +9,7 @@ mod broker;
 use axum::{
     routing::get,
     Router,
+    response::Redirect,
 };
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
@@ -79,8 +80,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let app = Router::new()
         .route("/health", get(simple_handlers::health_check))
         .route("/agents", get(simple_handlers::list_agents))
-        .route("/", get(|| async { axum::response::Redirect::permanent("/static/plugin_control.html") }))
-        .nest_service("/static", ServeDir::new("static"))
+        .route("/", get(|| async { Redirect::to("/static/plugin_control.html") }))
+        .nest_service("/static", ServeDir::new("server/static"))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(app_state);

@@ -1,12 +1,13 @@
 use async_nats::Client;
 use mini_msp_shared::{CommandRequest, CommandResponse, Heartbeat};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use anyhow::Result;
 use futures_util::StreamExt;
 use crate::plugins::PluginManager;
 use crate::network::HttpClient;
 use crate::telemetry::TelemetryCollector;
-use crate::commands::handle_command;
+use crate::commands::{handle_command, ExecutionContext};
+use crate::security::SecurityPolicy;
 
 /// NATS broker client for agent
 /// 
@@ -17,13 +18,45 @@ pub struct BrokerClient {
 }
 
 impl BrokerClient {
-    /// Connect to NATS broker
-    pub async fn connect(url: &str) -> Result<Self> {
-        let nats = async_nats::connect(url).await
-            .map_err(|e| anyhow::anyhow!("Failed to connect to NATS: {}", e))?;
-        
-        info!("Connected to NATS broker at {}", url);
-        Ok(Self { nats })
+    /// Connect to NATS broker with retry logic and automatic runtime reconnection
+    pub async fn connect(url: &str) -> Result<Option<Self>> {
+        if url.is_empty() {
+            info!("⚠️  Broker URL is empty, skipping broker connection");
+            return Ok(None);
+        }
+
+        let mut attempts = 0;
+        let max_attempts = 5;
+        let mut delay = std::time::Duration::from_secs(2);
+
+        while attempts < max_attempts {
+            attempts += 1;
+            info!("🔍 Attempting to connect to broker (attempt {}/{}): '{}'", attempts, max_attempts, url);
+            
+            // Configure NATS for automatic runtime reconnection
+            let options = async_nats::ConnectOptions::new()
+                .reconnect_delay_callback(|attempts| {
+                    std::time::Duration::from_secs(std::cmp::min(attempts as u64 * 2, 30))
+                });
+
+            match async_nats::connect_with_options(url, options).await {
+                Ok(nats) => {
+                    info!("✅ Successfully connected to NATS broker at {}", url);
+                    return Ok(Some(Self { nats }));
+                }
+                Err(e) => {
+                    if attempts < max_attempts {
+                        error!("⚠️  Connection attempt {} failed: {}. Retrying in {:?}...", attempts, e, delay);
+                        tokio::time::sleep(delay).await;
+                        delay *= 2;
+                    } else {
+                        error!("❌ Failed to connect to NATS broker after {} attempts. Falling back to standalone mode.", max_attempts);
+                    }
+                }
+            }
+        }
+
+        Ok(None)
     }
 
     /// Subscribe to commands for this agent
@@ -90,23 +123,24 @@ impl BrokerClient {
 pub struct BrokerLoop {
     broker: Option<BrokerClient>,
     agent_id: String,
-    plugin_manager: PluginManager,
-    telemetry: TelemetryCollector,
-    http_client: HttpClient,
-    allowed_commands: Vec<String>,
-    max_file_size: u64,
+    deps: BrokerDeps,
+}
+
+pub struct BrokerDeps {
+    pub plugin_manager: PluginManager,
+    pub telemetry: TelemetryCollector,
+    pub http_client: HttpClient,
+    pub policy: SecurityPolicy,
+    pub config: crate::config::Config,
+    pub command_timeout_secs: u64,
 }
 
 impl BrokerLoop {
-    pub fn new(broker: Option<BrokerClient>, agent_id: String, plugin_manager: PluginManager, telemetry: TelemetryCollector, http_client: HttpClient, allowed_commands: Vec<String>, max_file_size: u64) -> Self {
+    pub fn new(broker: Option<BrokerClient>, agent_id: String, deps: BrokerDeps) -> Self {
         Self {
             broker,
             agent_id,
-            plugin_manager,
-            telemetry,
-            http_client,
-            allowed_commands,
-            max_file_size,
+            deps,
         }
     }
 
@@ -122,36 +156,89 @@ impl BrokerLoop {
                 // Start heartbeat task
                 let heartbeat_broker = broker.clone();
                 let heartbeat_agent_id = self.agent_id.clone();
-                let telemetry = self.telemetry.clone();
-                let http_client = self.http_client.clone();
+                let telemetry = self.deps.telemetry.clone();
+                let http_client = self.deps.http_client.clone();
+                
+                // Task to monitor NATS connection health and notify UI/Log
+                let pm_for_state = self.deps.plugin_manager.clone();
+                let broker_for_state = broker.clone();
+                let agent_id_for_state = self.agent_id.clone();
+                let monitor_task = tokio::spawn(async move {
+                    let mut last_state = broker_for_state.client().connection_state();
+                    loop {
+                        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                        let current_state = broker_for_state.client().connection_state();
+
+                        if current_state != last_state {
+                            info!("NATS Connection state changed: {:?}", current_state);
+                            pm_for_state.notify_event(
+                                crate::plugins::PluginEventType::StatusChanged,
+                                "NATS_BROKER",
+                                &format!("Status: {:?}", current_state)
+                            );
+
+                            // If the connection is disconnected, break the loop to allow potential cleanup/restart
+                            if matches!(current_state, async_nats::connection::State::Disconnected) {
+                                warn!("NATS connection entered terminal state {:?} for agent {}. Monitor task ending.", current_state, agent_id_for_state);
+                                break;
+                            }
+                            last_state = current_state;
+                        }
+                    }
+                    warn!("NATS connection monitor task ended for agent {}", agent_id_for_state);
+                });
+                
                 let heartbeat_task = tokio::spawn(async move {
                     self::heartbeat_loop(heartbeat_broker, heartbeat_agent_id, telemetry, http_client).await;
                 });
 
                 // Process commands
                 while let Some(msg) = command_sub.next().await {
+                    let ctx = ExecutionContext {
+                        plugin_manager: &self.deps.plugin_manager,
+                        policy: &self.deps.policy,
+                        config: &self.deps.config,
+                        command_timeout_secs: self.deps.command_timeout_secs,
+                    };
                     match serde_json::from_slice::<CommandRequest>(&msg.payload) {
                 Ok(cmd) => {
                     info!("Received command: {}", cmd.command_id);
                     
                     // Handle command
-                    let result = handle_command(cmd.command.clone(), Some(cmd.command_id.clone()), &self.plugin_manager, &self.allowed_commands, self.max_file_size).await;
-                    
-                    // Create response
-                    let response = CommandResponse {
-                        command_id: Some(cmd.command_id.clone()),
-                        r#type: format!("{:?}", cmd.command),
-                        status: if result.is_ok() { "success" } else { "error" }.to_string(),
-                        data: match result {
-                            Ok(response) => serde_json::to_value(response)?,
-                            Err(_) => serde_json::Value::Null,
-                        },
-                        timestamp: chrono::Utc::now().timestamp(),
+                    let timeout_duration = std::time::Duration::from_secs(ctx.command_timeout_secs);
+                    let result = tokio::time::timeout(timeout_duration, handle_command(cmd.command.clone(), Some(cmd.command_id.clone()), ctx)).await;
+
+                    let result = match result {
+                        Ok(inner_result) => inner_result, // Command completed within timeout
+                        Err(_) => { // Command timed out
+                            error!("Command '{}' timed out after {} seconds", cmd.command_id, ctx.command_timeout_secs);
+                            Err(anyhow::anyhow!("Command timed out after {} seconds", ctx.command_timeout_secs))
+                        }
                     };
 
-                    // Publish response
-                    if let Err(e) = broker.publish_response(&self.agent_id, response).await {
-                        error!("Failed to publish response: {}", e);
+                    // Обработка результата и публикация
+                    match result {
+                        Ok(mini_msp_shared::AgentResponse::Json(mut response)) => {
+                            // Подставляем ID команды из запроса и отправляем
+                            response.command_id = Some(cmd.command_id.clone());
+                            if let Err(e) = broker.publish_response(&self.agent_id, response).await {
+                                error!("Failed to publish response: {}", e);
+                            }
+                        }
+                        Ok(_) => {
+                            warn!("Received non-JSON response from command handler, skipping NATS publish");
+                        }
+                        Err(e) => {
+                            // В случае ошибки формируем корректный ответ об ошибке
+                            let error_resp = CommandResponse {
+                                command_id: Some(cmd.command_id.clone()),
+                                r#type: "error".to_string(),
+                                status: "error".to_string(),
+                                data: serde_json::json!({ "error": e.to_string() }),
+                                timestamp: chrono::Utc::now().timestamp(),
+                            };
+                            let _ = broker.publish_response(&self.agent_id, error_resp).await;
+                        }
                     }
                 }
                 Err(e) => {
@@ -160,9 +247,11 @@ impl BrokerLoop {
             }
         }
 
-        // Clean up heartbeat task
+        // Clean up tasks and return error to trigger reconnection in main.rs
         heartbeat_task.abort();
-        Ok(())
+        monitor_task.abort();
+        error!("NATS command subscription for agent {} ended unexpectedly", self.agent_id);
+        Err(anyhow::anyhow!("NATS connection lost"))
             }
             None => {
                 info!("⚠️  Broker not available, running in standalone mode");

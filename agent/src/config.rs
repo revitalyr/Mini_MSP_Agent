@@ -6,6 +6,7 @@ use std::path::Path;
 use toml;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Config {
     pub server_url: String,
     pub ws_url: String,
@@ -15,6 +16,9 @@ pub struct Config {
     pub log_level: String,
     pub log_dir: String,
     pub disable_signature_check: bool,
+    pub allowed_commands: Vec<String>,
+    pub max_file_size: u64,
+    pub command_timeout_secs: u64,
 }
 
 impl From<AgentConfig> for Config {
@@ -28,6 +32,11 @@ impl From<AgentConfig> for Config {
             log_level: "info".to_string(),
             log_dir: "logs".to_string(),
             disable_signature_check: false,
+            allowed_commands: vec![
+                "ps".into(), "top".into(), "df".into(), "free".into(), "uptime".into()
+            ],
+            max_file_size: 1024 * 1024, // 1MB default
+            command_timeout_secs: 60, // 60 seconds default
         }
     }
 }
@@ -74,6 +83,14 @@ impl Default for Config {
             log_level: "info".to_string(),
             log_dir: "logs".to_string(),
             disable_signature_check: false,
+            allowed_commands: vec![
+                "ps".into(), "top".into(), "df".into(), "free".into(), "uptime".into(),
+                "whoami".into(), "id".into(), "uname".into(), "date".into(), "ls".into(),
+                "cat".into(), "grep".into(), "wc".into(), "head".into(), "tail".into(),
+                "netstat".into(), "ss".into(), "ip".into(), "echo".into()
+            ],
+            max_file_size: 1024 * 1024, // 1MB default
+            command_timeout_secs: 60, // 60 seconds default
         }
     }
 }

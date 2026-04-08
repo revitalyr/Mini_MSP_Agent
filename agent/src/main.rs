@@ -52,13 +52,15 @@ mod network;
 mod plugins;
 mod broker;
 mod commands;
+pub mod security;
 
 use crate::network::{HttpClient, WebSocketClient};
+use crate::security::SecurityPolicy;
 use config::Config;
 use telemetry::TelemetryCollector;
 use std::sync::Arc;
 use plugins::{PluginManager, PluginEventType};
-use broker::{BrokerClient, BrokerLoop, PluginEventPublisher};
+use broker::{BrokerClient, BrokerLoop, PluginEventPublisher, BrokerDeps};
 
 /// Main entry point for the Mini MSP Agent
 /// 
@@ -154,23 +156,32 @@ async fn main() -> Result<()> {
     let plugin_dir = matches.get_one::<String>("plugin-dir").unwrap();
     let hot_reload_enabled = matches.get_flag("hot-reload");
     
-    // Set up event callback for plugin events
-    let _plugin_manager_clone = plugin_manager.clone();
-    plugin_manager.set_event_callback(move |event_type, plugin_name, message| {
+    // Initialize broker client with encapsulated retry mechanism
+    let broker_client = BrokerClient::connect(&config.broker_url).await?;
+
+    // Set up combined event callback for local logging and NATS publishing
+    let event_publisher = Arc::new(PluginEventPublisher::new(broker_client.clone(), config.agent_id.clone()));
+    plugin_manager.set_event_callback(move |event_type, name, msg| {
+        // 1. Local logging
         match event_type {
-            PluginEventType::Loaded => {
-                info!("Plugin loaded: {} - {}", plugin_name, message);
-            }
-            PluginEventType::Unloaded => {
-                info!("Plugin unloaded: {} - {}", plugin_name, message);
-            }
-            PluginEventType::Error => {
-                error!("Plugin error: {} - {}", plugin_name, message);
-            }
-            PluginEventType::StatusChanged => {
-                info!("Plugin status changed: {} - {}", plugin_name, message);
-            }
+            PluginEventType::Loaded => info!("Plugin loaded: {} - {}", name, msg),
+            PluginEventType::Unloaded => info!("Plugin unloaded: {} - {}", name, msg),
+            PluginEventType::Error => error!("Plugin error: {} - {}", name, msg),
+            PluginEventType::StatusChanged => info!("Plugin status changed: {} - {}", name, msg),
         }
+
+        // 2. NATS publishing (async)
+        let pub_inner = event_publisher.clone();
+        let name_inner = name.to_string();
+        let msg_inner = msg.to_string();
+        let et_inner = event_type.clone();
+        tokio::spawn(async move {
+            let data = serde_json::json!({ 
+                "event": format!("{:?}", et_inner), 
+                "message": msg_inner 
+            });
+            let _ = pub_inner.publish_event(&name_inner, data).await;
+        });
     });
     
     // Enable hot-reload if requested
@@ -279,13 +290,6 @@ async fn main() -> Result<()> {
             info!("Command execution available: {}", cmd_result.get_summary());
         }
         
-        // Load plugins
-        info!("Loading plugins...");
-        if let Err(e) = plugin_manager.load_plugins_from_directory(&plugin_dir) {
-            error!("Failed to load plugins: {}", e);
-            // Don't exit, continue without plugins for now
-        }
-        
         // Test async plugin loading
         info!("Testing async plugin loading...");
         let test_plugin_path = if cfg!(target_os = "windows") {
@@ -382,32 +386,6 @@ async fn main() -> Result<()> {
         }
     }
 
-    // Initialize broker client
-    info!("🔍 Attempting to connect to broker with URL: '{}'", &config.broker_url);
-    let broker_client = if config.broker_url.is_empty() {
-        info!("⚠️  Broker URL is empty, skipping broker connection");
-        None
-    } else {
-        let client = BrokerClient::connect(&config.broker_url).await
-            .map_err(|e| anyhow::anyhow!("Failed to connect to broker: {}", e))?;
-        info!("✅ Successfully connected to broker");
-        Some(client)
-    };
-
-    // Initialize event publisher to bridge PluginManager events to NATS
-    let event_publisher = PluginEventPublisher::new(broker_client.clone(), config.agent_id.clone());
-    let publisher_clone = Arc::new(event_publisher);
-
-    plugin_manager.set_event_callback(move |event_type, name, msg| {
-        let pub_inner = publisher_clone.clone();
-        let name_inner = name.to_string();
-        let msg_inner = msg.to_string();
-        tokio::spawn(async move {
-            let data = serde_json::json!({ "event": format!("{:?}", event_type), "message": msg_inner });
-            let _ = pub_inner.publish_event(&name_inner, data).await;
-        });
-    });
-
     // Start plugin lifecycle monitoring
     let plugin_manager_clone = plugin_manager.clone();
     tokio::spawn(async move {
@@ -437,11 +415,12 @@ async fn main() -> Result<()> {
     // Start sensor polling to fill the queue
     plugin_manager.start_sensor_polling(1000);
 
-    // Initialize broker loop
+    // Initialize shared dependencies
     let telemetry = TelemetryCollector::new(plugin_manager.clone());
     let http_client = HttpClient::new(config.clone());
-    let ws_client = WebSocketClient::new(config.clone(), plugin_manager.clone());
-    let broker_loop = BrokerLoop::new(broker_client, config.agent_id.clone(), plugin_manager.clone(), telemetry, http_client, config.allowed_commands.clone(), config.max_file_size);
+    let policy = SecurityPolicy::new(config.allowed_commands.clone(), config.max_file_size);
+
+    let ws_client = WebSocketClient::new(config.clone(), plugin_manager.clone(), policy.clone()); // policy.clone() is fine here
 
     // Start WebSocket client in background
     let ws_client_clone = ws_client.clone();
@@ -451,9 +430,25 @@ async fn main() -> Result<()> {
 
     info!("Starting agent with broker-based communication");
 
-    // Run broker loop (this will handle commands and heartbeats)
-    if let Err(e) = broker_loop.run().await {
-        error!("Broker loop failed: {}", e);
+    // Wrap broker loop in a retry mechanism to handle manual reconnects on terminal failure
+    loop {
+        let loop_broker_client = BrokerClient::connect(&config.broker_url).await?;
+        let loop_deps = BrokerDeps {
+            plugin_manager: plugin_manager.clone(),
+            telemetry: telemetry.clone(),
+            http_client: http_client.clone(),
+            policy: policy.clone(),
+        config: config.clone(),
+            command_timeout_secs: config.command_timeout_secs,
+        };
+        let loop_instance = BrokerLoop::new(loop_broker_client, config.agent_id.clone(), loop_deps);
+        
+        if let Err(e) = loop_instance.run().await {
+            error!("Broker loop encountered a terminal error: {}. Attempting full client restart...", e);
+            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+        } else {
+            break; // Clean shutdown
+        }
     }
 
     Ok(())

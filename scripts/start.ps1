@@ -191,26 +191,17 @@ if (-not (Test-Path $AgentConfig)) {
     # Создание конфигурации по умолчанию
     $DefaultConfig = @"
 # Mini MSP Agent Configuration
-[agent]
-id = "windows-agent-001"
-name = "Windows Agent"
-version = "1.0.0"
-
-[server]
-url = "http://localhost:$ServerPort"
-api_key = ""
-
-[logging]
-level = "info"
-file = "logs/agent.log"
-
-[plugins]
-enabled = true
-directory = "plugins"
-
-[system]
-monitor_interval = 5
-max_memory_usage = 512
+server_url = "http://localhost:$ServerPort"
+ws_url = "ws://localhost:$ServerPort/ws"
+broker_url = "nats://localhost:4222"
+interval = 30
+agent_id = "windows-agent-001"
+log_level = "info"
+log_dir = "logs"
+disable_signature_check = false
+allowed_commands = ["ps", "top", "df", "free", "uptime", "whoami", "id", "uname", "date", "ls", "cat", "grep", "wc", "head", "tail", "netstat", "ss", "ip", "echo"]
+max_file_size = 1048576
+command_timeout_secs = 60
 "@
     
     $DefaultConfig | Out-File -FilePath $AgentConfig -Encoding UTF8

@@ -16,11 +16,11 @@ while [[ $# -gt 0 ]]; do
             SERVER_PORT="$2"
             shift 2
             ;;
-        --config)
+        --config|-c)
             AGENT_CONFIG="$2"
             shift 2
             ;;
-        --build)
+        --build|-Build)
             BUILD=true
             shift
             ;;
@@ -64,16 +64,20 @@ if [ "$BUILD" = true ]; then
     
     # Сборка C++ плагинов
     echo "🔧 Сборка C++ плагинов..."
-    if [ -f "plugins/build.sh" ]; then
-        cd plugins
-        chmod +x build.sh
-        ./build.sh
-        if [ $? -ne 0 ]; then
-            echo "⚠️ Ошибка сборки плагинов, но продолжаем..."
+    if [ -f "plugins/CMakeLists.txt" ]; then
+        mkdir -p plugins/build
+        pushd plugins/build > /dev/null
+        cmake .. -DCMAKE_BUILD_TYPE=Debug
+        if cmake --build .; then
+            mkdir -p ../../agent/plugins
+            find . -name "*.so" -exec cp {} ../../agent/plugins/ \;
+            echo "✅ Плагины собраны и скопированы в agent/plugins"
+        else
+            echo "⚠️ Ошибка сборки плагинов"
         fi
-        cd ..
+        popd > /dev/null
     else
-        echo "⚠️ build.sh не найден, пропускаю сборку плагинов"
+        echo "⚠️ CMakeLists.txt не найден, пропускаю сборку плагинов"
     fi
 fi
 
@@ -105,26 +109,17 @@ if [ ! -f "$AGENT_CONFIG" ]; then
     # Создание конфигурации по умолчанию
     cat > "$AGENT_CONFIG" << EOF
 # Mini MSP Agent Configuration
-[agent]
-id = "unix-agent-001"
-name = "Unix Agent"
-version = "1.0.0"
-
-[server]
-url = "http://localhost:$SERVER_PORT"
-api_key = ""
-
-[logging]
-level = "info"
-file = "logs/agent.log"
-
-[plugins]
-enabled = true
-directory = "plugins"
-
-[system]
-monitor_interval = 5
-max_memory_usage = 512
+server_url = "http://localhost:$SERVER_PORT"
+ws_url = "ws://localhost:$SERVER_PORT/ws"
+broker_url = "nats://localhost:4222"
+interval = 30
+agent_id = "unix-agent-001"
+log_level = "info"
+log_dir = "logs"
+disable_signature_check = false
+allowed_commands = ["ps", "top", "df", "free", "uptime", "whoami", "id", "uname", "date", "ls", "cat", "grep", "wc", "head", "tail", "netstat", "ss", "ip", "echo"]
+max_file_size = 1048576
+command_timeout_secs = 60
 EOF
     
     echo "✅ Конфигурация создана: $AGENT_CONFIG"
@@ -153,11 +148,11 @@ fi
 
 # Запуск агента
 echo "🤖 Запуск агента с конфигурацией: $AGENT_CONFIG"
-"$AGENT_PATH" --config "$AGENT_CONFIG" &
+"$AGENT_PATH" --config "$AGENT_CONFIG" --plugin-dir agent/plugins &
 AGENT_PID=$!
 
 echo "✅ Сервер и агент запущены!"
-echo "📊 Панель управления: http://localhost:$SERVER_PORT/static/plugin_control.html"
+echo "📊 Dashboard: http://localhost:$SERVER_PORT/static/plugin_control.html"
 echo "📋 Список агентов: http://localhost:$SERVER_PORT/agents"
 echo "🔧 Нажмите Ctrl+C для остановки"
 

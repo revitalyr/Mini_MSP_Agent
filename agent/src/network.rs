@@ -8,9 +8,10 @@ use tokio::time::{interval, sleep};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{debug, error, info, warn};
 
-use crate::commands::handle_command;
+use crate::commands::{handle_command, ExecutionContext};
 use crate::config::Config;
 use crate::plugins::PluginManager;
+use crate::security::SecurityPolicy;
 
 #[derive(Clone)]
 pub struct HttpClient {
@@ -54,13 +55,15 @@ impl HttpClient {
 pub struct WebSocketClient {
     config: Config,
     plugin_manager: PluginManager,
+    policy: SecurityPolicy,
 }
 
 impl WebSocketClient {
-    pub fn new(config: Config, plugin_manager: PluginManager) -> Self {
+    pub fn new(config: Config, plugin_manager: PluginManager, policy: SecurityPolicy) -> Self {
         Self { 
             config,
             plugin_manager,
+            policy,
         }
     }
 
@@ -197,8 +200,26 @@ impl WebSocketClient {
 
         info!("Parsed command: {:?}", request.command);
 
-        match handle_command(request.command, Some(request.command_id.clone()), &self.plugin_manager, &self.config.allowed_commands, self.config.max_file_size).await {
-            Ok(AgentResponse::Json(resp)) => {
+        let ctx = ExecutionContext {
+            plugin_manager: &self.plugin_manager,
+            policy: &self.policy,
+            config: &self.config,
+            command_timeout_secs: self.config.command_timeout_secs,
+        };
+
+        let timeout_duration = std::time::Duration::from_secs(ctx.command_timeout_secs);
+        let result = tokio::time::timeout(timeout_duration, handle_command(request.command, Some(request.command_id.clone()), ctx)).await;
+
+        let result = match result {
+            Ok(inner_result) => inner_result, // Command completed within timeout
+            Err(_) => { // Command timed out
+                error!("Command '{}' timed out after {} seconds", request.command_id, ctx.command_timeout_secs);
+                Err(anyhow::anyhow!("Command timed out after {} seconds", ctx.command_timeout_secs))
+            }
+        };
+
+        match result {
+            Ok(AgentResponse::Json(resp)) => { 
                 let text = serde_json::to_string(&resp)?;
                 Ok(Some(Message::Text(text)))
             }

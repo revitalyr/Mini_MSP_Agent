@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use std::fmt;
 use std::collections::{HashMap, VecDeque};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -12,6 +13,42 @@ use super::ffi::{
     SystemInfoData, EventData, WatchersData, FileReaderData, SensorData, CameraData, 
     ProcessingResults, VideoFrameData, DirectoryInfoData
 };
+
+#[derive(Debug)]
+pub enum PluginError {
+    NotFound(String),
+    LoadFailed(String, String),
+    UnloadFailed(String, String),
+    SignatureVerificationFailed(String),
+    SystemPluginNotLoaded,
+    FFIError(String, String),
+    InitializationFailed(String),
+}
+
+impl std::error::Error for PluginError {}
+
+impl fmt::Display for PluginError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NotFound(name) => write!(f, "Plugin '{}' not found", name),
+            Self::LoadFailed(name, err) => write!(f, "Failed to load plugin '{}': {}", name, err),
+            Self::UnloadFailed(name, err) => write!(f, "Failed to unload plugin '{}': {}", name, err),
+            Self::SignatureVerificationFailed(name) => write!(f, "Signature check failed for plugin '{}'", name),
+            Self::SystemPluginNotLoaded => write!(f, "Operation requires a system plugin, but none are loaded"),
+            Self::FFIError(plugin, err) => write!(f, "Plugin '{}' FFI call failed: {}", plugin, err),
+            Self::InitializationFailed(name) => write!(f, "Plugin '{}' failed to initialize", name),
+        }
+    }
+}
+
+pub type PluginResult<T> = std::result::Result<T, PluginError>;
+
+impl From<anyhow::Error> for PluginError {
+    fn from(err: anyhow::Error) -> Self {
+        // Для общих ошибок anyhow::Error, мы можем обернуть их в FFIError или создать новый вариант, например, PluginError::GenericError
+        PluginError::FFIError("Unknown context".to_string(), err.to_string())
+    }
+}
 
 const MAX_SENSOR_QUEUE_SIZE: usize = 1000;
 
@@ -64,9 +101,9 @@ impl PluginManager {
             registry: Arc::new(Mutex::new(HashMap::new())),
             sensor_queue: Arc::new(Mutex::new(VecDeque::with_capacity(MAX_SENSOR_QUEUE_SIZE))),
             disable_signature_check: false,
-            system_plugin: None,
+            system_plugin: Arc::new(Mutex::new(None)),
             hot_reload_enabled: false,
-            plugin_directory: None,
+            plugin_directory: Arc::new(Mutex::new(None)),
             event_callback: None,
         }
     }
@@ -92,13 +129,13 @@ impl PluginManager {
         self.event_callback = Some(Arc::new(callback));
     }
 
-    fn notify_event(&self, event_type: PluginEventType, plugin_name: &str, message: &str) {
+    pub fn notify_event(&self, event_type: PluginEventType, plugin_name: &str, message: &str) {
         if let Some(ref callback) = self.event_callback {
             callback(event_type, plugin_name, message);
         }
     }
 
-    pub fn load_plugin<P: AsRef<Path>>(&self, name: &str, path: P) -> Result<()> {
+    pub fn load_plugin<P: AsRef<Path>>(&self, name: &str, path: P) -> PluginResult<()> {
         let path = path.as_ref();
         let path_str = path.to_string_lossy().to_string();
         info!("Loading plugin '{}' from: {}", name, path_str);
@@ -107,7 +144,17 @@ impl PluginManager {
         self.notify_event(PluginEventType::StatusChanged, name, "Loading started");
         
         if let Err(e) = loader.load_plugin(path) {
-            self.notify_event(PluginEventType::Error, name, &e.to_string());
+            let err_msg = e.to_string();
+            self.notify_event(PluginEventType::Error, name, &err_msg);
+            
+            let plugin_err = if err_msg.contains("signature") {
+                PluginError::SignatureVerificationFailed(name.to_string())
+            } else if err_msg.contains("initialization") {
+                PluginError::InitializationFailed(name.to_string())
+            } else {
+                PluginError::LoadFailed(name.to_string(), err_msg)
+            };
+
             let mut registry = self.registry.lock().unwrap();
             registry.insert(name.to_string(), PluginRegistryEntry {
                 name: name.to_string(),
@@ -115,15 +162,17 @@ impl PluginManager {
                 platform: "unknown".to_string(),
                 library_path: path_str,
                 status: PluginStatus::Error,
-                status_message: e.to_string(),
+                status_message: plugin_err.to_string(),
                 last_loaded: None,
                 last_unloaded: None,
             });
-            return Err(e);
+            return Err(plugin_err);
         }
         
         // Get plugin info to determine type
-        let plugin_info = loader.get_plugin_info()?;
+        let plugin_info = loader.get_plugin_info().map_err(|e| {
+            PluginError::FFIError(name.to_string(), format!("Failed to get plugin info: {}", e))
+        })?;
         
         // Update registry
         let mut registry = self.registry.lock().unwrap();
@@ -158,17 +207,20 @@ impl PluginManager {
         Ok(())
     }
 
-    pub fn unload_plugin(&self, name: &str) -> Result<()> {
+    pub fn unload_plugin(&self, name: &str) -> PluginResult<()> {
         info!("Unloading plugin: {}", name);
         
-        // Remove from plugins
+        // Check registry first
+        let mut registry = self.registry.lock().unwrap();
+        if !registry.contains_key(name) {
+            return Err(PluginError::NotFound(name.to_string()));
+        }
+
         let mut plugins = self.plugins.lock().unwrap();
         if plugins.remove(name).is_none() {
-            return Err(anyhow!("Plugin '{}' not found", name));
+            return Err(PluginError::UnloadFailed(name.to_string(), "Plugin in registry but not in active map".to_string()));
         }
         
-        // Update registry
-        let mut registry = self.registry.lock().unwrap();
         if let Some(entry) = registry.get_mut(name) {
             entry.status = PluginStatus::Unloaded;
             entry.status_message = "Plugin unloaded".to_string();
@@ -189,13 +241,13 @@ impl PluginManager {
         Ok(())
     }
 
-    pub fn reload_plugin(&self, name: &str) -> Result<()> {
+    pub fn reload_plugin(&self, name: &str) -> PluginResult<()> {
         info!("Reloading plugin: {}", name);
         
         let library_path = {
             let registry = self.registry.lock().unwrap();
             registry.get(name)
-                .ok_or_else(|| anyhow!("Plugin '{}' not found", name))?
+                .ok_or_else(|| PluginError::NotFound(name.to_string()))?
                 .library_path
                 .clone()
         };
@@ -216,19 +268,19 @@ impl PluginManager {
         Ok(())
     }
 
-    pub fn get_system_plugin(&self) -> Result<Arc<PluginLoader>> {
+    pub fn get_system_plugin(&self) -> PluginResult<Arc<PluginLoader>> {
         let sys_lock = self.system_plugin.lock().unwrap();
         let plugin_name = sys_lock.as_ref()
-            .ok_or_else(|| anyhow!("No system plugin loaded"))?;
+            .ok_or_else(|| PluginError::SystemPluginNotLoaded)?;
         
         let plugins = self.plugins.lock().unwrap();
         plugins.get(plugin_name)
             .cloned()
-            .ok_or_else(|| anyhow!("System plugin not found in registry"))
+            .ok_or_else(|| PluginError::NotFound("Registered system plugin missing from cache".to_string()))
     }
     
     /// Set plugin status with timestamp tracking
-    pub fn set_plugin_status(&self, name: &str, status: PluginStatus) -> Result<()> {
+    pub fn set_plugin_status(&self, name: &str, status: PluginStatus) -> PluginResult<()> {
         let mut registry = self.registry.lock().unwrap();
         if let Some(entry) = registry.get_mut(name) {
             entry.status = status.clone();
@@ -256,12 +308,12 @@ impl PluginManager {
             info!("Plugin '{}' status changed to: {:?}", name, status);
             Ok(())
         } else {
-            Err(anyhow!("Plugin '{}' not found in registry", name))
+            Err(PluginError::NotFound(name.to_string()))
         }
     }
     
     /// Asynchronously load a plugin with status tracking
-    pub async fn load_plugin_async(&self, name: &str, library_path: &str) -> Result<()> {
+    pub async fn load_plugin_async(&self, name: &str, library_path: &str) -> PluginResult<()> {
         info!("Starting async load of plugin: {}", name);
         
         // Set loading status
@@ -281,7 +333,7 @@ impl PluginManager {
     }
     
     /// Gracefully unload a plugin with cleanup
-    pub fn unload_plugin_graceful(&self, name: &str) -> Result<()> {
+    pub fn unload_plugin_graceful(&self, name: &str) -> PluginResult<()> {
         info!("Starting graceful unload of plugin: {}", name);
         
         // Set unloading status
@@ -438,7 +490,7 @@ impl PluginManager {
     }
 
     pub fn is_system_plugin_loaded(&self) -> bool {
-        self.system_plugin.is_some()
+        self.system_plugin.lock().unwrap().is_some()
     }
 
     pub fn load_plugins_from_directory<P: AsRef<Path>>(&self, dir: P) -> Result<()> {

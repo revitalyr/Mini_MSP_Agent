@@ -9,14 +9,14 @@ Mini MSP Agent is a comprehensive monitoring and management solution for distrib
 ## ✨ Features
 
 - **🔧 Real-time telemetry collection** (CPU, RAM, Disk usage) via C++ plugins
-- **⚡ Remote command execution** with security whitelist and validation
+- **🛡️ Enhanced Security**: Command execution whitelist, path validation, and file size limits
 - **🌐 WebSocket control channel** for bidirectional real-time communication
-- **📡 HTTP heartbeat** for agent status reporting and health monitoring
+- **📡 Robust NATS Integration**: Asynchronous messaging with exponential backoff and auto-reconnect
 - **🌍 Cross-platform support** (Windows, Linux, macOS) with unified interface
 - **⚡ Async architecture** using Tokio for high-performance I/O
 - **📊 Structured logging** with JSON output and configurable levels
 - **🐳 Docker support** for containerized deployment and orchestration
-- **🔌 Plugin architecture** with C++ FFI for OS-specific operations
+- **🔌 Modern Plugin System**: C++23 plugins with dynamic hot-reload and safety wrappers
 - **📚 Comprehensive documentation** with rustdoc and Doxygen comments
 - **🧪 Integration testing** with full test coverage
 
@@ -27,7 +27,7 @@ Mini MSP Agent is a comprehensive monitoring and management solution for distrib
 │   Agent (Rust)  │ ◄──────────────────► │  Backend Server │
 │                 │                      │                 │
 │ • Communication │                      │ • REST API      │
-│ • Plugin Mgmt   │                      │ • WebSocket Hub │
+│ • SecurityPolicy│                      │ • WebSocket Hub │
 │ • Config        │                      │ • Agent Registry│
 │ • Telemetry    │                      │ • Command Dispatch│
 └─────────┬───────┘                      └─────────────────┘
@@ -63,13 +63,18 @@ docker-compose down
 ### 🔨 Manual Build
 
 ```bash
-# Build C++ plugins first
-cd plugins
-./build.sh  # or build.bat on Windows
+# On Windows (PowerShell)
+.\scripts\start.ps1 -Build
 
-# Build Rust workspace
-cd ..
-cargo build --release
+# On Linux/WSL
+chmod +x scripts/start.sh
+./scripts/start.sh --build
+```
+
+### 🛠️ Development Mode
+
+```bash
+./scripts/run_dev.sh --build
 
 # Start server
 ./target/release/server --port 8080
@@ -112,19 +117,18 @@ cargo build --release
 #### Command Types
 
 ```json
-{
-  "type": "GetProcesses"
-}
-{
-  "type": "Exec", 
-  "data": {"cmd": "ps aux"}
-}
-{
-  "type": "GetFile",
-  "data": {"path": "/etc/hostname"}
-}
-{
-  "type": "GetSystemInfo"
++// Command Request
++{ "command_id": "uuid", "command": "GetSystemInfo" }
++
++// Response (Structured JSON)
++{
+  "command_id": "uuid",
+  "type": "system_info",
+  "status": "ok",
+  "data": {
+    "SystemInfo": { "hostname": "host", "os_type": "Linux", ... }
+  },
+  "timestamp": 1775658221
 }
 ```
 
