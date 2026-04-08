@@ -885,85 +885,8 @@
                 },
 
                 updateMetrics(agentId, metrics) {
-                    // Validate metrics data
-                    if (!metrics || typeof metrics.cpu === 'undefined' || 
-                        typeof metrics.ram === 'undefined' || 
-                        typeof metrics.disk === 'undefined') {
-                        console.warn('Invalid metrics data received:', metrics);
-                        return;
-                    }
-                    
-                    const timestamp = Date.now();
-                    const timeLabel = new Date(timestamp).toLocaleTimeString();
-                    
-                    // Convert to numbers and validate
-                    const cpuValue = parseFloat(metrics.cpu) || 0;
-                    const ramValue = parseFloat(metrics.ram) || 0;
-                    const diskValue = parseFloat(metrics.disk) || 0;
-                    
-                    // Update metrics history with validated data
-                    this.metricsHistory.cpu.push({ x: timestamp, y: cpuValue });
-                    this.metricsHistory.ram.push({ x: timestamp, y: ramValue });
-                    this.metricsHistory.disk.push({ x: timestamp, y: diskValue });
-
-                    // Keep only last 30 minutes of data
-                    const thirtyMinutesAgo = timestamp - (30 * 60 * 1000);
-                    this.metricsHistory.cpu = this.metricsHistory.cpu.filter(point => point.x > thirtyMinutesAgo);
-                    this.metricsHistory.ram = this.metricsHistory.ram.filter(point => point.x > thirtyMinutesAgo);
-                    this.metricsHistory.disk = this.metricsHistory.disk.filter(point => point.x > thirtyMinutesAgo);
-
-                    // Keep only last 20 points for cleaner display
-                    const maxPoints = 20;
-                    if (this.metricsHistory.cpu.length > maxPoints) {
-                        this.metricsHistory.cpu = this.metricsHistory.cpu.slice(-maxPoints);
-                    }
-                    if (this.metricsHistory.ram.length > maxPoints) {
-                        this.metricsHistory.ram = this.metricsHistory.ram.slice(-maxPoints);
-                    }
-                    if (this.metricsHistory.disk.length > maxPoints) {
-                        this.metricsHistory.disk = this.metricsHistory.disk.slice(-maxPoints);
-                    }
-
-                    // Update charts with proper structure
-                    if (this.charts.cpu) {
-                        const labels = this.metricsHistory.cpu.map((point, index) => {
-                            return index % Math.ceil(this.metricsHistory.cpu.length / 5) === 0 ? 
-                                new Date(point.x).toLocaleTimeString() : '';
-                        });
-                        const data = this.metricsHistory.cpu.map(point => point.y);
-                        
-                        this.charts.cpu.data.labels = labels;
-                        this.charts.cpu.data.datasets[0].data = data;
-                        this.charts.cpu.update('none');
-                    }
-                    if (this.charts.ram) {
-                        const labels = this.metricsHistory.ram.map((point, index) => {
-                            return index % Math.ceil(this.metricsHistory.ram.length / 5) === 0 ? 
-                                new Date(point.x).toLocaleTimeString() : '';
-                        });
-                        const data = this.metricsHistory.ram.map(point => point.y);
-                        
-                        this.charts.ram.data.labels = labels;
-                        this.charts.ram.data.datasets[0].data = data;
-                        this.charts.ram.update('none');
-                    }
-                    if (this.charts.disk) {
-                        const labels = this.metricsHistory.disk.map((point, index) => {
-                            return index % Math.ceil(this.metricsHistory.disk.length / 5) === 0 ? 
-                                new Date(point.x).toLocaleTimeString() : '';
-                        });
-                        const data = this.metricsHistory.disk.map(point => point.y);
-                        
-                        this.charts.disk.data.labels = labels;
-                        this.charts.disk.data.datasets[0].data = data;
-                        this.charts.disk.update('none');
-                    }
-
-                    // Check thresholds
-                    this.checkThresholds(agentId, metrics);
-
-                    // Save to localStorage
-                    this.saveMetricsToStorage();
+                    // Use the new safe method
+                    this.updateMetricsSafe(agentId, metrics);
                 },
 
                 checkThresholds(agentId, metrics) {
@@ -1140,6 +1063,9 @@
 
                 // Mock data generation for testing
                 startMockDataGeneration() {
+                    // Start with some initial data
+                    this.initializeMockData();
+                    
                     this.mockDataInterval = setInterval(() => {
                         // Generate random metrics for testing
                         const mockMetrics = {
@@ -1152,14 +1078,124 @@
                         const agentIds = Object.keys(this.agents);
                         const agentId = agentIds.length > 0 ? agentIds[0] : 'mock-agent';
                         
-                        this.updateMetrics(agentId, mockMetrics);
-                    }, 2000); // Update every 2 seconds
+                        this.updateMetricsSafe(agentId, mockMetrics);
+                    }, 3000); // Update every 3 seconds (slower to prevent issues)
                 },
 
                 stopMockDataGeneration() {
                     if (this.mockDataInterval) {
                         clearInterval(this.mockDataInterval);
                         this.mockDataInterval = null;
+                    }
+                },
+
+                // Initialize with some mock data
+                initializeMockData() {
+                    const initialData = {
+                        cpu: 25,
+                        ram: 50,
+                        disk: 30
+                    };
+                    
+                    // Create initial data points
+                    for (let i = 0; i < 5; i++) {
+                        const timestamp = Date.now() - (4 - i) * 3000; // Last 5 points
+                        this.metricsHistory.cpu.push({ x: timestamp, y: initialData.cpu + Math.random() * 10 - 5 });
+                        this.metricsHistory.ram.push({ x: timestamp, y: initialData.ram + Math.random() * 10 - 5 });
+                        this.metricsHistory.disk.push({ x: timestamp, y: initialData.disk + Math.random() * 5 - 2.5 });
+                    }
+                    
+                    this.updateChartsFromHistory();
+                },
+
+                // Safe update method
+                updateMetricsSafe(agentId, metrics) {
+                    // Validate metrics data
+                    if (!metrics || typeof metrics.cpu === 'undefined' || 
+                        typeof metrics.ram === 'undefined' || 
+                        typeof metrics.disk === 'undefined') {
+                        console.warn('Invalid metrics data received:', metrics);
+                        return;
+                    }
+                    
+                    const timestamp = Date.now();
+                    
+                    // Convert to numbers and validate
+                    const cpuValue = parseFloat(metrics.cpu) || 0;
+                    const ramValue = parseFloat(metrics.ram) || 0;
+                    const diskValue = parseFloat(metrics.disk) || 0;
+                    
+                    // Update metrics history with validated data
+                    this.metricsHistory.cpu.push({ x: timestamp, y: cpuValue });
+                    this.metricsHistory.ram.push({ x: timestamp, y: ramValue });
+                    this.metricsHistory.disk.push({ x: timestamp, y: diskValue });
+
+                    // Keep only last 10 points for cleaner display
+                    const maxPoints = 10;
+                    if (this.metricsHistory.cpu.length > maxPoints) {
+                        this.metricsHistory.cpu = this.metricsHistory.cpu.slice(-maxPoints);
+                    }
+                    if (this.metricsHistory.ram.length > maxPoints) {
+                        this.metricsHistory.ram = this.metricsHistory.ram.slice(-maxPoints);
+                    }
+                    if (this.metricsHistory.disk.length > maxPoints) {
+                        this.metricsHistory.disk = this.metricsHistory.disk.slice(-maxPoints);
+                    }
+
+                    // Update charts safely
+                    this.updateChartsFromHistory();
+
+                    // Check thresholds
+                    this.checkThresholds(agentId, metrics);
+
+                    // Save to localStorage
+                    this.saveMetricsToStorage();
+                },
+
+                // Update charts from history data
+                updateChartsFromHistory() {
+                    if (!this.charts.cpu || !this.charts.ram || !this.charts.disk) {
+                        return;
+                    }
+
+                    try {
+                        // Update CPU chart
+                        if (this.metricsHistory.cpu.length > 0) {
+                            const cpuLabels = this.metricsHistory.cpu.map((point, index) => {
+                                return index % 2 === 0 ? new Date(point.x).toLocaleTimeString().slice(0, 5) : '';
+                            });
+                            const cpuData = this.metricsHistory.cpu.map(point => Math.round(point.y));
+                            
+                            this.charts.cpu.data.labels = cpuLabels;
+                            this.charts.cpu.data.datasets[0].data = cpuData;
+                            this.charts.cpu.update('none');
+                        }
+
+                        // Update RAM chart
+                        if (this.metricsHistory.ram.length > 0) {
+                            const ramLabels = this.metricsHistory.ram.map((point, index) => {
+                                return index % 2 === 0 ? new Date(point.x).toLocaleTimeString().slice(0, 5) : '';
+                            });
+                            const ramData = this.metricsHistory.ram.map(point => Math.round(point.y));
+                            
+                            this.charts.ram.data.labels = ramLabels;
+                            this.charts.ram.data.datasets[0].data = ramData;
+                            this.charts.ram.update('none');
+                        }
+
+                        // Update Disk chart
+                        if (this.metricsHistory.disk.length > 0) {
+                            const diskLabels = this.metricsHistory.disk.map((point, index) => {
+                                return index % 2 === 0 ? new Date(point.x).toLocaleTimeString().slice(0, 5) : '';
+                            });
+                            const diskData = this.metricsHistory.disk.map(point => Math.round(point.y));
+                            
+                            this.charts.disk.data.labels = diskLabels;
+                            this.charts.disk.data.datasets[0].data = diskData;
+                            this.charts.disk.update('none');
+                        }
+                    } catch (error) {
+                        console.error('Error updating charts:', error);
                     }
                 },
 
