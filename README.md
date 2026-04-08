@@ -47,7 +47,40 @@ Mini MSP Agent is a comprehensive monitoring and management solution for distrib
 
 ## Quick Start
 
-### 🐳 Using Docker Compose (Recommended)
+### Prerequisites
+
+- Rust 1.70+ 
+- C++ compiler (GCC/Clang/MSVC)
+- Node.js (for frontend development)
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/your-repo/mini-msp-agent.git
+cd mini-msp-agent
+
+# Build all components
+./scripts/start.sh --build
+
+# Or build manually
+cargo build --release
+```
+
+### Running the System
+
+```bash
+# Start the server
+./target/release/server --config configs/server.toml
+
+# Start the agent (in another terminal)
+./target/release/agent --config configs/config.toml
+
+# Access the web interface
+open http://localhost:8080/static/plugin_control.html
+```
+
+### Docker Compose (Optional)
 
 ```bash
 # Start both server and agent
@@ -60,27 +93,17 @@ docker-compose logs -f
 docker-compose down
 ```
 
-### 🔨 Manual Build
+### Development Mode
 
 ```bash
-# On Windows (PowerShell)
-.\scripts\start.ps1 -Build
-
-# On Linux/WSL
-chmod +x scripts/start.sh
-./scripts/start.sh --build
-```
-
-### 🛠️ Development Mode
-
-```bash
+# Run with hot reload
 ./scripts/run_dev.sh --build
 
-# Start server
-./target/release/server --port 8080
+# Start server with debug logging
+RUST_LOG=debug ./target/release/server --config configs/server.toml
 
-# Start agent (in another terminal)
-./target/release/agent --config configs/config.toml --plugin-dir ./plugins
+# Start agent with debug logging
+RUST_LOG=debug ./target/release/agent --config configs/config.toml
 ```
 
 ## 📚 Documentation
@@ -271,14 +294,45 @@ hot_reload = false
 - `AGENT_CONFIG_PATH`: Override default config file location
 - `PLUGIN_DIR`: Override default plugin directory
 
+## Web Interface
+
+The system includes a modern Vue.js web interface for real-time agent management:
+
+### Features
+
+- **Real-time agent monitoring** with WebSocket connections
+- **System information display** with modal windows
+- **Command execution** through web interface
+- **Agent status tracking** with connection indicators
+- **Responsive design** for desktop and mobile
+
+### Access
+
+```bash
+# Start server and agent
+./target/release/server --config configs/server.toml
+./target/release/agent --config configs/config.toml
+
+# Open web interface
+open http://localhost:8080/static/plugin_control.html
+```
+
+### Web Interface Components
+
+- **Agent Dashboard**: Real-time status of connected agents
+- **System Information**: Detailed system metrics in modal windows
+- **Command Panel**: Send commands to agents with visual feedback
+- **Plugin Management**: View and manage agent plugins
+- **Connection Status**: WebSocket connection indicators
+
 ## API Endpoints
 
 ### Server Endpoints
 
 - `GET /health` - Server health check
-- `POST /heartbeat` - Agent heartbeat endpoint
-- `GET /ws` - WebSocket connection endpoint
 - `GET /agents` - List all registered agents
+- `GET /system-info` - Server system information
+- `GET /ws` - WebSocket connection endpoint
 - `POST /agents/{id}/command` - Send command to specific agent
 
 ### Supported Commands
@@ -429,13 +483,27 @@ cmake --build . --config Release
 
 ## Roadmap
 
-- [ ] TLS/WSS support
-- [ ] Additional C++ plugins (network, security, monitoring)
-- [ ] Plugin hot-reloading
-- [ ] Metrics exporter (Prometheus)
-- [ ] Web UI for management
-- [ ] Database persistence for historical data
-- [ ] Load balancing and clustering support
+### Completed Features
+
+- [x] **WebSocket Communication** - Real-time bidirectional agent-server communication
+- [x] **Vue.js Web Interface** - Modern web UI for agent management
+- [x] **System Information Display** - Real-time system metrics with modal windows
+- [x] **Agent Registration** - Automatic agent discovery and registration
+- [x] **Command Forwarding** - Real-time command execution through WebSocket
+- [x] **Plugin Architecture** - C++ plugins with dynamic loading
+- [x] **Comprehensive Logging** - Structured logging with configurable levels
+- [x] **Cross-platform Support** - Windows, Linux, macOS compatibility
+
+### Upcoming Features
+
+- [ ] **TLS/WSS Support** - Secure WebSocket connections
+- [ ] **Additional C++ Plugins** - Network monitoring, security scanning
+- [ ] **Plugin Hot-reloading** - Dynamic plugin updates without restart
+- [ ] **Metrics Exporter** - Prometheus integration for monitoring
+- [ ] **Database Persistence** - Historical data storage and analysis
+- [ ] **Load Balancing** - Multi-server clustering support
+- [ ] **Mobile App** - Native mobile applications
+- [ ] **Advanced Security** - Role-based access control, authentication
 
 ## License
 
@@ -449,9 +517,71 @@ This project is licensed under the MIT License.
 4. Add tests
 5. Submit a pull request
 
+## Troubleshooting
+
+### Common Issues
+
+#### Agent not connecting to server
+
+**Symptoms**: Agent shows "WebSocket disconnected" or connection errors
+
+**Solutions**:
+1. Check if server is running: `curl http://localhost:8080/health`
+2. Verify WebSocket URL in config: `ws_url = "ws://localhost:8080/ws"`
+3. Check firewall settings
+4. Review agent logs: `RUST_LOG=debug ./target/release/agent --config configs/config.toml`
+
+#### System Info not working
+
+**Symptoms**: Clicking "System Info" shows no response or errors
+
+**Solutions**:
+1. Verify plugins are loaded in agent logs
+2. Check plugin directory: `ls -la agent/plugins/`
+3. Ensure system plugin is compiled: `cd plugins && ./build.sh`
+4. Review server logs for command forwarding
+
+#### WebSocket connection issues
+
+**Symptoms**: "WebSocket not connected" in web interface
+
+**Solutions**:
+1. Check server WebSocket endpoint: `curl -i -N -H "Connection: Upgrade" http://localhost:8080/ws`
+2. Verify port configuration in `configs/server.toml`
+3. Check browser console for WebSocket errors
+4. Restart server and agent
+
+#### Plugin loading failures
+
+**Symptoms**: Agent shows "No plugins loaded" or plugin errors
+
+**Solutions**:
+1. Check plugin permissions: `chmod +x agent/plugins/*.so`
+2. Verify plugin dependencies: `ldd agent/plugins/*.so`
+3. Rebuild plugins: `cd plugins && ./build.sh clean && ./build.sh`
+4. Check agent logs for plugin loading errors
+
+### Debug Commands
+
+```bash
+# Check server status
+curl http://localhost:8080/health
+curl http://localhost:8080/agents
+
+# Test WebSocket connection
+wscat -c ws://localhost:8080/ws
+
+# Check agent logs
+RUST_LOG=debug ./target/release/agent --config configs/config.toml
+
+# Check server logs
+RUST_LOG=debug ./target/release/server --config configs/server.toml
+```
+
 ## Support
 
 For issues and questions:
 - Create an issue on GitHub
 - Check the documentation
 - Review the logs for debugging
+- Try the troubleshooting steps above
