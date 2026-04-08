@@ -451,6 +451,22 @@
                 }, 100);
             },
             methods: {
+                async initializePlatform() {
+                    // Wait for platform manager to load
+                    if (typeof window !== 'undefined' && window.platformManager) {
+                        try {
+                            await window.platformManager.initialize();
+                            console.log('Platform manager initialized successfully');
+                        } catch (error) {
+                            console.error('Failed to initialize platform manager:', error);
+                            this.showError('Failed to initialize platform manager');
+                        }
+                    } else {
+                        console.error('Platform manager not found');
+                        this.showError('Platform manager not available');
+                    }
+                },
+
                 handleCommandResponse(data) {
                     console.log('Command response received:', data);
                     
