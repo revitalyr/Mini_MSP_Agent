@@ -193,6 +193,25 @@
                             </div>
                         </div>
                     </div>
+                    
+                    <!-- Charts Container -->
+                    <div class="charts-container">
+                        <div class="chart-wrapper">
+                            <h4>CPU Usage (%)</h4>
+                            <canvas id="cpuChart" width="400" height="200"></canvas>
+                            <div class="chart-threshold">Threshold: 90%</div>
+                        </div>
+                        <div class="chart-wrapper">
+                            <h4>RAM Usage (%)</h4>
+                            <canvas id="ramChart" width="400" height="200"></canvas>
+                            <div class="chart-threshold">Threshold: 85%</div>
+                        </div>
+                        <div class="chart-wrapper">
+                            <h4>Disk Usage (%)</h4>
+                            <canvas id="diskChart" width="400" height="200"></canvas>
+                            <div class="chart-threshold">Threshold: 80%</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -296,7 +315,7 @@
     </div>
 
     <script>
-        const { createApp } = Vue;
+        const { createApp, markRaw } = Vue;
         
         // Main app with all components
         const app = createApp({
@@ -831,7 +850,7 @@
 
                     // CPU Chart
                     const cpuCtx = document.getElementById('cpuChart').getContext('2d');
-                    this.charts.cpu = new Chart(cpuCtx, {
+                    this.charts.cpu = markRaw(new Chart(cpuCtx, {
                         type: 'line',
                         data: {
                             labels: [],
@@ -845,11 +864,11 @@
                             }]
                         },
                         options: chartOptions
-                    });
+                    }));
 
                     // RAM Chart
                     const ramCtx = document.getElementById('ramChart').getContext('2d');
-                    this.charts.ram = new Chart(ramCtx, {
+                    this.charts.ram = markRaw(new Chart(ramCtx, {
                         type: 'line',
                         data: {
                             labels: [],
@@ -863,11 +882,11 @@
                             }]
                         },
                         options: chartOptions
-                    });
+                    }));
 
                     // Disk Chart
                     const diskCtx = document.getElementById('diskChart').getContext('2d');
-                    this.charts.disk = new Chart(diskCtx, {
+                    this.charts.disk = markRaw(new Chart(diskCtx, {
                         type: 'line',
                         data: {
                             labels: [],
@@ -881,7 +900,7 @@
                             }]
                         },
                         options: chartOptions
-                    });
+                    }));
                 },
 
                 updateMetrics(agentId, metrics) {
