@@ -869,13 +869,26 @@
                 },
 
                 updateMetrics(agentId, metrics) {
+                    // Validate metrics data
+                    if (!metrics || typeof metrics.cpu === 'undefined' || 
+                        typeof metrics.ram === 'undefined' || 
+                        typeof metrics.disk === 'undefined') {
+                        console.warn('Invalid metrics data received:', metrics);
+                        return;
+                    }
+                    
                     const timestamp = Date.now();
                     const timeLabel = new Date(timestamp).toLocaleTimeString();
                     
-                    // Update metrics history with simple structure
-                    this.metricsHistory.cpu.push({ x: timestamp, y: metrics.cpu });
-                    this.metricsHistory.ram.push({ x: timestamp, y: metrics.ram });
-                    this.metricsHistory.disk.push({ x: timestamp, y: metrics.disk });
+                    // Convert to numbers and validate
+                    const cpuValue = parseFloat(metrics.cpu) || 0;
+                    const ramValue = parseFloat(metrics.ram) || 0;
+                    const diskValue = parseFloat(metrics.disk) || 0;
+                    
+                    // Update metrics history with validated data
+                    this.metricsHistory.cpu.push({ x: timestamp, y: cpuValue });
+                    this.metricsHistory.ram.push({ x: timestamp, y: ramValue });
+                    this.metricsHistory.disk.push({ x: timestamp, y: diskValue });
 
                     // Keep only last 30 minutes of data
                     const thirtyMinutesAgo = timestamp - (30 * 60 * 1000);
@@ -1071,12 +1084,16 @@
                         this.ws.onopen = () => {
                             console.log('WebSocket connected');
                             this.connectionStatus = 'Connected';
+                            // Start mock data generation for testing
+                            this.startMockDataGeneration();
                         };
                         
                         this.ws.onclose = () => {
                             console.log('WebSocket disconnected');
                             this.connectionStatus = 'Disconnected';
-                            // Try to reconnect after 3 seconds
+                            // Stop mock data generation
+                            this.stopMockDataGeneration();
+                            // Attempt to reconnect after 3 seconds
                             setTimeout(() => {
                                 this.initWebSocket();
                             }, 3000);
@@ -1105,14 +1122,28 @@
                     }
                 },
 
-                async initializePlatform() {
-                    // Wait for platform manager to load
-                    if (typeof window !== 'undefined' && window.platformManager) {
-                        await window.platformManager.loadPlatformConfig();
-                        this.platformInfo = window.platformManager.getPlatformInfo();
-                    } else {
-                        console.error('Platform manager not found');
-                        this.showError('Platform manager not available');
+                // Mock data generation for testing
+                startMockDataGeneration() {
+                    this.mockDataInterval = setInterval(() => {
+                        // Generate random metrics for testing
+                        const mockMetrics = {
+                            cpu: Math.random() * 30 + 10, // 10-40%
+                            ram: Math.random() * 20 + 40, // 40-60%
+                            disk: Math.random() * 10 + 25  // 25-35%
+                        };
+                        
+                        // Use first available agent or default
+                        const agentIds = Object.keys(this.agents);
+                        const agentId = agentIds.length > 0 ? agentIds[0] : 'mock-agent';
+                        
+                        this.updateMetrics(agentId, mockMetrics);
+                    }, 2000); // Update every 2 seconds
+                },
+
+                stopMockDataGeneration() {
+                    if (this.mockDataInterval) {
+                        clearInterval(this.mockDataInterval);
+                        this.mockDataInterval = null;
                     }
                 },
 
