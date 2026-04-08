@@ -793,15 +793,9 @@
                                 }
                             },
                             x: {
-                                type: 'linear',
+                                display: true,
                                 ticks: {
-                                    callback: function(value, index) {
-                                        // Show time labels for every few points
-                                        if (index % Math.ceil(this.chart.data.labels.length / 5) === 0) {
-                                            return new Date(value).toLocaleTimeString();
-                                        }
-                                        return '';
-                                    }
+                                    maxTicksLimit: 5
                                 }
                             }
                         },
@@ -824,6 +818,7 @@
                     this.charts.cpu = new Chart(cpuCtx, {
                         type: 'line',
                         data: {
+                            labels: [],
                             datasets: [{
                                 label: 'CPU Usage',
                                 data: [],
@@ -841,6 +836,7 @@
                     this.charts.ram = new Chart(ramCtx, {
                         type: 'line',
                         data: {
+                            labels: [],
                             datasets: [{
                                 label: 'RAM Usage',
                                 data: [],
@@ -858,6 +854,7 @@
                     this.charts.disk = new Chart(diskCtx, {
                         type: 'line',
                         data: {
+                            labels: [],
                             datasets: [{
                                 label: 'Disk Usage',
                                 data: [],
@@ -873,8 +870,9 @@
 
                 updateMetrics(agentId, metrics) {
                     const timestamp = Date.now();
+                    const timeLabel = new Date(timestamp).toLocaleTimeString();
                     
-                    // Update metrics history with simpler structure
+                    // Update metrics history with simple structure
                     this.metricsHistory.cpu.push({ x: timestamp, y: metrics.cpu });
                     this.metricsHistory.ram.push({ x: timestamp, y: metrics.ram });
                     this.metricsHistory.disk.push({ x: timestamp, y: metrics.disk });
@@ -885,20 +883,50 @@
                     this.metricsHistory.ram = this.metricsHistory.ram.filter(point => point.x > thirtyMinutesAgo);
                     this.metricsHistory.disk = this.metricsHistory.disk.filter(point => point.x > thirtyMinutesAgo);
 
-                    // Update charts with simple data structure
+                    // Keep only last 20 points for cleaner display
+                    const maxPoints = 20;
+                    if (this.metricsHistory.cpu.length > maxPoints) {
+                        this.metricsHistory.cpu = this.metricsHistory.cpu.slice(-maxPoints);
+                    }
+                    if (this.metricsHistory.ram.length > maxPoints) {
+                        this.metricsHistory.ram = this.metricsHistory.ram.slice(-maxPoints);
+                    }
+                    if (this.metricsHistory.disk.length > maxPoints) {
+                        this.metricsHistory.disk = this.metricsHistory.disk.slice(-maxPoints);
+                    }
+
+                    // Update charts with proper structure
                     if (this.charts.cpu) {
-                        this.charts.cpu.data.labels = this.metricsHistory.cpu.map(point => new Date(point.x).toLocaleTimeString());
-                        this.charts.cpu.data.datasets[0].data = this.metricsHistory.cpu.map(point => point.y);
+                        const labels = this.metricsHistory.cpu.map((point, index) => {
+                            return index % Math.ceil(this.metricsHistory.cpu.length / 5) === 0 ? 
+                                new Date(point.x).toLocaleTimeString() : '';
+                        });
+                        const data = this.metricsHistory.cpu.map(point => point.y);
+                        
+                        this.charts.cpu.data.labels = labels;
+                        this.charts.cpu.data.datasets[0].data = data;
                         this.charts.cpu.update('none');
                     }
                     if (this.charts.ram) {
-                        this.charts.ram.data.labels = this.metricsHistory.ram.map(point => new Date(point.x).toLocaleTimeString());
-                        this.charts.ram.data.datasets[0].data = this.metricsHistory.ram.map(point => point.y);
+                        const labels = this.metricsHistory.ram.map((point, index) => {
+                            return index % Math.ceil(this.metricsHistory.ram.length / 5) === 0 ? 
+                                new Date(point.x).toLocaleTimeString() : '';
+                        });
+                        const data = this.metricsHistory.ram.map(point => point.y);
+                        
+                        this.charts.ram.data.labels = labels;
+                        this.charts.ram.data.datasets[0].data = data;
                         this.charts.ram.update('none');
                     }
                     if (this.charts.disk) {
-                        this.charts.disk.data.labels = this.metricsHistory.disk.map(point => new Date(point.x).toLocaleTimeString());
-                        this.charts.disk.data.datasets[0].data = this.metricsHistory.disk.map(point => point.y);
+                        const labels = this.metricsHistory.disk.map((point, index) => {
+                            return index % Math.ceil(this.metricsHistory.disk.length / 5) === 0 ? 
+                                new Date(point.x).toLocaleTimeString() : '';
+                        });
+                        const data = this.metricsHistory.disk.map(point => point.y);
+                        
+                        this.charts.disk.data.labels = labels;
+                        this.charts.disk.data.datasets[0].data = data;
                         this.charts.disk.update('none');
                     }
 
