@@ -450,18 +450,17 @@
             },
             methods: {
                 async initializePlatform() {
-                    // Wait for platform manager to load
-                    if (typeof window !== 'undefined' && window.platformManager && typeof window.platformManager.initialize === 'function') {
-                        try {
+                    try {
+                        // Проверяем наличие объекта в window
+                        if (window.platformManager && typeof window.platformManager.initialize === 'function') {
                             await window.platformManager.initialize();
-                            console.log('Platform manager initialized successfully');
-                        } catch (error) {
-                            console.error('Failed to initialize platform manager:', error);
-                            this.showError('Failed to initialize platform manager');
+                            console.log("Platform manager initialized successfully");
+                        } else {
+                            // Если мы здесь, значит скрипт platform-manager.js не определил метод
+                            console.warn("Platform manager found but initialize method is missing. Check platform-manager.js");
                         }
-                    } else {
-                        console.warn('Platform manager not found or initialize method not available');
-                        // Don't show error for missing platform manager - it's optional
+                    } catch (e) {
+                        console.error("Failed to init platform:", e);
                     }
                 },
 
@@ -1188,13 +1187,14 @@
                     
                     console.log('Plugin statuses:', this.plugins.map(p => ({name: p.name, status: p.status})));
                     
-                    setTimeout(async () => {
+                    setTimeout(() => {
                         this.loading = false;
                         this.showSuccess('Plugin system loaded successfully');
                         
                         // Ждем, пока Vue уберет спиннер и отрисует canvas
-                        await nextTick(); 
-                        this.initializeCharts();
+                        Vue.nextTick(() => {
+                            this.initializeCharts();
+                        });
                     }, 500);
                 },
 
@@ -1682,14 +1682,17 @@
 }
 
 .chart-wrapper {
-    height: 300px; /* Установите фиксированную высоту контейнеру */
-    position: relative;
-    margin-bottom: 20px;
+    position: relative; /* Обязательно для Chart.js */
+    height: 250px;      /* Жестко задаем высоту контейнеру */
+    width: 100%;
+    overflow: hidden;
 }
 
 .chart-wrapper canvas {
+    /* Удалите отсюда height: 200px !important */
+    display: block;
     width: 100% !important;
-    height: 100% !important; /* Позвольте графику занимать весь контейнер */
+    height: 100% !important;
 }
 
 .chart-threshold {
