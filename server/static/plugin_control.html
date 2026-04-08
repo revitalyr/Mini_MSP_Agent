@@ -1155,48 +1155,26 @@
 
                 // Update charts from history data
                 updateChartsFromHistory() {
-                    if (!this.charts.cpu || !this.charts.ram || !this.charts.disk) {
-                        return;
-                    }
+                    // Проверка, что графики созданы и не являются Proxy (благодаря markRaw)
+                    if (!this.charts.cpu || !this.charts.ram || !this.charts.disk) return;
 
                     try {
-                        // Update CPU chart
-                        if (this.metricsHistory.cpu.length > 0) {
-                            const cpuLabels = this.metricsHistory.cpu.map((point, index) => {
-                                return index % 2 === 0 ? new Date(point.x).toLocaleTimeString().slice(0, 5) : '';
-                            });
-                            const cpuData = this.metricsHistory.cpu.map(point => Math.round(point.y));
+                        const updateSingleChart = (chart, history) => {
+                            if (!history || history.length === 0) return;
                             
-                            this.charts.cpu.data.labels = cpuLabels;
-                            this.charts.cpu.data.datasets[0].data = cpuData;
-                            this.charts.cpu.update('none');
-                        }
+                            // Обновляем метки и данные
+                            chart.data.labels = history.map((p, i) => i % 2 === 0 ? new Date(p.x).toLocaleTimeString().slice(0, 5) : '');
+                            chart.data.datasets[0].data = history.map(p => Math.round(p.y));
+                            
+                            // Используем 'none' для отключения анимации при частых обновлениях
+                            chart.update('none'); 
+                        };
 
-                        // Update RAM chart
-                        if (this.metricsHistory.ram.length > 0) {
-                            const ramLabels = this.metricsHistory.ram.map((point, index) => {
-                                return index % 2 === 0 ? new Date(point.x).toLocaleTimeString().slice(0, 5) : '';
-                            });
-                            const ramData = this.metricsHistory.ram.map(point => Math.round(point.y));
-                            
-                            this.charts.ram.data.labels = ramLabels;
-                            this.charts.ram.data.datasets[0].data = ramData;
-                            this.charts.ram.update('none');
-                        }
-
-                        // Update Disk chart
-                        if (this.metricsHistory.disk.length > 0) {
-                            const diskLabels = this.metricsHistory.disk.map((point, index) => {
-                                return index % 2 === 0 ? new Date(point.x).toLocaleTimeString().slice(0, 5) : '';
-                            });
-                            const diskData = this.metricsHistory.disk.map(point => Math.round(point.y));
-                            
-                            this.charts.disk.data.labels = diskLabels;
-                            this.charts.disk.data.datasets[0].data = diskData;
-                            this.charts.disk.update('none');
-                        }
+                        updateSingleChart(this.charts.cpu, this.metricsHistory.cpu);
+                        updateSingleChart(this.charts.ram, this.metricsHistory.ram);
+                        updateSingleChart(this.charts.disk, this.metricsHistory.disk);
                     } catch (error) {
-                        console.error('Error updating charts:', error);
+                        console.error('Safe update failed:', error);
                     }
                 },
 
@@ -1704,9 +1682,14 @@
     font-weight: 600;
 }
 
+.chart-wrapper {
+    height: 250px;
+    position: relative;
+}
+
 .chart-wrapper canvas {
-    width: 100% !important;
-    height: 200px !important;
+    width: 100%;
+    height: 200px;
 }
 
 .chart-threshold {
