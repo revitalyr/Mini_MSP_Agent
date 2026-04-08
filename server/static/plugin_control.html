@@ -8,6 +8,7 @@
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     <script src="https://unpkg.com/feather-icons"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <script src="platforms/platform-manager.js"></script>
     <script src="demo-agent.js"></script>
     <script src="components/directory-info-config.js"></script>
@@ -792,11 +793,14 @@
                                 }
                             },
                             x: {
-                                type: 'time',
-                                time: {
-                                    displayFormats: {
-                                        minute: 'HH:mm',
-                                        hour: 'HH:mm'
+                                type: 'linear',
+                                ticks: {
+                                    callback: function(value, index) {
+                                        // Show time labels for every few points
+                                        if (index % Math.ceil(this.chart.data.labels.length / 5) === 0) {
+                                            return new Date(value).toLocaleTimeString();
+                                        }
+                                        return '';
                                     }
                                 }
                             }
@@ -829,24 +833,7 @@
                                 fill: true
                             }]
                         },
-                        options: {
-                            ...chartOptions,
-                            plugins: {
-                                ...chartOptions.plugins,
-                                annotation: {
-                                    annotations: {
-                                        line1: {
-                                            type: 'line',
-                                            yMin: this.thresholds.cpu,
-                                            yMax: this.thresholds.cpu,
-                                            borderColor: 'rgb(255, 99, 132)',
-                                            borderWidth: 2,
-                                            borderDash: [5, 5]
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        options: chartOptions
                     });
 
                     // RAM Chart
@@ -863,24 +850,7 @@
                                 fill: true
                             }]
                         },
-                        options: {
-                            ...chartOptions,
-                            plugins: {
-                                ...chartOptions.plugins,
-                                annotation: {
-                                    annotations: {
-                                        line1: {
-                                            type: 'line',
-                                            yMin: this.thresholds.ram,
-                                            yMax: this.thresholds.ram,
-                                            borderColor: 'rgb(54, 162, 235)',
-                                            borderWidth: 2,
-                                            borderDash: [5, 5]
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        options: chartOptions
                     });
 
                     // Disk Chart
@@ -897,31 +867,14 @@
                                 fill: true
                             }]
                         },
-                        options: {
-                            ...chartOptions,
-                            plugins: {
-                                ...chartOptions.plugins,
-                                annotation: {
-                                    annotations: {
-                                        line1: {
-                                            type: 'line',
-                                            yMin: this.thresholds.disk,
-                                            yMax: this.thresholds.disk,
-                                            borderColor: 'rgb(75, 192, 192)',
-                                            borderWidth: 2,
-                                            borderDash: [5, 5]
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        options: chartOptions
                     });
                 },
 
                 updateMetrics(agentId, metrics) {
                     const timestamp = Date.now();
                     
-                    // Update metrics history
+                    // Update metrics history with simpler structure
                     this.metricsHistory.cpu.push({ x: timestamp, y: metrics.cpu });
                     this.metricsHistory.ram.push({ x: timestamp, y: metrics.ram });
                     this.metricsHistory.disk.push({ x: timestamp, y: metrics.disk });
@@ -932,17 +885,20 @@
                     this.metricsHistory.ram = this.metricsHistory.ram.filter(point => point.x > thirtyMinutesAgo);
                     this.metricsHistory.disk = this.metricsHistory.disk.filter(point => point.x > thirtyMinutesAgo);
 
-                    // Update charts
+                    // Update charts with simple data structure
                     if (this.charts.cpu) {
-                        this.charts.cpu.data.datasets[0].data = this.metricsHistory.cpu;
+                        this.charts.cpu.data.labels = this.metricsHistory.cpu.map(point => new Date(point.x).toLocaleTimeString());
+                        this.charts.cpu.data.datasets[0].data = this.metricsHistory.cpu.map(point => point.y);
                         this.charts.cpu.update('none');
                     }
                     if (this.charts.ram) {
-                        this.charts.ram.data.datasets[0].data = this.metricsHistory.ram;
+                        this.charts.ram.data.labels = this.metricsHistory.ram.map(point => new Date(point.x).toLocaleTimeString());
+                        this.charts.ram.data.datasets[0].data = this.metricsHistory.ram.map(point => point.y);
                         this.charts.ram.update('none');
                     }
                     if (this.charts.disk) {
-                        this.charts.disk.data.datasets[0].data = this.metricsHistory.disk;
+                        this.charts.disk.data.labels = this.metricsHistory.disk.map(point => new Date(point.x).toLocaleTimeString());
+                        this.charts.disk.data.datasets[0].data = this.metricsHistory.disk.map(point => point.y);
                         this.charts.disk.update('none');
                     }
 
