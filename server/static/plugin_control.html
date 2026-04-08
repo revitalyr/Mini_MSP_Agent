@@ -828,8 +828,10 @@
                                 maxTicksLimit: 5
                             },
                             y: {
-                                beginAtZero: true,
+                                reverse: false,   // Explicitly forbid flip
+                                min: 0,
                                 max: 100,
+                                beginAtZero: true,
                                 ticks: {
                                     callback: function(value) {
                                         return value + '%';
@@ -1664,7 +1666,9 @@
     position: relative;
     height: 300px;      /* IMPORTANT: Must have explicit height */
     width: 100%;
-    overflow: hidden;   /* Prevent visual overflow */
+    display: flex;
+    flex-direction: column;
+    /* Remove overflow: hidden */
 }
 
 .chart-wrapper h4 {
@@ -1672,12 +1676,14 @@
     color: #333;
     font-size: 16px;
     font-weight: 600;
+    flex-shrink: 0;  /* Header doesn't shrink */
 }
 
 .chart-wrapper canvas {
     display: block;
     width: 100% !important;
-    height: 100% !important; /* Will occupy exactly 300px of parent */
+    flex: 1;         /* Canvas takes remaining space */
+    min-height: 0;   /* Allows flex element to shrink */
 }
 
 .chart-threshold {
