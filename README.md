@@ -140,11 +140,11 @@ RUST_LOG=debug ./target/release/agent --config configs/config.toml
 #### Command Types
 
 ```json
-+// Command Request
-+{ "command_id": "uuid", "command": "GetSystemInfo" }
-+
-+// Response (Structured JSON)
-+{
+// Command Request
+{ "command_id": "uuid", "command": "GetSystemInfo" }
+
+// Response (Structured JSON)
+{
   "command_id": "uuid",
   "type": "system_info",
   "status": "ok",

@@ -68,9 +68,9 @@
                 </div>
             </div>
 
-            <!-- Agents Panel -->
+            <!-- Agent Controls -->
             <div v-if="!loading && !error" class="agents-panel">
-                <h3 style="margin-bottom: 20px; color: #333;">🤖 Connected Agents</h3>
+                <h3 style="margin-bottom: 20px; color: #333;">🤖 Agent Controls</h3>
                 <div class="agent-controls">
                     <select v-model="selectedAgent" class="agent-selector">
                         <option value="">Select an agent...</option>
@@ -80,10 +80,13 @@
                     </select>
                     <button class="btn btn-primary" @click="refreshAgents">🔄 Refresh</button>
                     <button class="btn btn-info" @click="getSystemInfo" :disabled="!selectedAgent">📊 System Info</button>
+                    <button class="btn btn-warning" @click="getProcesses" :disabled="!selectedAgent">📋 Processes</button>
+                    <button class="btn btn-secondary" @click="showCommandDialog" :disabled="!selectedAgent">⚡ Execute Command</button>
+                    <button class="btn btn-success" @click="showFileDialog" :disabled="!selectedAgent">📁 Read File</button>
                 </div>
-                <div id="agentsGrid" class="agents-grid">
-                    <!-- Agent cards will be dynamically added here -->
-                </div>
+            </div>
+            <div id="agentsGrid" class="agents-grid">
+                <!-- Agent cards will be dynamically added here -->
             </div>
 
             <div v-if="!loading && !error" class="plugins-grid">
@@ -198,6 +201,62 @@
                 </div>
             </div>
         </div>
+
+        <!-- Command Execution Modal -->
+        <div v-if="showCommandModal" class="modal-overlay" @click="hideCommandDialog">
+            <div class="modal-content" @click.stop>
+                <h3>⚡ Execute Command</h3>
+                <div class="form-group">
+                    <label>Command:</label>
+                    <select v-model="commandType" class="form-control">
+                        <option value="">Select command type...</option>
+                        <option value="exec">Execute Shell Command</option>
+                    </select>
+                </div>
+                <div v-if="commandType === 'exec'" class="form-group">
+                    <label>Command to execute:</label>
+                    <input v-model="commandText" type="text" class="form-control" 
+                           placeholder="e.g., ps aux, ls -la, top -n 1">
+                    <small class="form-help">Allowed commands: ps, top, df, free, ls, cat</small>
+                </div>
+                <div class="modal-actions">
+                    <button @click="executeCommand" class="btn btn-primary" :disabled="!commandText">
+                        Execute
+                    </button>
+                    <button @click="hideCommandDialog" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- File Reading Modal -->
+        <div v-if="showFileModal" class="modal-overlay" @click="hideFileDialog">
+            <div class="modal-content" @click.stop>
+                <h3>📁 Read File</h3>
+                <div class="form-group">
+                    <label>File Path:</label>
+                    <input v-model="filePath" type="text" class="form-control" 
+                           placeholder="e.g., /var/log/syslog, /etc/hosts">
+                    <small class="form-help">Absolute paths only. No directory traversal allowed.</small>
+                </div>
+                <div class="modal-actions">
+                    <button @click="readFile" class="btn btn-primary" :disabled="!filePath">
+                        Read File
+                    </button>
+                    <button @click="hideFileDialog" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Notifications Container -->
+        <div class="toast-container">
+            <div v-for="toast in toasts" :key="toast.id" 
+                 class="toast" 
+                 :class="toast.type">
+                <div class="toast-message">{{ toast.message }}</div>
+                <button @click="removeToast(toast.id)" class="toast-close">×</button>
+            </div>
+        </div>
+
     </div>
 
     <script>
@@ -233,6 +292,15 @@
                     },
                     // WebSocket connection
                     ws: null,
+                    // Command modals
+                    showCommandModal: false,
+                    showFileModal: false,
+                    commandType: '',
+                    commandText: '',
+                    filePath: '',
+                    // Toast notifications
+                    toasts: [],
+                    toastId: 0,
                     plugins: [
                         {
                             name: 'directory_info',
@@ -331,14 +399,130 @@
                 handleCommandResponse(data) {
                     console.log('Command response received:', data);
                     
+                    // Update command history
+                    this.updateCommandHistory(data.command_id, data.status, data.data);
+                    
                     if (data.command === 'get_system_info') {
                         this.showSystemInfoModal(data.data);
-                        this.success = 'System info retrieved successfully';
+                        this.showToast('System info retrieved successfully', 'success');
+                    } else if (data.command === 'get_processes') {
+                        this.showProcessesModal(data.data);
+                        this.showToast('Processes retrieved successfully', 'success');
+                    } else if (data.command === 'exec') {
+                        this.showCommandResultModal(data.data);
+                        this.showToast('Command executed successfully', 'success');
+                    } else if (data.command === 'get_file') {
+                        this.showFileContentModal(data.data);
+                        this.showToast('File read successfully', 'success');
+                    } else if (data.status === 'error') {
+                        this.showToast(`Command failed: ${data.message || 'Unknown error'}`, 'error');
                     } else {
-                        this.success = `Command ${data.command} completed successfully`;
+                        this.showToast(`Command ${data.command} completed successfully`, 'success');
                     }
+                },
+
+                updateCommandHistory(commandId, status, data) {
+                    if (!this.commandHistory) return;
                     
-                    setTimeout(() => this.success = null, 3000);
+                    const item = this.commandHistory.find(item => item.command_id === commandId);
+                    if (item) {
+                        item.status = status === 'error' ? 'error' : 'completed';
+                        item.result = data;
+                        item.completedAt = Date.now();
+                    }
+                },
+
+                showProcessesModal(processes) {
+                    const modalContent = `
+                        <div style="max-width: 800px; margin: 0 auto; background: white; border-radius: 8px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+                            <h3 style="margin: 0 0 20px 0; color: #333;">📋 Running Processes</h3>
+                            <div style="max-height: 400px; overflow-y: auto;">
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <thead>
+                                        <tr style="background: #f5f5f5;">
+                                            <th style="padding: 10px; text-align: left; border-bottom: 1px solid #ddd;">PID</th>
+                                            <th style="padding: 10px; text-align: left; border-bottom: 1px solid #ddd;">Name</th>
+                                            <th style="padding: 10px; text-align: left; border-bottom: 1px solid #ddd;">CPU%</th>
+                                            <th style="padding: 10px; text-align: left; border-bottom: 1px solid #ddd;">Memory</th>
+                                            <th style="padding: 10px; text-align: left; border-bottom: 1px solid #ddd;">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${processes.map(proc => `
+                                            <tr>
+                                                <td style="padding: 8px; border-bottom: 1px solid #eee;">${proc.pid || 'N/A'}</td>
+                                                <td style="padding: 8px; border-bottom: 1px solid #eee;">${proc.name || 'N/A'}</td>
+                                                <td style="padding: 8px; border-bottom: 1px solid #eee;">${proc.cpu_usage || 'N/A'}%</td>
+                                                <td style="padding: 8px; border-bottom: 1px solid #eee;">${proc.memory_usage || 'N/A'}</td>
+                                                <td style="padding: 8px; border-bottom: 1px solid #eee;">${proc.status || 'N/A'}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div style="margin-top: 20px; text-align: right;">
+                                <button onclick="this.closest('.modal').remove()" style="padding: 10px 20px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;">Close</button>
+                            </div>
+                        </div>
+                    `;
+                    
+                    this.createModal(modalContent);
+                },
+
+                showCommandResultModal(result) {
+                    const modalContent = `
+                        <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+                            <h3 style="margin: 0 0 20px 0; color: #333;">⚡ Command Result</h3>
+                            <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 15px; font-family: monospace; white-space: pre-wrap; max-height: 300px; overflow-y: auto;">
+                                ${result.output || result.message || 'No output'}
+                            </div>
+                            <div style="margin-top: 20px; text-align: right;">
+                                <button onclick="this.closest('.modal').remove()" style="padding: 10px 20px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;">Close</button>
+                            </div>
+                        </div>
+                    `;
+                    
+                    this.createModal(modalContent);
+                },
+
+                showFileContentModal(fileData) {
+                    const modalContent = `
+                        <div style="max-width: 700px; margin: 0 auto; background: white; border-radius: 8px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+                            <h3 style="margin: 0 0 20px 0; color: #333;">📁 File Content</h3>
+                            <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 15px; font-family: monospace; white-space: pre-wrap; max-height: 400px; overflow-y: auto;">
+                                <strong>Path:</strong> ${fileData.path || 'N/A'}<br><br>
+                                <strong>Size:</strong> ${fileData.size ? this.formatBytes(fileData.size) : 'N/A'}<br><br>
+                                <strong>Content:</strong><br>
+                                <div style="margin-top: 10px; padding: 10px; background: white; border: 1px solid #ddd; border-radius: 3px;">
+                                    ${fileData.content || 'No content'}
+                                </div>
+                            </div>
+                            <div style="margin-top: 20px; text-align: right;">
+                                <button onclick="this.closest('.modal').remove()" style="padding: 10px 20px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;">Close</button>
+                            </div>
+                        </div>
+                    `;
+                    
+                    this.createModal(modalContent);
+                },
+
+                createModal(content) {
+                    const modal = document.createElement('div');
+                    modal.className = 'modal';
+                    modal.style.cssText = `
+                        position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+                        background: rgba(0,0,0,0.7); display: flex; align-items: center; 
+                        justify-content: center; z-index: 1000;
+                    `;
+                    modal.innerHTML = content;
+                    document.body.appendChild(modal);
+                    
+                    // Close on backdrop click
+                    modal.addEventListener('click', (e) => {
+                        if (e.target === modal) {
+                            modal.remove();
+                        }
+                    });
                 },
 
                 showSystemInfoModal(systemInfo) {
@@ -381,6 +565,150 @@
                             modal.remove();
                         }
                     });
+                },
+
+                // Command execution methods
+                getProcesses() {
+                    if (!this.selectedAgent) {
+                        this.showError('Please select an agent first');
+                        return;
+                    }
+                    
+                    this.sendCommand('get_processes', this.selectedAgent);
+                },
+
+                showCommandDialog() {
+                    this.showCommandModal = true;
+                    this.commandType = '';
+                    this.commandText = '';
+                },
+
+                hideCommandDialog() {
+                    this.showCommandModal = false;
+                    this.commandType = '';
+                    this.commandText = '';
+                },
+
+                executeCommand() {
+                    if (!this.selectedAgent || !this.commandText) {
+                        this.showError('Please select an agent and enter a command');
+                        return;
+                    }
+
+                    // Validate command
+                    const allowedCommands = ['ps', 'top', 'df', 'free', 'ls', 'cat'];
+                    const command = this.commandText.trim().split(' ')[0];
+                    
+                    if (!allowedCommands.includes(command)) {
+                        this.showError(`Command "${command}" is not allowed. Allowed commands: ${allowedCommands.join(', ')}`);
+                        return;
+                    }
+
+                    this.sendCommand('exec', this.selectedAgent, { cmd: this.commandText });
+                    this.hideCommandDialog();
+                },
+
+                showFileDialog() {
+                    this.showFileModal = true;
+                    this.filePath = '';
+                },
+
+                hideFileDialog() {
+                    this.showFileModal = false;
+                    this.filePath = '';
+                },
+
+                readFile() {
+                    if (!this.selectedAgent || !this.filePath) {
+                        this.showError('Please select an agent and enter a file path');
+                        return;
+                    }
+
+                    // Validate path
+                    if (this.filePath.includes('..') || this.filePath.includes('~')) {
+                        this.showError('Path traversal not allowed');
+                        return;
+                    }
+
+                    if (!this.filePath.startsWith('/')) {
+                        this.showError('Absolute paths only');
+                        return;
+                    }
+
+                    this.sendCommand('get_file', this.selectedAgent, { path: this.filePath });
+                    this.hideFileDialog();
+                },
+
+                // Toast notification methods
+                showToast(message, type = 'info') {
+                    const toast = {
+                        id: ++this.toastId,
+                        message,
+                        type,
+                        timestamp: Date.now()
+                    };
+                    
+                    this.toasts.push(toast);
+                    
+                    // Auto-remove after 5 seconds
+                    setTimeout(() => {
+                        this.removeToast(toast.id);
+                    }, 5000);
+                },
+
+                removeToast(id) {
+                    const index = this.toasts.findIndex(toast => toast.id === id);
+                    if (index > -1) {
+                        this.toasts.splice(index, 1);
+                    }
+                },
+
+                sendCommand(command, agentId, params = {}) {
+                    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+                        this.showToast('WebSocket not connected. Please refresh the page.', 'error');
+                        return;
+                    }
+
+                    const commandData = {
+                        type: 'command',
+                        agent_id: agentId,
+                        command: command,
+                        command_id: this.generateCommandId(),
+                        timestamp: Date.now(),
+                        ...params
+                    };
+
+                    this.ws.send(JSON.stringify(commandData));
+                    this.showToast(`Command "${command}" sent to agent`, 'success');
+                    
+                    // Add to command history
+                    this.addToCommandHistory(command, agentId, params);
+                },
+
+                generateCommandId() {
+                    return 'cmd_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                },
+
+                addToCommandHistory(command, agentId, params) {
+                    const historyItem = {
+                        id: this.generateCommandId(),
+                        command,
+                        agentId,
+                        params,
+                        timestamp: Date.now(),
+                        status: 'pending'
+                    };
+                    
+                    if (!this.commandHistory) {
+                        this.commandHistory = [];
+                    }
+                    
+                    this.commandHistory.unshift(historyItem);
+                    
+                    // Keep only last 50 commands
+                    if (this.commandHistory.length > 50) {
+                        this.commandHistory = this.commandHistory.slice(0, 50);
+                    }
                 },
 
                 initWebSocket() {
