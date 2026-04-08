@@ -444,10 +444,10 @@
                 this.refreshAgents(); // Load agents on startup
                 this.initWebSocket(); // Initialize WebSocket connection
                 
-                // Initialize charts after DOM is ready
-                this.$nextTick(() => {
+                // Initialize charts after DOM is fully loaded
+                setTimeout(() => {
                     this.initializeCharts();
-                });
+                }, 100);
             },
             methods: {
                 handleCommandResponse(data) {
@@ -767,6 +767,17 @@
 
                 // Metrics and charts methods
                 initializeCharts() {
+                    // Check if DOM elements exist
+                    const cpuCanvas = document.getElementById('cpuChart');
+                    const ramCanvas = document.getElementById('ramChart');
+                    const diskCanvas = document.getElementById('diskChart');
+                    
+                    if (!cpuCanvas || !ramCanvas || !diskCanvas) {
+                        console.warn('Chart canvas elements not found, retrying...');
+                        setTimeout(() => this.initializeCharts(), 500);
+                        return;
+                    }
+                    
                     const chartOptions = {
                         responsive: true,
                         maintainAspectRatio: false,
