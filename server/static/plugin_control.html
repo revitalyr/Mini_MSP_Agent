@@ -828,10 +828,14 @@
                                 maxTicksLimit: 5
                             },
                             y: {
-                                reverse: false,   // Explicitly forbid flip
+                                type: 'linear',      // Explicit type to prevent flip
+                                reverse: false,
                                 min: 0,
                                 max: 100,
+                                suggestedMin: 0,     // Backup constraints
+                                suggestedMax: 100,
                                 beginAtZero: true,
+                                grace: 0,            // No "air" beyond data
                                 ticks: {
                                     callback: function(value) {
                                         return value + '%';
