@@ -783,18 +783,40 @@
 
                 // Metrics and charts methods
                 initializeCharts() {
-                    // Check if DOM elements exist
-                    const cpuCanvas = document.getElementById('cpuChart');
-                    const ramCanvas = document.getElementById('ramChart');
-                    const diskCanvas = document.getElementById('diskChart');
+                    const charts = ['cpu', 'ram', 'disk'];
                     
-                    if (!cpuCanvas || !ramCanvas || !diskCanvas) {
-                        console.warn('Chart canvas elements not found, skipping initialization');
-                        return;
-                    }
+                    charts.forEach(type => {
+                        const canvas = document.getElementById(`${type}Chart`);
+                        if (!canvas) return;
 
-                    // Chart options
-                    const chartOptions = {
+                        // Если график уже существует, уничтожаем его перед созданием нового
+                        if (this.charts[type]) {
+                            this.charts[type].destroy();
+                        }
+
+                        const ctx = canvas.getContext('2d');
+                        this.charts[type] = markRaw(new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: [],
+                                datasets: [{
+                                    label: type.toUpperCase() + ' Usage',
+                                    data: [],
+                                    borderColor: type === 'cpu' ? '#ff6384' : (type === 'ram' ? '#36a2eb' : '#4bc0c0'),
+                                    backgroundColor: 'rgba(0,0,0,0.05)',
+                                    fill: true,
+                                    tension: 0.4
+                                }]
+                            },
+                            options: this.getChartOptions()
+                        }));
+                    });
+                    
+                    console.log("Charts initialized successfully");
+                },
+
+                getChartOptions() {
+                    return {
                         responsive: true,
                         maintainAspectRatio: false,
                         scales: {
@@ -825,61 +847,6 @@
                             }
                         }
                     };
-
-                    // Важно: создаем и СРАЗУ оборачиваем в markRaw
-                    // CPU Chart
-                    const cpuCtx = cpuCanvas.getContext('2d');
-                    this.charts.cpu = markRaw(new Chart(cpuCtx, {
-                        type: 'line',
-                        data: {
-                            labels: [],
-                            datasets: [{
-                                label: 'CPU Usage',
-                                data: [],
-                                borderColor: 'rgb(255, 99, 132)',
-                                backgroundColor: 'rgba(255, 99, 132, 0.1)',
-                                tension: 0.1,
-                                fill: true
-                            }]
-                        },
-                        options: chartOptions
-                    }));
-
-                    // RAM Chart
-                    const ramCtx = ramCanvas.getContext('2d');
-                    this.charts.ram = markRaw(new Chart(ramCtx, {
-                        type: 'line',
-                        data: {
-                            labels: [],
-                            datasets: [{
-                                label: 'RAM Usage',
-                                data: [],
-                                borderColor: 'rgb(54, 162, 235)',
-                                backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                                tension: 0.1,
-                                fill: true
-                            }]
-                        },
-                        options: chartOptions
-                    }));
-
-                    // Disk Chart
-                    const diskCtx = diskCanvas.getContext('2d');
-                    this.charts.disk = markRaw(new Chart(diskCtx, {
-                        type: 'line',
-                        data: {
-                            labels: [],
-                            datasets: [{
-                                label: 'Disk Usage',
-                                data: [],
-                                borderColor: 'rgb(75, 192, 192)',
-                                backgroundColor: 'rgba(75, 192, 192, 0.1)',
-                                tension: 0.1,
-                                fill: true
-                            }]
-                        },
-                        options: chartOptions
-                    }));
                 },
 
                 updateMetrics(agentId, metrics) {
@@ -1194,10 +1161,11 @@
                         
                         // 2. Ждем один "тик" Vue, чтобы canvas появились в DOM
                         Vue.nextTick(() => { 
+                            console.log("DOM updated, initializing charts...");
                             this.initializeCharts(); // 3. Теперь инициализируем
                             this.showSuccess('Plugin system loaded successfully');
                         });
-                    }, 500);
+                    }, 800); // Немного увеличим задержку для надежности
                 },
 
                 startPlugin(pluginName) {
