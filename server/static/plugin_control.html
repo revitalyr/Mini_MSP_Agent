@@ -297,7 +297,7 @@
     </div>
 
     <script>
-        const { createApp, markRaw } = Vue;
+        const { createApp, markRaw, nextTick } = Vue;
         
         // Main app with all components
         const app = createApp({
@@ -447,9 +447,8 @@
                 this.initWebSocket(); // Initialize WebSocket connection
                 
                 // Initialize charts after DOM is fully loaded
-                setTimeout(() => {
-                    this.initializeCharts();
-                }, 100);
+                await nextTick(); 
+                this.initializeCharts();
             },
             methods: {
                 async initializePlatform() {
@@ -792,14 +791,19 @@
                     
                     if (!cpuCanvas || !ramCanvas || !diskCanvas) {
                         console.warn('Chart canvas elements not found, retrying...');
-                        setTimeout(() => this.initializeCharts(), 500);
+                        setTimeout(() => this.initializeCharts(), 100);
                         return;
                     }
-                    
+
+                    // Chart options
                     const chartOptions = {
                         responsive: true,
                         maintainAspectRatio: false,
                         scales: {
+                            x: {
+                                display: true,
+                                maxTicksLimit: 5
+                            },
                             y: {
                                 beginAtZero: true,
                                 max: 100,
@@ -807,12 +811,6 @@
                                     callback: function(value) {
                                         return value + '%';
                                     }
-                                }
-                            },
-                            x: {
-                                display: true,
-                                ticks: {
-                                    maxTicksLimit: 5
                                 }
                             }
                         },
@@ -830,8 +828,9 @@
                         }
                     };
 
+                    // Важно: создаем и СРАЗУ оборачиваем в markRaw
                     // CPU Chart
-                    const cpuCtx = document.getElementById('cpuChart').getContext('2d');
+                    const cpuCtx = cpuCanvas.getContext('2d');
                     this.charts.cpu = markRaw(new Chart(cpuCtx, {
                         type: 'line',
                         data: {
@@ -849,7 +848,7 @@
                     }));
 
                     // RAM Chart
-                    const ramCtx = document.getElementById('ramChart').getContext('2d');
+                    const ramCtx = ramCanvas.getContext('2d');
                     this.charts.ram = markRaw(new Chart(ramCtx, {
                         type: 'line',
                         data: {
@@ -867,7 +866,7 @@
                     }));
 
                     // Disk Chart
-                    const diskCtx = document.getElementById('diskChart').getContext('2d');
+                    const diskCtx = diskCanvas.getContext('2d');
                     this.charts.disk = markRaw(new Chart(diskCtx, {
                         type: 'line',
                         data: {
@@ -1683,13 +1682,14 @@
 }
 
 .chart-wrapper {
-    height: 250px;
+    height: 300px; /* Установите фиксированную высоту контейнеру */
     position: relative;
+    margin-bottom: 20px;
 }
 
 .chart-wrapper canvas {
-    width: 100%;
-    height: 200px;
+    width: 100% !important;
+    height: 100% !important; /* Позвольте графику занимать весь контейнер */
 }
 
 .chart-threshold {
