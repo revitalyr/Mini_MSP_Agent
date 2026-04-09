@@ -132,11 +132,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 // and call handler.handle_heartbeat(), handler.handle_response(), etc.
                 // For now, just log that handler is available
                 debug!("Handler available for {} agents", agent_count);
-                    
-                    // Use broker getter method
-                    let _broker_client = handler_arc.broker();
-                    debug!("Broker client available");
-                }
+                
+                // Use broker getter method
+                let _broker_client = handler_arc.broker();
+                debug!("Broker client available");
             }
         });
     }
