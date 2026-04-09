@@ -27,9 +27,9 @@ if(MSVC)
     )
 endif()
 
-# Simple system plugin
+# Working system plugin
 add_library(modern_system_plugin SHARED
-    ../src/simple_system_plugin.cpp
+    ../src/working_system_plugin.cpp
 )
 
 set_target_properties(modern_system_plugin PROPERTIES
@@ -51,9 +51,9 @@ set_target_properties(modern_system_plugin PROPERTIES
     WINDOWS_EXPORT_ALL_SYMBOLS ON
 )
 
-# Simple directory plugin  
+# Working directory plugin  
 add_library(modern_directory_info_plugin SHARED
-    ../src/simple_directory_plugin.cpp
+    ../src/working_directory_plugin.cpp
 )
 
 set_target_properties(modern_directory_info_plugin PROPERTIES
