@@ -54,95 +54,107 @@ if ($Build) {
     # Сборка плагинов через CMake
     Push-Location $PluginDir
     try {
-        # Проверяем наличие уже собранных плагинов
-        $existingPlugins = @("modern_system_plugin.dll", "modern_directory_info_plugin.dll")
-        $allPluginsExist = $true
+        # Use platform-aware build script
+        $BuildScript = Join-Path $PluginDir "build_platform_plugins.ps1"
         
-        foreach ($plugin in $existingPlugins) {
-            if (-not (Test-Path $plugin)) {
-                $allPluginsExist = $false
-                break
-            }
-        }
-        
-        if ($allPluginsExist) {
-            Write-Host "✅ Плагины уже собраны, пропускаем CMake сборку" -ForegroundColor Green
+        if (Test-Path $BuildScript) {
+            Write-Host "🔧 Using platform-aware plugin builder..." -ForegroundColor Yellow
+            & $BuildScript
         } else {
-            # Проверяем наличие CMake и Ninja
-            $cmake = Get-Command cmake -ErrorAction SilentlyContinue
-            $ninja = Get-Command ninja -ErrorAction SilentlyContinue
+            Write-Host "⚠️ Platform-aware builder not found, using fallback..." -ForegroundColor Yellow
             
-            if (-not $cmake) {
-                Write-Host "⚠️ CMake не найден. Пропускаю сборку плагинов." -ForegroundColor Yellow
-            } elseif (-not $ninja) {
-                Write-Host "⚠️ Ninja не найден. Пропускаю сборку плагинов." -ForegroundColor Yellow
-            } else {
-                # Создаем build директорию если нужно
-                if (-not (Test-Path "build")) {
-                    New-Item -ItemType Directory -Path "build" | Out-Null
+            # Проверяем наличие уже собранных плагинов
+            $existingPlugins = @("modern_system_plugin.dll", "modern_directory_info_plugin.dll")
+            $allPluginsExist = $true
+            
+            foreach ($plugin in $existingPlugins) {
+                if (-not (Test-Path $plugin)) {
+                    $allPluginsExist = $false
+                    break
                 }
+            }
+            
+            if ($allPluginsExist) {
+                Write-Host "✅ Плагины уже собраны, пропускаем CMake сборку" -ForegroundColor Green
+            } else {
+                # Fallback to original build logic
+                Write-Host "⚠️ Using fallback build method..." -ForegroundColor Yellow
+                # Проверяем наличие CMake и Ninja
+                $cmake = Get-Command cmake -ErrorAction SilentlyContinue
+                $ninja = Get-Command ninja -ErrorAction SilentlyContinue
                 
-                Push-Location "build"
-                try {
-                    # Очистка кэша CMake если нужно
-                    if (Test-Path "CMakeCache.txt") {
-                        Write-Host "🧹 Очистка кэша CMake..." -ForegroundColor Yellow
-                        Remove-Item "CMakeCache.txt" -Force
-                        Remove-Item "CMakeFiles" -Recurse -Force -ErrorAction SilentlyContinue
+                if (-not $cmake) {
+                    Write-Host "⚠️ CMake не найден. Пропускаю сборку плагинов." -ForegroundColor Yellow
+                } elseif (-not $ninja) {
+                    Write-Host "⚠️ Ninja не найден. Пропускаю сборку плагинов." -ForegroundColor Yellow
+                } else {
+                    # Создаем build директорию если нужно
+                    if (-not (Test-Path "build")) {
+                        New-Item -ItemType Directory -Path "build" | Out-Null
                     }
                     
-                    # Находим компилятор для Windows
-                    $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-                    if (Test-Path $vswhere) {
-                        $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-                        $vcVarsPath = "$vsPath\VC\Auxiliary\Build\vcvars64.bat"
+                    Push-Location "build"
+                    try {
+                        # Очистка кэша CMake если нужно
+                        if (Test-Path "CMakeCache.txt") {
+                            Write-Host "🧹 Очистка кэша CMake..." -ForegroundColor Yellow
+                            Remove-Item "CMakeCache.txt" -Force
+                            Remove-Item "CMakeFiles" -Recurse -Force -ErrorAction SilentlyContinue
+                        }
                         
-                        if (Test-Path $vcVarsPath) {
-                            Write-Host "🔧 Настройка окружения Visual Studio..." -ForegroundColor Yellow
+                        # Находим компилятор для Windows
+                        $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+                        if (Test-Path $vswhere) {
+                            $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+                            $vcVarsPath = "$vsPath\VC\Auxiliary\Build\vcvars64.bat"
                             
-                            # Запускаем vcvars64.bat и импортируем окружение
-                            $vcVarsOutput = & cmd /c "`"$vcVarsPath`" && set" 2>&1 | Out-String
-                            $vcVarsLines = $vcVarsOutput -split "`r`n"
-                            
-                            foreach ($line in $vcVarsLines) {
-                                if ($line -match "^(.+?)=(.*)$") {
-                                    $varName = $matches[1]
-                                    $varValue = $matches[2]
-                                    Set-Item -Path "env:$varName" -Value $varValue
+                            if (Test-Path $vcVarsPath) {
+                                Write-Host "🔧 Настройка окружения Visual Studio..." -ForegroundColor Yellow
+                                
+                                # Запускаем vcvars64.bat и импортируем окружение
+                                $vcVarsOutput = & cmd /c "`"$vcVarsPath`" && set" 2>&1 | Out-String
+                                $vcVarsLines = $vcVarsOutput -split "`r`n"
+                                
+                                foreach ($line in $vcVarsLines) {
+                                    if ($line -match "^(.+?)=(.*)$") {
+                                        $varName = $matches[1]
+                                        $varValue = $matches[2]
+                                        Set-Item -Path "env:$varName" -Value $varValue
+                                    }
                                 }
-                            }
-                            
-                            # Используем современный CMakeLists.txt для C++23 плагинов с Ninja
-                            Write-Host "🔧 Конфигурация CMake (современные C++23 плагины с Ninja)..." -ForegroundColor Yellow
-                            & cmake .. -DCMAKE_BUILD_TYPE=Release -G "Ninja"
-                            
-                            if ($LASTEXITCODE -eq 0) {
-                                Write-Host "🔧 Сборка плагинов с Ninja..." -ForegroundColor Yellow
-                                & ninja 2>&1
-                                Write-Host "Ninja exit code: $LASTEXITCODE" -ForegroundColor Yellow
+                                
+                                # Используем современный CMakeLists.txt для C++23 плагинов с Ninja
+                                Write-Host "🔧 Конфигурация CMake (современные C++23 плагины с Ninja)..." -ForegroundColor Yellow
+                                & cmake .. -DCMAKE_BUILD_TYPE=Release -G "Ninja"
                                 
                                 if ($LASTEXITCODE -eq 0) {
-                                    # Копирование плагинов в корневую директорию
-                                    Write-Host "📋 Копирование плагинов..." -ForegroundColor Yellow
-                                    Copy-Item "*.dll" "..\" -Force -ErrorAction SilentlyContinue
+                                    Write-Host "🔧 Сборка плагинов с Ninja..." -ForegroundColor Yellow
+                                    & ninja 2>&1
+                                    Write-Host "Ninja exit code: $LASTEXITCODE" -ForegroundColor Yellow
+                                    
+                                    if ($LASTEXITCODE -eq 0) {
+                                        # Копирование плагинов в корневую директорию
+                                        Write-Host "📋 Копирование плагинов..." -ForegroundColor Yellow
+                                        Copy-Item "*.dll" "..\" -Force -ErrorAction SilentlyContinue
+                                    } else {
+                                        Write-Host "❌ Ошибка сборки плагинов с Ninja" -ForegroundColor Red
+                                    }
                                 } else {
-                                    Write-Host "❌ Ошибка сборки плагинов с Ninja" -ForegroundColor Red
+                                    Write-Host "❌ Ошибка конфигурации CMake с Ninja" -ForegroundColor Red
                                 }
                             } else {
-                                Write-Host "❌ Ошибка конфигурации CMake с Ninja" -ForegroundColor Red
+                                Write-Host "❌ vcvars64.bat не найден" -ForegroundColor Red
                             }
                         } else {
-                            Write-Host "❌ vcvars64.bat не найден" -ForegroundColor Red
+                            Write-Host "❌ Visual Studio не найдена" -ForegroundColor Red
                         }
-                    } else {
-                        Write-Host "❌ Visual Studio не найдена" -ForegroundColor Red
                     }
-                }
-                catch {
-                    Write-Host "❌ Ошибка при сборке плагинов: $_" -ForegroundColor Red
-                }
-                finally {
-                    Pop-Location
+                    catch {
+                        Write-Host "❌ Ошибка при сборке плагинов: $_" -ForegroundColor Red
+                    }
+                    finally {
+                        Pop-Location
+                    }
                 }
             }
         }

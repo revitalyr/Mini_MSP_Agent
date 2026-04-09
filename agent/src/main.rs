@@ -45,21 +45,48 @@ use anyhow::Result;
 use clap::{Arg, Command};
 use tracing::{error, info, warn};
 use tracing_subscriber::{self, EnvFilter, prelude::*};
+use std::path::Path;
 
 mod config;
-mod telemetry;
-mod network;
 mod plugins;
+mod telemetry;
+
+use config::Config;
+use plugins::manager::PluginManager;
+
+/// Get platform-specific plugin directory
+fn get_platform_plugin_dir(base_dir: &str) -> String {
+    let base_path = Path::new(base_dir);
+    
+    #[cfg(target_os = "windows")]
+    {
+        base_path.join("windows").to_string_lossy().to_string()
+    }
+    
+    #[cfg(target_os = "linux")]
+    {
+        base_path.join("linux").to_string_lossy().to_string()
+    }
+    
+    #[cfg(target_os = "macos")]
+    {
+        base_path.join("macos").to_string_lossy().to_string()
+    }
+    
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    {
+        // Fallback to base directory for unsupported platforms
+        base_dir.to_string()
+    }
+}
+
 mod broker;
 mod commands;
 pub mod security;
 
-use crate::network::{HttpClient, WebSocketClient};
-use crate::security::SecurityPolicy;
-use config::Config;
 use telemetry::TelemetryCollector;
 use std::sync::Arc;
-use plugins::{PluginManager, PluginEventType};
+use plugins::{PluginEventType};
 use broker::{BrokerClient, BrokerLoop, PluginEventPublisher, BrokerDeps};
 
 /// Main entry point for the Mini MSP Agent
@@ -153,7 +180,13 @@ async fn main() -> Result<()> {
     // Initialize plugin manager and load plugins
     let mut plugin_manager = PluginManager::new()
         .with_signature_check(config.disable_signature_check);
+    
+    // Determine platform-specific plugin directory
     let plugin_dir = matches.get_one::<String>("plugin-dir").unwrap();
+    let platform_plugin_dir = get_platform_plugin_dir(&plugin_dir);
+    
+    info!("Loading plugins from platform-specific directory: {}", platform_plugin_dir);
+    
     let hot_reload_enabled = matches.get_flag("hot-reload");
     
     // Initialize broker client with encapsulated retry mechanism
@@ -191,7 +224,7 @@ async fn main() -> Result<()> {
     }
     
     info!("Loading plugins from directory: {}", plugin_dir);
-    plugin_manager.load_plugins_from_directory(plugin_dir)?;
+    plugin_manager.load_plugins_from_directory(&platform_plugin_dir)?;
     
     // Check if system plugin is loaded
     if !plugin_manager.is_system_plugin_loaded() {
