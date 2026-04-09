@@ -49,6 +49,31 @@ services:
       - msp-network
     command: ["--config", "/app/config.toml"]
 
+  web-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - RUST_LOG=info
+      - NATS_URL=nats://nats:4222
+    networks:
+      - msp-network
+    depends_on:
+      - nats
+
+  web-frontend:
+    build:
+      context: ./web-interface
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    networks:
+      - msp-network
+    depends_on:
+      - web-backend
+
 networks:
   msp-network:
     driver: bridge
