@@ -82,8 +82,11 @@ fn get_platform_plugin_dir(base_dir: &str) -> String {
 
 mod broker;
 mod commands;
+mod network;
 pub mod security;
 
+use crate::network::{HttpClient, WebSocketClient};
+use crate::security::SecurityPolicy;
 use telemetry::TelemetryCollector;
 use std::sync::Arc;
 use plugins::{PluginEventType};
@@ -136,7 +139,7 @@ async fn main() -> Result<()> {
                 .long("plugin-dir")
                 .value_name("DIR")
                 .help("Directory containing C++ plugins")
-                .default_value("agent/plugins"),
+                .default_value("plugins"),
         )
         .arg(
             Arg::new("hot-reload")

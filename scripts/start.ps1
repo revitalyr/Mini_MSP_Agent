@@ -278,9 +278,9 @@ if (-not $ServerStarted) {
     exit 1
 }
 
-# Запуск агента
-Write-Host "🤖 Запуск агента с конфигурацией: $AgentConfig" -ForegroundColor Yellow
-$AgentProcess = Start-Process -FilePath $AgentPath -ArgumentList "--config", $AgentConfig, "--plugin-dir", "plugins" -PassThru -WindowStyle Hidden
+# Start agent
+Write-Host "Starting agent..." -ForegroundColor Green
+$agentProcess = Start-Process -FilePath $AgentPath -ArgumentList "-c $ConfigPath -p ../plugins" -PassThru -WindowStyle Hidden
 
 Write-Host "✅ Сервер и агент запущены!" -ForegroundColor Green
 Write-Host "📊 Панель управления: http://localhost:$ServerPort/static/plugin_control.html" -ForegroundColor Cyan
