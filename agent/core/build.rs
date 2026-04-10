@@ -15,7 +15,8 @@ fn main() {
         .output()
     {
         if output.status.success() {
-            let git_hash = String::from_utf8_lossy(&output.stdout).trim();
+            let git_hash_str = String::from_utf8_lossy(&output.stdout);
+            let git_hash = git_hash_str.trim();
             println!("cargo:rustc-env=GIT_HASH={}", git_hash);
         }
     }

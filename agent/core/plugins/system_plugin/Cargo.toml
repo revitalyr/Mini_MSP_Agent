@@ -13,3 +13,6 @@ chrono = { workspace = true }
 sysinfo = { workspace = true }
 nix = { workspace = true }
 core_shared = { path = "../../shared" }
+async-trait = { workspace = true }
+uuid = { workspace = true }
+gethostname = { workspace = true }

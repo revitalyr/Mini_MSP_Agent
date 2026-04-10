@@ -101,7 +101,7 @@ impl BrokerClient {
             .await
             .context("Failed to publish event")?;
         
-        debug!("Published event: {} from agent: {}", event.event_type, agent_id);
+        debug!("Published event: {:?} from agent: {}", event.event_type, agent_id);
         Ok(())
     }
 
@@ -143,7 +143,8 @@ impl BrokerClient {
 
     /// Get metrics subscriber for receiving global metrics
     pub async fn get_metrics_subscriber(&self) -> Option<Subscriber> {
-        self.metrics_subscriber.read().await.clone()
+        // Subscriber doesn't implement Clone, so we need to take it
+        self.metrics_subscriber.write().await.take()
     }
 
     /// Publish agent registration
@@ -192,7 +193,7 @@ impl BrokerClient {
     /// Request command execution on another agent
     pub async fn request_command(&self, target_agent_id: &str, command: &str, params: serde_json::Value) -> Result<Message> {
         let request = json!({
-            "request_id": Uuid::new(),
+            "request_id": Uuid::new_v4().to_string(),
             "command": command,
             "parameters": params,
             "timestamp": chrono::Utc::now().to_rfc3339(),
@@ -213,7 +214,7 @@ impl BrokerClient {
     /// Request metrics from another agent
     pub async fn request_metrics(&self, target_agent_id: &str) -> Result<Message> {
         let request = json!({
-            "request_id": Uuid::new(),
+            "request_id": Uuid::new_v4().to_string(),
             "timestamp": chrono::Utc::now().to_rfc3339(),
         });
         

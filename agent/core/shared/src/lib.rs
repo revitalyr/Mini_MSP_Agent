@@ -146,6 +146,7 @@ pub enum EventType {
 }
 
 /// Plugin trait that all plugins must implement
+#[async_trait::async_trait]
 pub trait Plugin: Send + Sync {
     fn name(&self) -> &str;
     fn version(&self) -> &str;
@@ -216,4 +217,64 @@ pub struct SecurityConfig {
     pub max_file_size: u64,
     pub sandbox_enabled: bool,
     pub require_signature: bool,
+}
+
+impl Default for AgentConfig {
+    fn default() -> Self {
+        Self {
+            agent: AgentConfigSection {
+                id: "default-agent".to_string(),
+                hostname: None,
+                version: "1.0.0".to_string(),
+                platform: std::env::consts::OS.to_string(),
+                heartbeat_interval: 30,
+                metrics_interval: 10,
+            },
+            broker: BrokerConfig {
+                url: "nats://localhost:4222".to_string(),
+                client_id: "agent-unknown".to_string(),
+                max_reconnect_attempts: 5,
+                reconnect_delay: 5000,
+            },
+            logging: LoggingConfig {
+                level: "info".to_string(),
+                format: "json".to_string(),
+                file: None,
+                max_file_size: Some(10 * 1024 * 1024), // 10MB
+                max_files: Some(5),
+            },
+            plugins: PluginConfig {
+                enabled_plugins: vec![
+                    "system_plugin".to_string(),
+                    "file_plugin".to_string(),
+                    "network_plugin".to_string(),
+                ],
+                plugin_dirs: vec![
+                    "./plugins".to_string(),
+                    "/opt/msp-agent/plugins".to_string(),
+                ],
+                auto_reload: false,
+                hot_reload: false,
+            },
+            security: SecurityConfig {
+                allowed_commands: vec![
+                    "get_system_info".to_string(),
+                    "get_processes".to_string(),
+                    "get_disk_info".to_string(),
+                    "get_memory_info".to_string(),
+                    "get_cpu_info".to_string(),
+                    "get_network_info".to_string(),
+                    "list_directory".to_string(),
+                    "get_file_info".to_string(),
+                    "read_file".to_string(),
+                    "get_interfaces".to_string(),
+                    "get_routes".to_string(),
+                    "get_connections".to_string(),
+                ],
+                max_file_size: 100 * 1024 * 1024, // 100MB
+                sandbox_enabled: false,
+                require_signature: false,
+            },
+        }
+    }
 }

@@ -136,8 +136,10 @@ impl Orchestrator {
     /// Load a plugin into the registry
     pub async fn load_plugin(&mut self, plugin: Box<dyn Plugin>) -> Result<()> {
         let plugin_name = plugin.name().to_string();
+        let plugin_version = plugin.version().to_string();
+        let plugin_description = plugin.description().to_string();
         
-        info!("Loading plugin: {} v{}", plugin.name(), plugin.version());
+        info!("Loading plugin: {} v{}", plugin_name, plugin_version);
         
         // Check if plugin is already loaded
         {
@@ -162,8 +164,8 @@ impl Orchestrator {
                 
                 // Emit event
                 self.emit_event(EventType::PluginLoaded, &plugin_name, json!({
-                    "version": plugin.version(),
-                    "description": plugin.description(),
+                    "version": plugin_version,
+                    "description": plugin_description,
                 })).await;
                 
                 Ok(())
@@ -216,7 +218,7 @@ impl Orchestrator {
 
     /// Execute a command on a specific plugin
     pub async fn execute_command(&self, command: &str, params: HashMap<String, serde_json::Value>) -> Result<CommandResponse> {
-        let request_id = Uuid::new();
+        let request_id = Uuid::new_v4();
         let start_time = std::time::Instant::now();
         
         debug!("Executing command {} with params: {:?}", command, params);
@@ -232,7 +234,7 @@ impl Orchestrator {
         });
         
         if let Some(plugin) = plugin {
-            let plugin_name = plugin.name();
+            let plugin_name = plugin.name().to_string();
             
             match plugin.handle_command(command, params).await {
                 Ok(data) => {
@@ -249,7 +251,7 @@ impl Orchestrator {
                     
                     // Emit command executed event
                     drop(plugins); // Release lock before emitting event
-                    self.emit_event(EventType::CommandExecuted, plugin_name, json!({
+                    self.emit_event(EventType::CommandExecuted, &plugin_name, json!({
                         "command": command,
                         "success": true,
                         "execution_time_ms": execution_time,
@@ -271,7 +273,7 @@ impl Orchestrator {
                     
                     // Emit command executed event
                     drop(plugins); // Release lock before emitting event
-                    self.emit_event(EventType::CommandExecuted, plugin_name, json!({
+                    self.emit_event(EventType::CommandExecuted, &plugin_name, json!({
                         "command": command,
                         "success": false,
                         "error": e.to_string(),
@@ -323,7 +325,7 @@ impl Orchestrator {
     /// Emit an event
     async fn emit_event(&self, event_type: EventType, source: &str, data: serde_json::Value) {
         let event = EventMessage {
-            id: Uuid::new(),
+            id: Uuid::new_v4(),
             event_type,
             source: source.to_string(),
             data,
@@ -359,7 +361,7 @@ impl Orchestrator {
     /// Background task for collecting metrics
     async fn metrics_collection_task(&self) {
         let mut interval = tokio::time::interval(
-            tokio::time::Duration::from_secs(self.config.agent.metrics_interval)
+            std::time::Duration::from_secs(self.config.agent.metrics_interval)
         );
         
         loop {
@@ -382,7 +384,7 @@ impl Orchestrator {
     /// Background task for health checking plugins
     async fn health_check_task(&self) {
         let mut interval = tokio::time::interval(
-            tokio::time::Duration::from_secs(60) // Check every minute
+            std::time::Duration::from_secs(60) // Check every minute
         );
         
         loop {

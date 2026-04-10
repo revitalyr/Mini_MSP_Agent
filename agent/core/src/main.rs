@@ -1,5 +1,9 @@
 use anyhow::{Context, Result};
+use async_nats;
 use clap::{Arg, Command};
+use core_shared::{AgentInfo, EventMessage};
+use gethostname;
+use serde_json;
 use std::sync::Arc;
 use tokio::signal;
 use tracing::{info, error, warn};
@@ -13,8 +17,8 @@ use orchestrator::Orchestrator;
 use broker::BrokerClient;
 use config::ConfigManager;
 
-// Include build information
-include!(concat!(env!("OUT_DIR"), "/build_info.rs"));
+// Build information constants
+pub const BUILD_INFO: &str = "unknown build";
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -166,19 +170,10 @@ fn print_startup_banner() {
     println!(
         r#"
 {} Mini MSP Agent v{} {}
-{}
-Build: {}
-Git: {}
-Target: {}
-{}
 "#,
         "=".repeat(60),
         env!("CARGO_PKG_VERSION"),
         "=".repeat(60),
-        BUILD_INFO,
-        env!("GIT_HASH"),
-        env!("TARGET_TRIPLE"),
-        "=".repeat(60)
     );
 }
 
@@ -319,7 +314,7 @@ async fn process_commands(
 async fn handle_command_message(
     orchestrator: &Orchestrator,
     broker_client: &BrokerClient,
-    message: async_nats::Message {
+    message: async_nats::Message,
 ) -> Result<()> {
     let request: serde_json::Value = serde_json::from_slice(&message.payload)?;
     
@@ -333,7 +328,7 @@ async fn handle_command_message(
     
     let parameters = request.get("parameters")
         .and_then(|p| serde_json::from_value(p.clone()))
-        .unwrap_or_else(|_| serde_json::Map::new());
+        .unwrap_or_else(|_| serde_json::Map::default());
     
     info!("Executing command: {} with parameters: {:?}", command, parameters);
     
@@ -365,7 +360,7 @@ async fn handle_command_message(
 async fn handle_metrics_request(
     orchestrator: &Orchestrator,
     broker_client: &BrokerClient,
-    message: async_nats::Message {
+    message: async_nats::Message,
 ) -> Result<()> {
     let request: serde_json::Value = serde_json::from_slice(&message.payload)?;
     
@@ -409,7 +404,7 @@ async fn send_heartbeats(
 ) {
     info!("Starting heartbeat task");
 
-    let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(30));
+    let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
 
     loop {
         interval.tick().await;

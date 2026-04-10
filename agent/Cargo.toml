@@ -20,8 +20,8 @@ anyhow = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json"] }
 tracing-appender = "0.2"
-async-nats = "0.31"
-uuid = { version = "1.6", features = ["v4", "serde"] }
+async-nats = "0.35"
+uuid = { version = "1.6", features = ["v4", "serde", "std"] }
 sysinfo = "0.30"
 reqwest = { version = "0.11", features = ["json"] }
 tokio-tungstenite = "0.21"
@@ -31,6 +31,8 @@ clap = { version = "4.4", features = ["derive"] }
 chrono = { version = "0.4", features = ["serde"] }
 gethostname = "0.4"
 nix = "0.27"
+rand = { version = "0.8", features = ["std"] }
+async-trait = "0.1"
 
 [package]
 name = "mini_msp_agent"
