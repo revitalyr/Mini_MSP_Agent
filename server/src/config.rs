@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
+use tracing::{info, debug, warn};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -14,19 +15,27 @@ pub struct Config {
 impl Config {
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
+        debug!("Loading config from: {}", path.display());
         
         if !path.exists() {
+            warn!("Config file not found: {}, creating default", path.display());
             // Create default config if it doesn't exist
             let default_config = Config::default();
             default_config.save(path)?;
+            info!("Created default config file: {}", path.display());
             return Ok(default_config);
         }
 
+        debug!("Reading config file: {}", path.display());
         let content = fs::read_to_string(path)
             .with_context(|| format!("Failed to read config file: {}", path.display()))?;
 
+        debug!("Parsing TOML config");
         let config: Config = toml::from_str(&content)
             .with_context(|| "Failed to parse TOML configuration")?;
+            
+        info!("Config loaded successfully: port={}, log_level={}, log_dir={}, broker_url={:?}", 
+               config.port, config.log_level, config.log_dir, config.broker_url);
 
         Ok(config)
     }

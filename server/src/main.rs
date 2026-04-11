@@ -21,7 +21,7 @@ use tower_http::{
     services::ServeDir,
     trace::TraceLayer,
 };
-use tracing::{info, debug, Level};
+use tracing::{info, debug, error, warn, Level};
 use anyhow::Context;
 
 use config::Config;
@@ -171,11 +171,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .layer(TraceLayer::new_for_http())
         .with_state(app_state);
 
-    // Start server
-    let listener = TcpListener::bind(addr).await?;
-    info!("Server listening on {}", addr);
+    // Start server with detailed logging
+    info!("Attempting to bind server to {}", addr);
+    let listener = match TcpListener::bind(addr).await {
+        Ok(listener) => {
+            info!("Successfully bound to {}", addr);
+            listener
+        }
+        Err(e) => {
+            error!("Failed to bind to {}: {}", addr, e);
+            return Err(e.into());
+        }
+    };
     
-    axum::serve(listener, app).await?;
+    info!("Starting axum server on {}", addr);
+    info!("Available routes:");
+    info!("  GET  /health - Health check");
+    info!("  GET  /health/simple - Simple health check");
+    info!("  POST /login - Authentication");
+    info!("  GET  /agents - List agents");
+    info!("  POST /agents/:id/command - Send command to agent");
+    info!("  GET  /ws - WebSocket endpoint");
+    info!("  GET  /static/* - Static files");
+    
+    match axum::serve(listener, app).await {
+        Ok(_) => info!("Server shutdown completed"),
+        Err(e) => error!("Server error: {}", e),
+    }
 
     Ok(())
 }
