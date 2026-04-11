@@ -7,6 +7,13 @@ param(
     [switch]$Build = $false
 )
 
+# Validate port is a number
+if ($ServerPort -notmatch '^\d+$') {
+    Write-Host "Error: ServerPort must be a number, got: $ServerPort" -ForegroundColor Red
+    Write-Host "Usage: .\scripts\start.ps1 [-ServerPort <port>] [-AgentConfig <config>] [-Build]" -ForegroundColor Yellow
+    exit 1
+}
+
 Write-Host "🚀 Starting Mini MSP Agent on Windows" -ForegroundColor Green
 
 # Функция проверки существования команды
@@ -164,14 +171,9 @@ if ($Build) {
     }
 }
 
-# Пути к бинарникам
-if ($Build) {
-    $ServerPath = "target/release/server.exe"
-    $AgentPath = "target/release/agent.exe"
-} else {
-    $ServerPath = "target/debug/server.exe"
-    $AgentPath = "target/debug/agent.exe"
-}
+# Paths to binaries - always use release
+$ServerPath = "target/release/server.exe"
+$AgentPath = "target/release/agent.exe"
 
 # Проверка существования бинарников
 if (-not (Test-Path $ServerPath)) {
@@ -225,26 +227,53 @@ if (-not (Test-Path "logs")) {
     New-Item -ItemType Directory -Name "logs" | Out-Null
 }
 
-# Проверка доступности порта
+# Start NATS server
+Write-Host "NATS: Starting NATS server..." -ForegroundColor Yellow
+$NatsPath = ".\nats-server-v2.10.25-windows-amd64\nats-server.exe"
+if (-not (Test-Path $NatsPath)) {
+    Write-Host "NATS: NATS server not found at $NatsPath" -ForegroundColor Red
+    Write-Host "NATS: Downloading NATS server..." -ForegroundColor Yellow
+    Invoke-WebRequest -Uri "https://github.com/nats-io/nats-server/releases/download/v2.10.25/nats-server-v2.10.25-windows-amd64.zip" -OutFile "nats-server.zip"
+    Expand-Archive -Path "nats-server.zip" -DestinationPath "."
+    Remove-Item "nats-server.zip"
+}
+
+Write-Host "NATS: Starting NATS on ports 4222 (clients) and 8222 (monitoring)..." -ForegroundColor Green
+$NatsProcess = Start-Process -FilePath $NatsPath -ArgumentList "--jetstream", "-p", "4222", "-m", "8222" -PassThru -WindowStyle Hidden
+
+# Wait for NATS to start
+Write-Host "NATS: Waiting for NATS to start..." -ForegroundColor Yellow
+Start-Sleep -Seconds 3
+
+# Check if NATS is running
 try {
-    $PortCheck = Test-NetConnection -ComputerName "localhost" -Port $ServerPort -InformationLevel Quiet -ErrorAction Stop
-    if ($PortCheck) {
-        Write-Host "❌ Порт $ServerPort уже используется" -ForegroundColor Red
-        Write-Host "💡 Выберите другой порт: .\scripts\start.ps1 -Port 8081" -ForegroundColor Yellow
-        exit 1
-    }
+    $null = Test-NetConnection -ComputerName "localhost" -Port 4222 -InformationLevel Quiet -ErrorAction Stop
+    Write-Host "NATS: NATS server started successfully" -ForegroundColor Green
 }
 catch {
-    # Порт свободен, продолжаем
+    Write-Host "NATS: Failed to start NATS server" -ForegroundColor Red
+    Stop-Process -Id $NatsProcess.Id -Force -ErrorAction SilentlyContinue
+    exit 1
+}
+
+# Проверка доступности порта
+try {
+    $null = Invoke-WebRequest -Uri "http://localhost:$ServerPort/health" -TimeoutSec 2 -ErrorAction Stop
+    Write-Host "Port $ServerPort already in use by another server" -ForegroundColor Red
+    Write-Host "Choose different port: .\scripts\start.ps1 -Port 8081" -ForegroundColor Yellow
+    exit 1
+}
+catch {
+    # Port is free, continue
 }
 
 # Запуск сервера в фоновом режиме
 Write-Host "🖥️ Запуск веб-сервера на порту $ServerPort..." -ForegroundColor Yellow
 $ServerProcess = Start-Process -FilePath $ServerPath -ArgumentList "--port", $ServerPort -PassThru -WindowStyle Hidden
 
-# Ожидание запуска сервера
-Write-Host "⏳ Ожидание запуска сервера..." -ForegroundColor Yellow
-$MaxWaitTime = 10
+# Wait for server to start
+Write-Host "SERVER: Waiting for server to start..." -ForegroundColor Yellow
+$MaxWaitTime = 30
 $WaitTime = 0
 $ServerStarted = $false
 
@@ -253,12 +282,16 @@ while ($WaitTime -lt $MaxWaitTime -and -not $ServerStarted) {
     $WaitTime++
     
     try {
-        $null = Invoke-WebRequest -Uri "http://localhost:$ServerPort/health" -TimeoutSec 2 -ErrorAction Stop
-        $ServerStarted = $true
-        Write-Host "✅ Сервер запущен на http://localhost:$ServerPort" -ForegroundColor Green
+        Write-Host "SERVER: Attempt ${WaitTime}/${MaxWaitTime}: Checking http://localhost:$ServerPort/health..." -ForegroundColor Gray
+        $response = Invoke-WebRequest -Uri "http://localhost:$ServerPort/health" -TimeoutSec 3 -ErrorAction Stop
+        if ($response.StatusCode -eq 200) {
+            $ServerStarted = $true
+            Write-Host "SERVER: Server started successfully on http://localhost:$ServerPort" -ForegroundColor Green
+            Write-Host "SERVER: Health check response: $($response.Content)" -ForegroundColor Cyan
+        }
     }
     catch {
-        Write-Host "🔄 Попытка ${WaitTime}/${MaxWaitTime}: сервер еще не готов..." -ForegroundColor Yellow
+        Write-Host "SERVER: Attempt ${WaitTime}/${MaxWaitTime}: Server not responding yet..." -ForegroundColor Yellow
     }
 }
 
@@ -278,11 +311,34 @@ if (-not $ServerStarted) {
     exit 1
 }
 
-# Start agent
-Write-Host "Starting agent..." -ForegroundColor Green
-$agentProcess = Start-Process -FilePath $AgentPath -ArgumentList "-c $ConfigPath -p ../plugins" -PassThru -WindowStyle Hidden
+# Start agent with correct configuration
+Write-Host "AGENT: Starting agent..." -ForegroundColor Green
+$agentProcess = Start-Process -FilePath $AgentPath -ArgumentList "-c", $ConfigPath -PassThru -WindowStyle Hidden
 
-Write-Host "✅ Сервер и агент запущены!" -ForegroundColor Green
+# Wait for agent to start
+Write-Host "AGENT: Waiting for agent to initialize..." -ForegroundColor Yellow
+Start-Sleep -Seconds 5
+
+# Check if agent is running
+if (-not $agentProcess.HasExited) {
+    Write-Host "AGENT: Agent started successfully" -ForegroundColor Green
+} else {
+    Write-Host "AGENT: Failed to start agent" -ForegroundColor Red
+    Stop-Process -Id $NatsProcess.Id -Force -ErrorAction SilentlyContinue
+    Stop-Process -Id $ServerProcess.Id -Force -ErrorAction SilentlyContinue
+    exit 1
+}
+
+Write-Host "SYSTEM: All components started successfully!" -ForegroundColor Green
+Write-Host "NATS:    nats://localhost:4222" -ForegroundColor Cyan
+Write-Host "Server:  http://localhost:$ServerPort" -ForegroundColor Cyan
+Write-Host "Agent:   $ConfigPath" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "Available endpoints:" -ForegroundColor Yellow
+Write-Host "  Health check: http://localhost:$ServerPort/health" -ForegroundColor White
+Write-Host "  Agent list:   http://localhost:$ServerPort/agents" -ForegroundColor White
+Write-Host "  WebSocket:    http://localhost:$ServerPort/ws" -ForegroundColor White
+Write-Host "  Static files: http://localhost:$ServerPort/static/" -ForegroundColor White
 Write-Host "📊 Панель управления: http://localhost:$ServerPort/static/plugin_control.html" -ForegroundColor Cyan
 Write-Host "📋 Список агентов: http://localhost:$ServerPort/agents" -ForegroundColor Cyan
 Write-Host "🔧 Нажмите Ctrl+C для остановки" -ForegroundColor Yellow
@@ -293,21 +349,31 @@ try {
         Start-Sleep -Seconds 1
         
         # Проверка что процессы еще работают
+        if ($NatsProcess.HasExited) {
+            Write-Host "NATS: NATS server stopped unexpectedly" -ForegroundColor Red
+            break
+        }
+        
         if ($ServerProcess.HasExited) {
-            Write-Host "❌ Сервер остановился" -ForegroundColor Red
+            Write-Host "SERVER: Web server stopped unexpectedly" -ForegroundColor Red
             break
         }
         
         if ($AgentProcess.HasExited) {
-            Write-Host "❌ Агент остановился" -ForegroundColor Red
+            Write-Host "AGENT: Agent stopped unexpectedly" -ForegroundColor Red
             break
         }
     }
 }
 finally {
-    Write-Host "🛑 Остановка сервисов..." -ForegroundColor Yellow
+    Write-Host "SHUTDOWN: Stopping all services..." -ForegroundColor Yellow
     
-    # Остановка процессов
+    # Stop all processes gracefully
+    if (-not $NatsProcess.HasExited) {
+        Stop-Process -Id $NatsProcess.Id -Force -ErrorAction SilentlyContinue
+        Write-Host "✅ NATS server stopped" -ForegroundColor Green
+    }
+    
     if (-not $ServerProcess.HasExited) {
         Stop-Process -Id $ServerProcess.Id -Force -ErrorAction SilentlyContinue
         Write-Host "✅ Сервер остановлен" -ForegroundColor Green
