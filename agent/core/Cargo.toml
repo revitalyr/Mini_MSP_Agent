@@ -29,7 +29,6 @@ gethostname = { workspace = true }
 nix = { workspace = true }
 
 # Internal dependencies
-mini_msp_shared = { path = "../../shared" }
 system_plugin = { path = "plugins/system_plugin" }
 file_plugin = { path = "plugins/file_plugin" }
 network_plugin = { path = "plugins/network_plugin" }
