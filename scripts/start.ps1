@@ -173,7 +173,7 @@ if ($Build) {
 
 # Paths to binaries - always use release
 $ServerPath = "target/release/server.exe"
-$AgentPath = "target/release/agent.exe"
+$AgentPath = "target/release/simple_agent.exe"
 
 # Проверка существования бинарников
 if (-not (Test-Path $ServerPath)) {

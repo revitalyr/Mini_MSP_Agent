@@ -1,12 +1,11 @@
 use anyhow::Result;
-use async_nats::Client;
-use futures_util::{SinkExt, StreamExt};
 use serde_json::json;
 use std::time::Duration;
-use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{info, error, debug};
 use uuid::Uuid;
-use tokio_tungstenite::WebSocketStream;
+
+mod websocket;
+use websocket::WebSocketClient;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 struct AgentInfo {
@@ -47,18 +46,9 @@ async fn main() -> Result<()> {
 
     // Connect to WebSocket
     info!("Connecting to WebSocket at ws://localhost:8081/ws...");
-    let (ws_stream, _) = match connect_async("ws://localhost:8081/ws").await {
-        Ok(result) => {
-            info!("Connected to WebSocket successfully");
-            result
-        }
-        Err(e) => {
-            error!("Failed to connect to WebSocket: {}", e);
-            return Err(e.into());
-        }
-    };
-
-    let (mut ws_sender, mut ws_receiver) = ws_stream.split();
+    let connect_result = WebSocketClient::connect("ws://localhost:8081/ws").await?;
+    let mut ws_client = connect_result.client;
+    info!("Connected to WebSocket successfully");
 
     // Send agent registration
     let agent_info = AgentInfo {
@@ -74,9 +64,9 @@ async fn main() -> Result<()> {
     });
 
     info!("Sending agent registration...");
-    if let Err(e) = ws_sender.send(Message::Text(registration_msg.to_string())).await {
+    if let Err(e) = ws_client.send_json(&registration_msg).await {
         error!("Failed to send registration: {}", e);
-        return Err(e.into());
+        return Err(e);
     }
 
     // Start heartbeat task
@@ -105,41 +95,60 @@ async fn main() -> Result<()> {
 
     // Handle WebSocket messages
     info!("Starting message handling loop...");
-    while let Some(msg) = ws_receiver.next().await {
-        match msg {
-            Ok(Message::Text(text)) => {
-                debug!("Received WebSocket message: {}", text);
-                
-                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&text) {
-                    if let Some(msg_type) = parsed.get("type").and_then(|v| v.as_str()) {
-                        match msg_type {
-                            "command" => {
-                                info!("Received command: {:?}", parsed);
-                                handle_command(&parsed, &mut ws_sender).await?;
-                            }
-                            "ping" => {
-                                let pong = json!({
-                                    "type": "pong",
-                                    "timestamp": chrono::Utc::now()
-                                });
-                                ws_sender.send(Message::Text(pong.to_string())).await?;
-                            }
-                            _ => {
-                                debug!("Unknown message type: {}", msg_type);
-                            }
+    while let Some(parsed) = ws_client.receive_json().await? {
+        debug!("Received WebSocket message: {:?}", parsed);
+        
+        if let Some(msg_type) = parsed.get("type").and_then(|v| v.as_str()) {
+            match msg_type {
+                "command" => {
+                    info!("Received command: {:?}", parsed);
+                    if let Some(cmd) = parsed.get("command").and_then(|v| v.as_str()) {
+                        let response = match cmd {
+                            "ping" => json!({
+                                "type": "command_response",
+                                "command": cmd,
+                                "success": true,
+                                "data": {"pong": "true"},
+                                "timestamp": chrono::Utc::now()
+                            }),
+                            "info" => json!({
+                                "type": "command_response", 
+                                "command": cmd,
+                                "success": true,
+                                "data": {
+                                    "agent": "simple_agent",
+                                    "version": "0.1.0",
+                                    "hostname": gethostname::gethostname().to_string_lossy()
+                                },
+                                "timestamp": chrono::Utc::now()
+                            }),
+                            _ => json!({
+                                "type": "command_response",
+                                "command": cmd,
+                                "success": false,
+                                "error": format!("Unknown command: {}", cmd),
+                                "timestamp": chrono::Utc::now()
+                            })
+                        };
+
+                        if let Err(e) = ws_client.send_json(&response).await {
+                            error!("Failed to send command response: {}", e);
+                        } else {
+                            info!("Command response sent");
                         }
                     }
                 }
+                "ping" => {
+                    let pong = json!({
+                        "type": "pong",
+                        "timestamp": chrono::Utc::now()
+                    });
+                    ws_client.send_json(&pong).await?;
+                }
+                _ => {
+                    debug!("Unknown message type: {}", msg_type);
+                }
             }
-            Ok(Message::Close(_)) => {
-                info!("WebSocket connection closed");
-                break;
-            }
-            Err(e) => {
-                error!("WebSocket error: {}", e);
-                break;
-            }
-            _ => {}
         }
     }
 
@@ -147,44 +156,5 @@ async fn main() -> Result<()> {
     heartbeat_task.abort();
     info!("Agent shutdown complete");
 
-    Ok(())
-}
-
-async fn handle_command(command: &serde_json::Value, ws_sender: &mut futures_util::stream::SplitSink<WebSocketStream<tokio_tungstenite::tungstenite::stream::MaybeTlsStream<tokio::net::TcpStream>>, Message>) -> Result<()> {
-    if let Some(cmd) = command.get("command").and_then(|v| v.as_str()) {
-        info!("Executing command: {}", cmd);
-        
-        let response = match cmd {
-            "ping" => json!({
-                "type": "command_response",
-                "command": cmd,
-                "success": true,
-                "data": {"pong": "true"},
-                "timestamp": chrono::Utc::now()
-            }),
-            "info" => json!({
-                "type": "command_response", 
-                "command": cmd,
-                "success": true,
-                "data": {
-                    "agent": "simple_agent",
-                    "version": "0.1.0",
-                    "hostname": gethostname::gethostname().to_string_lossy()
-                },
-                "timestamp": chrono::Utc::now()
-            }),
-            _ => json!({
-                "type": "command_response",
-                "command": cmd,
-                "success": false,
-                "error": format!("Unknown command: {}", cmd),
-                "timestamp": chrono::Utc::now()
-            })
-        };
-
-        ws_sender.send(Message::Text(response.to_string())).await?;
-        info!("Command response sent");
-    }
-    
     Ok(())
 }
