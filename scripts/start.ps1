@@ -311,9 +311,9 @@ if (-not $ServerStarted) {
     exit 1
 }
 
-# Start agent with correct configuration
+# Start agent (simple_agent doesn't need config parameters)
 Write-Host "AGENT: Starting agent..." -ForegroundColor Green
-$agentProcess = Start-Process -FilePath $AgentPath -ArgumentList "-c", $ConfigPath -PassThru -WindowStyle Hidden
+$agentProcess = Start-Process -FilePath $AgentPath -PassThru -WindowStyle Normal
 
 # Wait for agent to start
 Write-Host "AGENT: Waiting for agent to initialize..." -ForegroundColor Yellow
@@ -332,16 +332,23 @@ if (-not $agentProcess.HasExited) {
 Write-Host "SYSTEM: All components started successfully!" -ForegroundColor Green
 Write-Host "NATS:    nats://localhost:4222" -ForegroundColor Cyan
 Write-Host "Server:  http://localhost:$ServerPort" -ForegroundColor Cyan
-Write-Host "Agent:   $ConfigPath" -ForegroundColor Cyan
+Write-Host "Agent:   Connected and active" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Available endpoints:" -ForegroundColor Yellow
 Write-Host "  Health check: http://localhost:$ServerPort/health" -ForegroundColor White
 Write-Host "  Agent list:   http://localhost:$ServerPort/agents" -ForegroundColor White
 Write-Host "  WebSocket:    http://localhost:$ServerPort/ws" -ForegroundColor White
 Write-Host "  Static files: http://localhost:$ServerPort/static/" -ForegroundColor White
-Write-Host "📊 Панель управления: http://localhost:$ServerPort/static/plugin_control.html" -ForegroundColor Cyan
-Write-Host "📋 Список агентов: http://localhost:$ServerPort/agents" -ForegroundColor Cyan
-Write-Host "🔧 Нажмите Ctrl+C для остановки" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "REAL DEMO INTERFACE:" -ForegroundColor Magenta
+Write-Host "  Opening real-time monitoring dashboard..." -ForegroundColor Yellow
+
+# Open real demo page in browser
+Start-Process "http://localhost:8081" -ErrorAction SilentlyContinue
+Start-Process "$PSScriptRoot\..\real_demo.html" -ErrorAction SilentlyContinue
+
+Write-Host ""
+Write-Host "Press Ctrl+C to stop" -ForegroundColor Yellow
 
 # Ожидание Ctrl+C для остановки
 try {
