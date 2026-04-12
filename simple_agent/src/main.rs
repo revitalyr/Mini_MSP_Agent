@@ -146,9 +146,11 @@ async fn send_plugin_data_to_api(agent_id: &str) -> Result<()> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize tracing
+    // Initialize tracing with file logging
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::DEBUG)
+        .with_writer(std::io::stdout)
+        .with_writer(tracing_appender::rolling::daily("logs", "agent.log"))
         .init();
 
     info!("Starting Simple Mini MSP Agent with trait-based connections");

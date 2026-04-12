@@ -4,7 +4,7 @@ Simple API Server for Mini MSP Agent
 Provides real-time data from agents to web interface
 """
 
-from flask import Flask, jsonify, render_template_string
+from flask import Flask, jsonify, render_template_string, request
 from flask_cors import CORS
 import json
 import time
@@ -407,6 +407,7 @@ def get_agent(agent_id):
 @app.route('/api/register', methods=['POST'])
 def register_agent():
     """Register a new agent"""
+    logger = logging.getLogger(__name__)
     try:
         data = request.get_json()
         agent_id = data.get('id', f'agent_{int(time.time())}')
@@ -427,7 +428,7 @@ def register_agent():
         }
         
         system_metrics['total_messages'] += 1
-        print(f"Agent registered: {agent_id} ({data.get('hostname', 'Unknown')})")
+        logger.info(f"Agent registered: {agent_id} ({data.get('hostname', 'Unknown')})")
         
         return jsonify({
             'status': 'success',
@@ -436,11 +437,13 @@ def register_agent():
         })
         
     except Exception as e:
+        logger.error(f"Agent registration error: {str(e)}")
         return jsonify({'error': str(e)}), 400
 
 @app.route('/api/update', methods=['POST'])
 def update_agent():
     """Update agent data"""
+    logger = logging.getLogger(__name__)
     try:
         data = request.get_json()
         agent_id = data.get('id')
@@ -452,6 +455,7 @@ def update_agent():
                 'metrics': data.get('metrics', {})
             })
             system_metrics['total_messages'] += 1
+            logger.debug(f"Agent updated: {agent_id}")
             
         return jsonify({
             'status': 'success',
@@ -459,22 +463,26 @@ def update_agent():
         })
         
     except Exception as e:
+        logger.error(f"Agent update error: {str(e)}")
         return jsonify({'error': str(e)}), 400
 
 @app.route('/api/command', methods=['POST'])
 def send_command():
     """Send command to agents"""
+    logger = logging.getLogger(__name__)
     try:
         data = request.get_json()
         command = data.get('command')
         target_agent = data.get('agent_id')
         
         system_metrics['commands_sent'] += 1
+        logger.info(f"Command received: {command} (target: {target_agent})")
         
         # Simulate command processing
         if target_agent and target_agent in agents_data:
             agents_data[target_agent]['last_command'] = command
             agents_data[target_agent]['last_command_time'] = datetime.now().isoformat()
+            logger.debug(f"Command sent to agent {target_agent}")
         
         # Simulate response
         response_data = {
@@ -488,12 +496,14 @@ def send_command():
         def simulate_response():
             time.sleep(random.uniform(0.5, 2.0))
             system_metrics['responses_received'] += 1
+            logger.debug(f"Command response simulated for {command}")
             
         threading.Thread(target=simulate_response, daemon=True).start()
         
         return jsonify(response_data)
         
     except Exception as e:
+        logger.error(f"Command error: {str(e)}")
         return jsonify({'error': str(e)}), 400
 
 @app.route('/api/metrics')
@@ -538,6 +548,22 @@ def get_agent_plugins(agent_id):
     return jsonify({'error': 'Agent not found'}), 404
 
 if __name__ == '__main__':
+    import logging
+    from logging.handlers import RotatingFileHandler
+    
+    # Setup logging
+    log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    logging.basicConfig(
+        level=logging.INFO,
+        format=log_format,
+        handlers=[
+            RotatingFileHandler('logs/api_server.log', maxBytes=10485760, backupCount=5),
+            logging.StreamHandler()
+        ]
+    )
+    
+    logger = logging.getLogger(__name__)
+    
     print("Starting Mini MSP Agent API Server on port 5000...")
     print("Dashboard available at: http://localhost:5000")
     print("API endpoints:")
@@ -548,5 +574,7 @@ if __name__ == '__main__':
     print("  POST /api/command - Send command")
     print("  GET  /api/metrics - System metrics")
     print("  GET  /api/plugins/<id> - Agent plugins")
+    print("Logs: logs/api_server.log")
     
+    logger.info("API Server starting...")
     app.run(host='0.0.0.0', port=5000, debug=False)
