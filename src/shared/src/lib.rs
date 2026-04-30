@@ -131,9 +131,16 @@ pub enum PluginStatus {
 }
 
 /// Plugin registry
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PluginRegistry {
     pub plugins: HashMap<String, Box<dyn Plugin>>,
+}
+
+impl std::fmt::Debug for PluginRegistry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PluginRegistry")
+            .field("plugin_count", &self.plugins.len())
+            .finish()
+    }
 }
 
 /// Plugin trait interface
