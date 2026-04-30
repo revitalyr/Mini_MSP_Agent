@@ -20,6 +20,7 @@ pub mod types;
 pub mod constants;
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 use types::*;
 use constants::*;
