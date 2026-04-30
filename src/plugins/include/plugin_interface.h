@@ -68,11 +68,11 @@ typedef struct {
  * @var hostname - System hostname (null-terminated, max 255 chars)
  */
 typedef struct {
-    percentage_t cpu_usage;
-    percentage_t ram_usage;
-    percentage_t disk_usage;
-    uint64_t uptime;
-    char hostname[256];
+    Percentage cpu_usage;
+    Percentage ram_usage;
+    Percentage disk_usage;
+    Uptime uptime;
+    char m_hostname[kMaxHostnameLen];
 } system_metrics_t;
 
 /**
@@ -88,11 +88,11 @@ typedef struct {
  * @var start_time - Process start time (Unix timestamp)
  */
 typedef struct {
-    uint32_t pid;
-    char name[256];
-    percentage_t cpu_usage;
-    file_size_t memory_usage;
-    timestamp_t start_time;
+    ProcessId pid;
+    char m_name[kMaxHostnameLen];
+    Percentage cpu_usage;
+    MemorySize memory_usage;
+    Timestamp start_time;
 } process_info_t;
 
 /**
@@ -108,9 +108,9 @@ typedef struct {
  */
 typedef struct {
     char* content;
-    size_t size;
+    BufferSize size;
     bool success;
-    char error[512];
+    char m_error[kMaxErrorMsgLen];
 } file_content_t;
 
 /**
@@ -128,9 +128,9 @@ typedef struct {
 typedef struct {
     char* stdout;
     char* stderr;
-    int exit_code;
+    ExitCode exit_code;
     bool success;
-    char error[512];
+    char m_error[kMaxErrorMsgLen];
 } command_result_t;
 
 /**
@@ -148,13 +148,13 @@ typedef struct {
  * @var available_memory - Available memory in bytes
  */
 typedef struct {
-    char os_type[64];
-    char os_version[128];
-    char hostname[256];
-    uint64_t uptime;
+    char m_os_type[kMaxOsTypeLen];
+    char m_os_version[kMaxOsVersionLen];
+    char m_hostname[kMaxHostnameLen];
+    Uptime uptime;
     uint32_t cpu_cores;
-    uint64_t total_memory;
-    uint64_t available_memory;
+    MemorySize total_memory;
+    MemorySize available_memory;
 } system_info_t;
 
 // Plugin function types
@@ -166,7 +166,7 @@ typedef bool (PLUGIN_CALL *get_processes_fn_t)(process_info_t** processes, size_
 typedef bool (PLUGIN_CALL *execute_command_fn_t)(const char* command, command_result_t* result);
 typedef bool (PLUGIN_CALL *read_file_fn_t)(const char* path, file_content_t* content);
 typedef bool (PLUGIN_CALL *get_system_info_fn_t)(system_info_t* info);
-typedef directory_info_data_t* (PLUGIN_CALL *get_directory_info_data_fn_t)(const char* path, bool recursive, bool show_hidden, uint32_t max_depth);
+typedef directory_info_data_t* (PLUGIN_CALL *get_directory_info_data_fn_t)(const char* path, bool recursive, bool show_hidden, DepthLevel max_depth);
 typedef event_data_t* (PLUGIN_CALL *get_event_data_fn_t)(const char* path);
 typedef watchers_data_t* (PLUGIN_CALL *get_watchers_data_fn_t)(void);
 typedef file_reader_data_t* (PLUGIN_CALL *get_file_reader_data_fn_t)(const char* path);

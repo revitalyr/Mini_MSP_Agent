@@ -2,14 +2,7 @@ use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_void};
 use std::ptr;
 use anyhow::{anyhow, Result};
-
-// --- Semantic Type Aliases ---
-pub type FileSize = u64;
-pub type Timestamp = u64;
-pub type FileCount = u32;
-pub type CallCount = u32;
-pub type Percentage = u8;
-// -----------------------------
+use mini_msp_shared::types::*;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
@@ -74,7 +67,7 @@ pub struct SystemInfo {
 pub struct CDirectoryInfoData {
     pub m_path: *mut c_char,
     pub m_total_files: FileCount,
-    pub m_total_directories: FileCount,
+    pub m_total_directories: DirectoryCount,
     pub m_total_size_bytes: FileSize,
     pub m_hidden_files: FileCount,
     pub m_hidden_directories: FileCount,
@@ -95,20 +88,20 @@ pub struct CEventData {
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct CWatchersData {
-    pub m_active_watchers: FileCount,
-    pub m_total_notifications: CallCount,
-    pub m_cpu_usage: f32,
-    pub m_memory_usage_kb: FileSize,
+    pub m_active_watchers: WatcherCount,
+    pub m_total_notifications: NotificationCount,
+    pub m_cpu_usage: CpuUsage,
+    pub m_memory_usage_kb: MemorySize,
 }
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct CFileReaderData {
     pub m_path: *mut c_char,
-    pub m_size: u64,
+    pub m_size: FileSize,
     pub m_encoding: [c_char; 32],
     pub m_is_locked: bool,
-    pub m_last_access: u64,
+    pub m_last_access: Timestamp,
 }
 
 #[repr(C)]
@@ -117,35 +110,35 @@ pub struct CSensorData {
     pub m_temperature: f32,
     pub m_humidity: f32,
     pub m_pressure: f32,
-    pub m_timestamp: u64,
+    pub m_timestamp: Timestamp,
 }
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct CCameraData {
-    pub m_width: u32,
-    pub m_height: u32,
-    pub m_fps: u32,
+    pub m_width: Width,
+    pub m_height: Height,
+    pub m_fps: FrameRate,
     pub m_codec: [c_char; 16],
-    pub m_timestamp: u64,
+    pub m_timestamp: Timestamp,
 }
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct CProcessingResults {
     pub m_status: [c_char; 64],
-    pub m_load_index: f32,
-    pub m_processed_items: u32,
+    pub m_load_index: LoadIndex,
+    pub m_processed_items: ItemCount,
 }
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct CVideoFrame {
     pub m_data: *mut u8,
-    pub m_size: u64,
-    pub m_width: u32,
-    pub m_height: u32,
-    pub m_timestamp: u64,
+    pub m_size: FileSize,
+    pub m_width: Width,
+    pub m_height: Height,
+    pub m_timestamp: Timestamp,
 }
 
 #[repr(C)]
@@ -163,7 +156,7 @@ pub struct PluginInterface {
         *const c_char, 
         bool, 
         bool, 
-        u32
+        DepthLevel
     ) -> *mut CDirectoryInfoData>,
     pub get_event_data: Option<unsafe extern "C" fn(*const c_char) -> *mut CEventData>,
     pub get_watchers_data: Option<unsafe extern "C" fn() -> *mut CWatchersData>,
@@ -401,7 +394,7 @@ impl SafePluginInterface {
         }
     }
 
-    pub fn get_directory_info_data(&self, path: &str, recursive: bool, show_hidden: bool, max_depth: u32) -> Result<DirectoryInfoData> {
+    pub fn get_directory_info_data(&self, path: &str, recursive: bool, show_hidden: bool, max_depth: DepthLevel) -> Result<DirectoryInfoData> {
         unsafe {
             let get_dir = self.interface.get_directory_info_data
                 .ok_or_else(|| anyhow!("get_directory_info_data function not available"))?;
@@ -524,24 +517,24 @@ impl SafePluginInterface {
 #[derive(Debug, Clone)]
 pub struct DirectoryInfoData {
     pub path: String,
-    pub total_files: u64,
-    pub total_directories: u64,
-    pub total_size_bytes: u64,
-    pub hidden_files: u64,
-    pub hidden_directories: u64,
-    pub scan_timestamp: u64,
-    pub scan_progress: u8,
+    pub total_files: FileCount,
+    pub total_directories: DirectoryCount,
+    pub total_size_bytes: FileSize,
+    pub hidden_files: FileCount,
+    pub hidden_directories: FileCount,
+    pub scan_timestamp: Timestamp,
+    pub scan_progress: Percentage,
 }
 
 impl DirectoryInfoData {
     unsafe fn from_c_struct(info: CDirectoryInfoData) -> Self {
         Self {
             path: c_string_to_string_lossy(info.m_path),
-            total_files: info.m_total_files as u64,
-            total_directories: info.m_total_directories as u64,
-            total_size_bytes: info.m_total_size_bytes as u64,
-            hidden_files: info.m_hidden_files as u64,
-            hidden_directories: info.m_hidden_directories as u64,
+            total_files: info.m_total_files,
+            total_directories: info.m_total_directories,
+            total_size_bytes: info.m_total_size_bytes,
+            hidden_files: info.m_hidden_files,
+            hidden_directories: info.m_hidden_directories,
             scan_timestamp: info.m_scan_timestamp,
             scan_progress: info.m_scan_progress,
         }
@@ -551,17 +544,17 @@ impl DirectoryInfoData {
 #[derive(Debug, Clone)]
 pub struct EventData {
     pub path: String,
-    pub events_count: u64,
-    pub buffer_usage: u8,
+    pub events_count: CallCount,
+    pub buffer_usage: Percentage,
     pub last_event: String,
-    pub timestamp: u64,
+    pub timestamp: Timestamp,
 }
 
 impl EventData {
     unsafe fn from_c_struct(event: CEventData) -> Self {
         Self {
             path: c_string_to_string_lossy(event.m_path),
-            events_count: event.m_events_count as u64,
+            events_count: event.m_events_count,
             buffer_usage: event.m_buffer_usage,
             last_event: c_string_to_string_lossy(event.m_last_event.as_ptr()),
             timestamp: event.m_timestamp,
@@ -571,17 +564,17 @@ impl EventData {
 
 #[derive(Debug, Clone)]
 pub struct WatchersData {
-    pub active_watchers: u64,
-    pub total_notifications: u64,
-    pub cpu_usage: f32,
-    pub memory_usage_kb: u64,
+    pub active_watchers: WatcherCount,
+    pub total_notifications: NotificationCount,
+    pub cpu_usage: CpuUsage,
+    pub memory_usage_kb: MemorySize,
 }
 
 impl WatchersData {
     unsafe fn from_c_struct(data: CWatchersData) -> Self {
         Self {
-            active_watchers: data.m_active_watchers as u64,
-            total_notifications: data.m_total_notifications as u64,
+            active_watchers: data.m_active_watchers,
+            total_notifications: data.m_total_notifications,
             cpu_usage: data.m_cpu_usage,
             memory_usage_kb: data.m_memory_usage_kb,
         }
@@ -592,7 +585,7 @@ impl WatchersData {
 pub struct FileReaderData {
     pub path: String,
     pub content: String,
-    pub size: u64,
+    pub size: FileSize,
     pub encoding: String,
 }
 
@@ -601,7 +594,7 @@ impl FileReaderData {
         Self {
             path: c_string_to_string_lossy(data.m_path),
             content: String::new(), // No content field in C struct
-            size: data.m_size as u64,
+            size: data.m_size,
             encoding: c_string_to_string_lossy(data.m_encoding.as_ptr()),
         }
     }
@@ -612,7 +605,7 @@ pub struct SensorData {
     pub sensor_type: String,
     pub value: f64,
     pub unit: String,
-    pub timestamp: i64,
+    pub timestamp: Timestamp,
 }
 
 impl SensorData {
@@ -621,7 +614,7 @@ impl SensorData {
             sensor_type: "temperature".to_string(), // Use available field
             value: data.m_temperature as f64,
             unit: "celsius".to_string(), // Default unit
-            timestamp: data.m_timestamp as i64,
+            timestamp: data.m_timestamp,
         }
     }
 }
@@ -630,8 +623,8 @@ impl SensorData {
 pub struct CameraData {
     pub camera_id: String,
     pub resolution: String,
-    pub frame_rate: u32,
-    pub timestamp: i64,
+    pub frame_rate: FrameRate,
+    pub timestamp: Timestamp,
 }
 
 impl CameraData {
@@ -640,7 +633,7 @@ impl CameraData {
             camera_id: "default".to_string(), // Use default since C struct doesn't have this field
             resolution: format!("{}x{}", data.m_width, data.m_height),
             frame_rate: data.m_fps,
-            timestamp: data.m_timestamp as i64,
+            timestamp: data.m_timestamp,
         }
     }
 }
@@ -667,9 +660,9 @@ impl ProcessingResults {
 #[derive(Debug, Clone)]
 pub struct VideoFrameData {
     pub data: Vec<u8>,
-    pub width: u32,
-    pub height: u32,
-    pub timestamp: u64,
+    pub width: Width,
+    pub height: Height,
+    pub timestamp: Timestamp,
 }
 
 #[derive(Debug, Clone)]

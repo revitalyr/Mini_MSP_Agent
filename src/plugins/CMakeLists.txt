@@ -47,22 +47,6 @@ if(MSVC)
         /bigobj
     )
     
-    # Modern MSVC definitions
-    target_compile_definitions(ModernSystemPlugin PRIVATE
-        WIN32_LEAN_AND_MEAN
-        NOMINMAX
-        _WIN32_WINNT=0x0A00  # Windows 10
-        WINVER=0x0A00
-        UNICODE
-        _UNICODE
-    )
-    
-    # Modern MSVC link options
-    set_target_properties(ModernSystemPlugin PROPERTIES
-        LINK_OPTIONS "/IGNORE:4221"  # Ignore LNK4221 warning
-        WINDOWS_EXPORT_ALL_SYMBOLS ON
-    )
-    
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     # Modern GCC flags for C++23
     add_compile_options(
@@ -75,6 +59,7 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         -Wpedantic
         -Werror
         -fno-rtti
+        -fanalyzer
         -fno-exceptions
         -O3
         -march=native
@@ -108,7 +93,7 @@ endif()
 
 # Modern source file organization
 set(SOURCES
-    src/modern_system_plugin.cpp
+    src/working_system_plugin.cpp
 )
 
 # Create modern library target
@@ -127,6 +112,17 @@ set_target_properties(ModernSystemPlugin PROPERTIES
 
 # Modern Windows-specific configuration
 if(WIN32)
+    # Windows-specific definitions
+    target_compile_definitions(ModernSystemPlugin PRIVATE
+        WIN32_LEAN_AND_MEAN
+        NOMINMAX
+        _WIN32_WINNT=0x0A00
+        WINVER=0x0A00
+        UNICODE
+        _UNICODE
+        MODERN_SYSTEM_PLUGIN_EXPORTS
+    )
+    
     # Windows-specific libraries
     target_link_libraries(ModernSystemPlugin PRIVATE
         kernel32
@@ -142,20 +138,8 @@ if(WIN32)
         winspool
     )
     
-    # Windows-specific definitions
-    target_compile_definitions(ModernSystemPlugin PRIVATE
-        WIN32_LEAN_AND_MEAN
-        NOMINMAX
-        _WIN32_WINNT=0x0A00
-        WINVER=0x0A00
-        UNICODE
-        _UNICODE
-        MODERN_SYSTEM_PLUGIN_EXPORTS
-    )
-    
     # Modern Windows DLL configuration
     set_target_properties(ModernSystemPlugin PROPERTIES
-        WINDOWS_EXPORT_ALL_SYMBOLS ON
         WINDOWS_EXPORT_ALL_SYMBOLS ON
         LINK_FLAGS "/IGNORE:4221"
     )
@@ -229,33 +213,33 @@ install(FILES
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-# Modern CMake package configuration
-include(CMakePackageConfigHelpers)
-
-write_basic_package_version_file(
-    "${CMAKE_CURRENT_BINARY_DIR}/ModernSystemPluginConfigVersion.cmake"
-    VERSION ${PROJECT_VERSION}
-    COMPATIBILITY SameMajorVersion
-)
-
-configure_package_config_file(
-    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/ModernSystemPluginConfig.cmake.in"
-    "${CMAKE_CURRENT_BINARY_DIR}/ModernSystemPluginConfig.cmake"
-    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ModernSystemPlugin
-)
-
-install(FILES
-    "${CMAKE_CURRENT_BINARY_DIR}/ModernSystemPluginConfig.cmake"
-    "${CMAKE_CURRENT_BINARY_DIR}/ModernSystemPluginConfigVersion.cmake"
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ModernSystemPlugin
-)
-
-# Modern export configuration
-install(EXPORT ModernSystemPluginTargets
-    FILE ModernSystemPluginTargets.cmake
-    NAMESPACE ModernSystemPlugin::
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ModernSystemPlugin
-)
+# Modern CMake package configuration (disabled for now - requires cmake/ directory)
+# include(CMakePackageConfigHelpers)
+# 
+# write_basic_package_version_file(
+#     "${CMAKE_CURRENT_BINARY_DIR}/ModernSystemPluginConfigVersion.cmake"
+#     VERSION ${PROJECT_VERSION}
+#     COMPATIBILITY SameMajorVersion
+# )
+# 
+# configure_package_config_file(
+#     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/ModernSystemPluginConfig.cmake.in"
+#     "${CMAKE_CURRENT_BINARY_DIR}/ModernSystemPluginConfig.cmake"
+#     INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ModernSystemPlugin
+# )
+# 
+# install(FILES
+#     "${CMAKE_CURRENT_BINARY_DIR}/ModernSystemPluginConfig.cmake"
+#     "${CMAKE_CURRENT_BINARY_DIR}/ModernSystemPluginConfigVersion.cmake"
+#     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ModernSystemPlugin
+# )
+# 
+# # Modern export configuration
+# install(EXPORT ModernSystemPluginTargets
+#     FILE ModernSystemPluginTargets.cmake
+#     NAMESPACE ModernSystemPlugin::
+#     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ModernSystemPlugin
+# )
 
 # Modern testing configuration
 option(BUILD_TESTING "Build tests" OFF)

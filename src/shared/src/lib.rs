@@ -16,8 +16,13 @@
 //! All structures support JSON serialization/deserialization using serde,
 //! enabling seamless communication over HTTP and WebSocket protocols.
 
+pub mod types;
+pub mod constants;
+
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use types::*;
+use constants::*;
 
 /// Agent heartbeat message containing status and metrics
 /// 
@@ -34,10 +39,10 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Heartbeat {
     pub agent_id: String,
-    pub timestamp: i64,
+    pub timestamp: Timestamp,
     pub metrics: Metrics,
     pub hostname: String,
-    pub uptime: u64,
+    pub uptime: Uptime,
 }
 
 /// System performance metrics
@@ -89,7 +94,7 @@ pub enum Command {
         path: String, 
         include_subdirs: bool, 
         show_hidden: bool, 
-        max_depth: u32 
+        max_depth: DepthLevel 
     },
     GetPluginRegistry,
     GetEventData { path: String },
@@ -107,7 +112,7 @@ pub enum AgentResponse {
     Binary { command_id: String, data: Vec<u8> },
 }
 
-/// Обертка для отправки команды с уникальным идентификатором
+/// Wrapper for sending command with unique identifier
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CommandRequest {
     pub command_id: String,
@@ -120,14 +125,14 @@ pub struct CommandResponse {
     pub r#type: String,
     pub status: String,
     pub data: serde_json::Value,
-    pub timestamp: i64,
+    pub timestamp: Timestamp,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AgentConfig {
     pub server_url: String,
     pub ws_url: String,
-    pub interval: u64,
+    pub interval: Duration,
     pub agent_id: String,
 }
 
@@ -136,7 +141,7 @@ impl Default for AgentConfig {
         Self {
             server_url: "http://localhost:8080".to_string(),
             ws_url: "ws://localhost:8080/ws".to_string(),
-            interval: 30,
+            interval: DEFAULT_HEARTBEAT_SEC,
             agent_id: Uuid::new_v4().to_string(),
         }
     }
@@ -146,46 +151,46 @@ impl Default for AgentConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct DirectoryInfoData {
     pub path: String,
-    pub total_files: u64,
-    pub total_directories: u64,
-    pub total_size_bytes: u64,
-    pub hidden_files: u64,
-    pub hidden_directories: u64,
-    pub scan_timestamp: u64,
-    pub scan_progress: u8,
+    pub total_files: FileCount,
+    pub total_directories: DirectoryCount,
+    pub total_size_bytes: FileSize,
+    pub hidden_files: FileCount,
+    pub hidden_directories: FileCount,
+    pub scan_timestamp: Timestamp,
+    pub scan_progress: Percentage,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SystemMetricsData {
-    pub cpu_usage: f32,
-    pub ram_usage: f32,
-    pub disk_usage: f32,
-    pub uptime: u64,
+    pub cpu_usage: CpuUsage,
+    pub ram_usage: RamUsage,
+    pub disk_usage: DiskUsage,
+    pub uptime: Uptime,
     pub hostname: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct EventData {
     pub path: String,
-    pub events_count: u32,
-    pub buffer_usage: u8,
+    pub events_count: CallCount,
+    pub buffer_usage: Percentage,
     pub last_event: String,
-    pub timestamp: u64,
+    pub timestamp: Timestamp,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WatchersData {
-    pub active_watchers: u64,
-    pub total_notifications: u64,
-    pub cpu_usage: f32,
-    pub memory_usage_kb: u64,
+    pub active_watchers: WatcherCount,
+    pub total_notifications: NotificationCount,
+    pub cpu_usage: CpuUsage,
+    pub memory_usage_kb: MemorySize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FileReaderData {
     pub path: String,
     pub content: String,
-    pub size: u64,
+    pub size: FileSize,
     pub encoding: String,
 }
 
@@ -194,15 +199,15 @@ pub struct SensorData {
     pub sensor_type: String,
     pub value: f64,
     pub unit: String,
-    pub timestamp: i64,
+    pub timestamp: Timestamp,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CameraData {
     pub camera_id: String,
     pub resolution: String,
-    pub frame_rate: u32,
-    pub timestamp: i64,
+    pub frame_rate: FrameRate,
+    pub timestamp: Timestamp,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -220,7 +225,7 @@ pub struct ProcessingResults {
 pub struct BrokerMessage {
     pub agent_id: String,
     pub payload: BrokerPayload,
-    pub timestamp: i64,
+    pub timestamp: Timestamp,
 }
 
 /// Broker message payload with tagged enum for different message types

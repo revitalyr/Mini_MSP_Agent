@@ -1,11 +1,13 @@
 [workspace]
 members = [
-    "simple_agent",
-    "server", 
-    "shared"
+    "src/agent/simple",
+    "src/agent/standalone", 
+    "src/server", 
+    "src/shared"
 ]
 exclude = [
-    "tests"
+    "tests",
+    "target"
 ]
 resolver = "2"
 

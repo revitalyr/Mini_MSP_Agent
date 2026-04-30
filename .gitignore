@@ -4,7 +4,7 @@ Cargo.lock
 **/*.rs.bk
 
 # C++ build artifacts
-build/
+build*/
 cmake-build-*/
 *.o
 *.obj
@@ -59,6 +59,7 @@ config.toml
 tmp/
 temp/
 *.tmp
+
 
 # Docker
 .dockerignore
