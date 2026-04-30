@@ -23,7 +23,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Enable modern CMake features
-set(CMAKE_CXX_SCAN_FOR_MODULES ON)
+# Note: CMAKE_CXX_SCAN_FOR_MODULES disabled due to AppleClang compatibility
 set(CMAKE_ENABLE_EXPORTS ON)
 
 # Compiler-specific optimizations

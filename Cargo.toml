@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "src/agent/simple",
-    "src/agent/standalone", 
+    # "src/agent/standalone", # TODO: Fix struct mismatches before re-enabling
     "src/server", 
     "src/shared"
 ]

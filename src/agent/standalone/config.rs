@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use shared::{AgentConfig, AgentConfigSection, BrokerConfig, LoggingConfig, PluginConfig, SecurityConfig};
+use mini_msp_shared::{AgentConfig, AgentConfigSection, BrokerConfig, LoggingConfig, PluginConfig, SecurityConfig};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tracing::{info, warn};
