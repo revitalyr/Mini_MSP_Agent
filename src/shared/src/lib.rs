@@ -132,7 +132,7 @@ pub enum PluginStatus {
 /// Plugin registry
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PluginRegistry {
-    pub plugins: Vec<PluginInfo>,
+    pub plugins: HashMap<String, Box<dyn Plugin>>,
 }
 
 /// Plugin trait interface
