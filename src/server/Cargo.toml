@@ -8,7 +8,7 @@ name = "server"
 path = "src/main.rs"
 
 [dependencies]
-mini_msp_shared = { path = "../../shared" }
+mini_msp_shared = { path = "../shared" }
 
 tokio = { workspace = true }
 serde = { workspace = true }

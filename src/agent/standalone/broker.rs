@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use async_nats::{Client, Message, Subscriber};
-use shared::{EventMessage, SystemMetrics};
+use mini_msp_shared::{EventMessage, SystemMetrics};
 use serde_json::json;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -148,7 +148,7 @@ impl BrokerClient {
     }
 
     /// Publish agent registration
-    pub async fn publish_agent_registration(&self, agent_info: &shared::AgentInfo) -> Result<()> {
+    pub async fn publish_agent_registration(&self, agent_info: &mini_msp_shared::AgentInfo) -> Result<()> {
         let registration = json!({
             "agent_id": agent_info.id,
             "hostname": agent_info.hostname,

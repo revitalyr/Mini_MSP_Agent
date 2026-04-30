@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use async_nats;
 use clap::{Arg, Command};
-use shared::{AgentInfo, EventMessage};
+use mini_msp_shared::{AgentInfo, EventMessage};
 use gethostname;
 use serde_json;
 use std::sync::Arc;
@@ -123,9 +123,6 @@ async fn main() -> Result<()> {
         _ = signal::ctrl_c() => {
             info!("Received Ctrl+C, shutting down...");
         }
-        _ = signal::terminate() => {
-            info!("Received termination signal, shutting down...");
-        }
     }
 
     // Graceful shutdown
@@ -177,7 +174,7 @@ fn print_startup_banner() {
     );
 }
 
-async fn load_configuration(matches: &clap::ArgMatches) -> Result<shared::AgentConfig> {
+async fn load_configuration(matches: &clap::ArgMatches) -> Result<mini_msp_shared::AgentConfig> {
     let config_path = matches.get_one::<String>("config").unwrap();
     
     // Try to load from file first
@@ -208,7 +205,7 @@ async fn load_configuration(matches: &clap::ArgMatches) -> Result<shared::AgentC
     Ok(config_manager.get_config().clone())
 }
 
-async fn connect_to_broker(matches: &clap::ArgMatches, config: &shared::AgentConfig) -> Result<BrokerClient> {
+async fn connect_to_broker(matches: &clap::ArgMatches, config: &mini_msp_shared::AgentConfig) -> Result<BrokerClient> {
     let broker_url = matches.get_one::<String>("broker-url")
         .unwrap_or(&config.broker.url);
 
@@ -217,7 +214,7 @@ async fn connect_to_broker(matches: &clap::ArgMatches, config: &shared::AgentCon
     let broker_client = BrokerClient::connect(broker_url, agent_id.clone()).await?;
 
     // Register with broker
-    broker_client.publish_agent_registration(&shared::AgentInfo {
+    broker_client.publish_agent_registration(&mini_msp_shared::AgentInfo {
         id: agent_id.clone(),
         hostname: config.agent.hostname.clone().unwrap_or_else(|| {
             gethostname::gethostname().to_string_lossy().to_string()
@@ -235,7 +232,7 @@ async fn connect_to_broker(matches: &clap::ArgMatches, config: &shared::AgentCon
 
 async fn process_events(
     orchestrator: Orchestrator,
-    mut event_receiver: tokio::sync::mpsc::UnboundedReceiver<shared::EventMessage>,
+    mut event_receiver: tokio::sync::mpsc::UnboundedReceiver<mini_msp_shared::EventMessage>,
 ) {
     info!("Starting event processing task");
 
@@ -244,25 +241,25 @@ async fn process_events(
         
         // Process events based on type
         match event.event_type {
-            shared::EventType::PluginLoaded => {
+            mini_msp_shared::EventType::PluginLoaded => {
                 info!("Plugin loaded: {}", event.source);
             }
-            shared::EventType::PluginUnloaded => {
+            mini_msp_shared::EventType::PluginUnloaded => {
                 info!("Plugin unloaded: {}", event.source);
             }
-            shared::EventType::PluginError => {
+            mini_msp_shared::EventType::PluginError => {
                 error!("Plugin error in {}: {:?}", event.source, event.data);
             }
-            shared::EventType::CommandExecuted => {
+            mini_msp_shared::EventType::CommandExecuted => {
                 info!("Command executed by {}: {:?}", event.source, event.data);
             }
-            shared::EventType::SystemAlert => {
+            mini_msp_shared::EventType::SystemAlert => {
                 warn!("System alert from {}: {:?}", event.source, event.data);
             }
-            shared::EventType::NetworkEvent => {
+            mini_msp_shared::EventType::NetworkEvent => {
                 info!("Network event from {}: {:?}", event.source, event.data);
             }
-            shared::EventType::FileSystemEvent => {
+            mini_msp_shared::EventType::FileSystemEvent => {
                 info!("File system event from {}: {:?}", event.source, event.data);
             }
         }

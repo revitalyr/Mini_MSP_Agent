@@ -72,6 +72,99 @@ impl Default for Metrics {
     }
 }
 
+/// Agent information structure
+///
+/// Contains basic information about an agent for registration
+/// and identification purposes.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AgentInfo {
+    pub id: String,
+    pub hostname: String,
+    pub version: String,
+    pub platform: String,
+}
+
+/// Event message structure
+///
+/// Represents an event message sent between components
+/// for notifications and status updates.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct EventMessage {
+    pub event_type: EventType,
+    pub timestamp: Timestamp,
+    pub payload: serde_json::Value,
+}
+
+/// Event type enumeration
+///
+/// Different types of events that can occur in the system
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum EventType {
+    PluginLoaded,
+    PluginUnloaded,
+    PluginError,
+    CommandExecuted,
+    SystemAlert,
+    NetworkEvent,
+    FileSystemEvent,
+}
+
+/// Plugin information structure
+///
+/// Contains metadata about a loaded plugin
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PluginInfo {
+    pub name: String,
+    pub version: String,
+    pub description: String,
+    pub enabled: bool,
+}
+
+/// Plugin status enumeration
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum PluginStatus {
+    Loaded,
+    Running,
+    Stopped,
+    Error(String),
+}
+
+/// Plugin registry
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PluginRegistry {
+    pub plugins: Vec<PluginInfo>,
+}
+
+/// Plugin trait interface
+#[async_trait::async_trait]
+pub trait Plugin: Send + Sync {
+    fn name(&self) -> &str;
+    fn version(&self) -> &str;
+    async fn init(&mut self) -> Result<(), Box<dyn std::error::Error>>;
+    async fn shutdown(&mut self) -> Result<(), Box<dyn std::error::Error>>;
+    async fn get_metrics(&self) -> Option<SystemMetrics>;
+    async fn handle_command(&self, cmd: &Command) -> Result<CommandResponse, Box<dyn std::error::Error>>;
+}
+
+/// System metrics structure
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SystemMetrics {
+    pub cpu_usage: f32,
+    pub memory_usage: u64,
+    pub disk_usage: f32,
+    pub uptime: u64,
+}
+
+/// Command response structure
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CommandResponse {
+    pub command_id: Option<String>,
+    pub r#type: String,
+    pub status: String,
+    pub data: serde_json::Value,
+    pub timestamp: Timestamp,
+}
+
 /// Command enumeration for agent operations
 /// 
 /// Represents different types of commands that can be
@@ -119,14 +212,6 @@ pub struct CommandRequest {
     pub command: Command,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct CommandResponse {
-    pub command_id: Option<String>,
-    pub r#type: String,
-    pub status: String,
-    pub data: serde_json::Value,
-    pub timestamp: Timestamp,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AgentConfig {

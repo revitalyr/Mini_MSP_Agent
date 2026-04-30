@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use chrono::Utc;
-use shared::{
+use mini_msp_shared::{
     Plugin, PluginRegistry, PluginStatus, CommandRequest, CommandResponse,
     EventMessage, EventType, AgentConfig, AgentInfo, SystemMetrics
 };
@@ -78,14 +78,11 @@ impl Orchestrator {
     async fn load_builtin_plugins(&mut self) -> Result<()> {
         info!("Loading built-in plugins");
         
-        // Load system plugin
-        self.load_plugin(Box::new(system_plugin::SystemPlugin::new())).await?;
-        
-        // Load file plugin
-        self.load_plugin(Box::new(file_plugin::FilePlugin::new())).await?;
-        
-        // Load network plugin
-        self.load_plugin(Box::new(network_plugin::NetworkPlugin::new())).await?;
+        // TODO: Implement system, file and network plugins
+        // For now, skip loading built-in plugins
+        // self.load_plugin(Box::new(system_plugin::SystemPlugin::new())).await?;
+        // self.load_plugin(Box::new(file_plugin::FilePlugin::new())).await?;
+        // self.load_plugin(Box::new(network_plugin::NetworkPlugin::new())).await?;
         
         Ok(())
     }
@@ -301,11 +298,11 @@ impl Orchestrator {
     }
 
     /// Get list of loaded plugins
-    pub async fn list_plugins(&self) -> Vec<shared::PluginInfo> {
+    pub async fn list_plugins(&self) -> Vec<mini_msp_shared::PluginInfo> {
         let plugins = self.plugins.read().await;
         
         plugins.values().map(|plugin| {
-            shared::PluginInfo {
+            mini_msp_shared::PluginInfo {
                 name: plugin.name().to_string(),
                 version: plugin.version().to_string(),
                 description: plugin.description().to_string(),
