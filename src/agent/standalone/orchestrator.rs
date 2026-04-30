@@ -40,7 +40,7 @@ impl Orchestrator {
         };
         
         let orchestrator = Self {
-            plugins: Arc::new(RwLock::new(HashMap::new())),
+            plugins: Arc::new(RwLock::new(PluginRegistry { plugins: HashMap::new() })),
             config,
             broker_client,
             event_sender,
@@ -68,7 +68,7 @@ impl Orchestrator {
         self.emit_event(EventType::SystemAlert, "orchestrator", json!({
             "message": "Orchestrator initialized successfully",
             "agent_id": self.agent_info.id,
-            "plugins_loaded": self.plugins.read().await.len()
+            "plugins_loaded": self.plugins.read().await.plugins.len()
         })).await;
         
         Ok(())
@@ -141,7 +141,7 @@ impl Orchestrator {
         // Check if plugin is already loaded
         {
             let plugins = self.plugins.read().await;
-            if plugins.contains_key(&plugin_name) {
+            if plugins.plugins.contains_key(&plugin_name) {
                 warn!("Plugin {} is already loaded", plugin_name);
                 return Ok(());
             }
@@ -156,7 +156,7 @@ impl Orchestrator {
                 // Add to registry
                 {
                     let mut plugins = self.plugins.write().await;
-                    plugins.insert(plugin_name.clone(), plugin);
+                    plugins.plugins.insert(plugin_name.clone(), plugin);
                 }
                 
                 // Emit event
@@ -186,7 +186,7 @@ impl Orchestrator {
         
         let mut plugins = self.plugins.write().await;
         
-        if let Some(mut plugin) = plugins.remove(plugin_name) {
+        if let Some(mut plugin) = plugins.plugins.remove(plugin_name) {
             // Shutdown the plugin
             match plugin.shutdown().await {
                 Ok(_) => {
@@ -202,7 +202,7 @@ impl Orchestrator {
                     error!("Failed to shutdown plugin {}: {}", plugin_name, e);
                     
                     // Re-add plugin to registry
-                    plugins.insert(plugin_name.to_string(), plugin);
+                    plugins.plugins.insert(plugin_name.to_string(), plugin);
                     
                     Err(e)
                 }
@@ -224,7 +224,7 @@ impl Orchestrator {
         let plugins = self.plugins.read().await;
         
         // Try to find a plugin that can handle this command
-        let plugin = plugins.values().find(|p| {
+        let plugin = plugins.plugins.values().find(|p| {
             // For now, we'll try each plugin
             // In a more sophisticated implementation, plugins would register their capabilities
             true
@@ -290,7 +290,7 @@ impl Orchestrator {
         let plugins = self.plugins.read().await;
         
         // Try to get metrics from system plugin first
-        if let Some(system_plugin) = plugins.get("system_plugin") {
+        if let Some(system_plugin) = plugins.plugins.get("system_plugin") {
             system_plugin.get_metrics().await
         } else {
             Err(anyhow::anyhow!("System plugin not available for metrics"))
@@ -301,7 +301,7 @@ impl Orchestrator {
     pub async fn list_plugins(&self) -> Vec<mini_msp_shared::PluginInfo> {
         let plugins = self.plugins.read().await;
         
-        plugins.values().map(|plugin| {
+        plugins.plugins.values().map(|plugin| {
             mini_msp_shared::PluginInfo {
                 name: plugin.name().to_string(),
                 version: plugin.version().to_string(),
@@ -388,7 +388,7 @@ impl Orchestrator {
             interval.tick().await;
             
             let plugins = self.plugins.read().await;
-            for (name, plugin) in plugins.iter() {
+            for (name, plugin) in plugins.plugins.iter() {
                 if let Err(e) = plugin.health_check() {
                     error!("Health check failed for plugin {}: {}", name, e);
                     
