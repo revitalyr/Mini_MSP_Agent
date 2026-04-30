@@ -1,0 +1,347 @@
+{
+    "version": 6,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 25,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "base",
+            "hidden": true,
+            "description": "Base configuration for all platforms",
+            "generator": "Ninja Multi-Config",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_CXX_STANDARD": "23",
+                "CMAKE_CXX_STANDARD_REQUIRED": "ON",
+                "CMAKE_CXX_EXTENSIONS": "OFF"
+            }
+        },
+        {
+            "name": "msvc-base",
+            "hidden": true,
+            "inherits": "base",
+            "description": "Base configuration for MSVC",
+            "generator": "Visual Studio 17 2022",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "cl",
+                "CMAKE_CXX_COMPILER": "cl"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
+            "vendor": {
+                "microsoft.com/VisualStudioSettings/CMake/1.0": {
+                    "hostOS": "Windows",
+                    "intelliSenseMode": "windows-msvc-x64"
+                }
+            }
+        },
+        {
+            "name": "msvc-x64",
+            "inherits": "msvc-base",
+            "displayName": "MSVC x64",
+            "description": "Build with MSVC for x64 architecture",
+            "architecture": {
+                "value": "x64",
+                "strategy": "external"
+            },
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
+            "name": "msvc-x64-debug",
+            "inherits": "msvc-base",
+            "displayName": "MSVC x64 Debug",
+            "description": "Debug build with MSVC for x64 architecture",
+            "architecture": {
+                "value": "x64",
+                "strategy": "external"
+            },
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "linux-gcc",
+            "inherits": "base",
+            "displayName": "Linux GCC",
+            "description": "Build with GCC on Linux",
+            "generator": "Ninja",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "gcc",
+                "CMAKE_CXX_COMPILER": "g++",
+                "CMAKE_BUILD_TYPE": "Release"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            },
+            "vendor": {
+                "microsoft.com/VisualStudioSettings/CMake/1.0": {
+                    "hostOS": "Linux",
+                    "intelliSenseMode": "linux-gcc-x64"
+                }
+            }
+        },
+        {
+            "name": "linux-gcc-debug",
+            "inherits": "linux-gcc",
+            "displayName": "Linux GCC Debug",
+            "description": "Debug build with GCC on Linux",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "linux-clang",
+            "inherits": "base",
+            "displayName": "Linux Clang",
+            "description": "Build with Clang on Linux",
+            "generator": "Ninja",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_BUILD_TYPE": "Release"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            },
+            "vendor": {
+                "microsoft.com/VisualStudioSettings/CMake/1.0": {
+                    "hostOS": "Linux",
+                    "intelliSenseMode": "linux-clang-x64"
+                }
+            }
+        },
+        {
+            "name": "linux-clang-debug",
+            "inherits": "linux-clang",
+            "displayName": "Linux Clang Debug",
+            "description": "Debug build with Clang on Linux",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "macos",
+            "inherits": "base",
+            "displayName": "macOS",
+            "description": "Build with Apple Clang on macOS",
+            "generator": "Ninja",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_OSX_DEPLOYMENT_TARGET": "12.0"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Darwin"
+            },
+            "vendor": {
+                "microsoft.com/VisualStudioSettings/CMake/1.0": {
+                    "hostOS": "macOS",
+                    "intelliSenseMode": "macos-clang-x64"
+                }
+            }
+        },
+        {
+            "name": "macos-debug",
+            "inherits": "macos",
+            "displayName": "macOS Debug",
+            "description": "Debug build with Apple Clang on macOS",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "macos-arm64",
+            "inherits": "macos",
+            "displayName": "macOS ARM64",
+            "description": "Build for Apple Silicon (ARM64) on macOS",
+            "cacheVariables": {
+                "CMAKE_OSX_ARCHITECTURES": "arm64",
+                "CMAKE_OSX_DEPLOYMENT_TARGET": "12.0"
+            }
+        },
+        {
+            "name": "macos-universal",
+            "inherits": "macos",
+            "displayName": "macOS Universal",
+            "description": "Universal binary for both Intel and Apple Silicon",
+            "cacheVariables": {
+                "CMAKE_OSX_ARCHITECTURES": "x86_64;arm64",
+                "CMAKE_OSX_DEPLOYMENT_TARGET": "12.0"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "msvc-x64",
+            "configurePreset": "msvc-x64",
+            "configuration": "Release"
+        },
+        {
+            "name": "msvc-x64-debug",
+            "configurePreset": "msvc-x64-debug",
+            "configuration": "Debug"
+        },
+        {
+            "name": "linux-gcc",
+            "configurePreset": "linux-gcc"
+        },
+        {
+            "name": "linux-gcc-debug",
+            "configurePreset": "linux-gcc-debug"
+        },
+        {
+            "name": "linux-clang",
+            "configurePreset": "linux-clang"
+        },
+        {
+            "name": "linux-clang-debug",
+            "configurePreset": "linux-clang-debug"
+        },
+        {
+            "name": "macos",
+            "configurePreset": "macos"
+        },
+        {
+            "name": "macos-debug",
+            "configurePreset": "macos-debug"
+        },
+        {
+            "name": "macos-arm64",
+            "configurePreset": "macos-arm64"
+        },
+        {
+            "name": "macos-universal",
+            "configurePreset": "macos-universal"
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "msvc-x64-test",
+            "configurePreset": "msvc-x64",
+            "output": {
+                "outputOnFailure": true
+            },
+            "execution": {
+                "noTestsAction": "error",
+                "stopOnFailure": false
+            }
+        },
+        {
+            "name": "linux-gcc-test",
+            "configurePreset": "linux-gcc",
+            "output": {
+                "outputOnFailure": true
+            },
+            "execution": {
+                "noTestsAction": "error",
+                "stopOnFailure": false
+            }
+        },
+        {
+            "name": "linux-clang-test",
+            "configurePreset": "linux-clang",
+            "output": {
+                "outputOnFailure": true
+            },
+            "execution": {
+                "noTestsAction": "error",
+                "stopOnFailure": false
+            }
+        },
+        {
+            "name": "macos-test",
+            "configurePreset": "macos",
+            "output": {
+                "outputOnFailure": true
+            },
+            "execution": {
+                "noTestsAction": "error",
+                "stopOnFailure": false
+            }
+        }
+    ],
+    "workflowPresets": [
+        {
+            "name": "msvc-ci",
+            "steps": [
+                {
+                    "type": "configure",
+                    "name": "msvc-x64"
+                },
+                {
+                    "type": "build",
+                    "name": "msvc-x64"
+                },
+                {
+                    "type": "test",
+                    "name": "msvc-x64-test"
+                }
+            ]
+        },
+        {
+            "name": "linux-gcc-ci",
+            "steps": [
+                {
+                    "type": "configure",
+                    "name": "linux-gcc"
+                },
+                {
+                    "type": "build",
+                    "name": "linux-gcc"
+                },
+                {
+                    "type": "test",
+                    "name": "linux-gcc-test"
+                }
+            ]
+        },
+        {
+            "name": "linux-clang-ci",
+            "steps": [
+                {
+                    "type": "configure",
+                    "name": "linux-clang"
+                },
+                {
+                    "type": "build",
+                    "name": "linux-clang"
+                },
+                {
+                    "type": "test",
+                    "name": "linux-clang-test"
+                }
+            ]
+        },
+        {
+            "name": "macos-ci",
+            "steps": [
+                {
+                    "type": "configure",
+                    "name": "macos"
+                },
+                {
+                    "type": "build",
+                    "name": "macos"
+                },
+                {
+                    "type": "test",
+                    "name": "macos-test"
+                }
+            ]
+        }
+    ]
+}
