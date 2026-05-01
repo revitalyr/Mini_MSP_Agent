@@ -2,11 +2,11 @@
 //!
 //! Optimized for fast compilation and modular structure
 
-mod simple_handlers;
-mod api;
-mod websocket;
-mod config;
-mod broker;
+pub mod simple_handlers;
+pub mod api;
+pub mod websocket;
+pub mod config;
+pub mod broker;
 
 use axum::{
     routing::{get, post},
