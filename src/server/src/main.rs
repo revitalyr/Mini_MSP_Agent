@@ -7,6 +7,8 @@ mod api;
 mod websocket;
 mod config;
 mod broker;
+mod ffi;
+mod plugin_loader;
 
 use axum::{
     routing::{get, post},
