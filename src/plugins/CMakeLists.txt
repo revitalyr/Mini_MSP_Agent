@@ -91,13 +91,118 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     )
 endif()
 
-# Modern source file organization
+# Modern source file organization - Base plugin
 set(SOURCES
     src/working_system_plugin.cpp
 )
 
 # Create modern library target
 add_library(ModernSystemPlugin SHARED ${SOURCES})
+
+# Platform-specific Forensic Plugin
+# This plugin provides real forensic artifact collection for each OS
+if(WIN32)
+    # Windows Forensic Plugin
+    set(FORENSIC_SOURCES
+        src/windows/forensic_plugin.cpp
+    )
+    add_library(ForensicPlugin SHARED ${FORENSIC_SOURCES})
+    set_target_properties(ForensicPlugin PROPERTIES
+        VERSION ${PROJECT_VERSION}
+        SOVERSION ${PROJECT_VERSION_MAJOR}
+        CXX_STANDARD 23
+        CXX_STANDARD_REQUIRED ON
+        CXX_EXTENSIONS OFF
+        POSITION_INDEPENDENT_CODE ON
+    )
+    target_include_directories(ForensicPlugin PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_compile_definitions(ForensicPlugin PRIVATE
+        WIN32_LEAN_AND_MEAN
+        NOMINMAX
+        _WIN32_WINNT=0x0A00
+        UNICODE
+        _UNICODE
+    )
+    target_link_libraries(ForensicPlugin PRIVATE
+        kernel32
+        user32
+        psapi
+        advapi32
+        shell32
+        ole32
+        oleaut32
+        uuid
+        comdlg32
+        gdi32
+        winspool
+    )
+    
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    # Linux Forensic Plugin
+    set(FORENSIC_SOURCES
+        src/linux/forensic_plugin.cpp
+    )
+    add_library(ForensicPlugin SHARED ${FORENSIC_SOURCES})
+    set_target_properties(ForensicPlugin PROPERTIES
+        VERSION ${PROJECT_VERSION}
+        SOVERSION ${PROJECT_VERSION_MAJOR}
+        CXX_STANDARD 23
+        CXX_STANDARD_REQUIRED ON
+        CXX_EXTENSIONS OFF
+        POSITION_INDEPENDENT_CODE ON
+    )
+    target_include_directories(ForensicPlugin PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_compile_definitions(ForensicPlugin PRIVATE
+        _POSIX_C_SOURCE=200809L
+        _XOPEN_SOURCE=700
+        _GNU_SOURCE
+    )
+    target_link_libraries(ForensicPlugin PRIVATE
+        pthread
+        dl
+        m
+    )
+    
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    # macOS Forensic Plugin
+    set(FORENSIC_SOURCES
+        src/macos/forensic_plugin.cpp
+    )
+    add_library(ForensicPlugin SHARED ${FORENSIC_SOURCES})
+    set_target_properties(ForensicPlugin PROPERTIES
+        VERSION ${PROJECT_VERSION}
+        SOVERSION ${PROJECT_VERSION_MAJOR}
+        CXX_STANDARD 23
+        CXX_STANDARD_REQUIRED ON
+        CXX_EXTENSIONS OFF
+        POSITION_INDEPENDENT_CODE ON
+    )
+    target_include_directories(ForensicPlugin PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    find_library(FOUNDATION_LIBRARY Foundation)
+    find_library(IOKIT_LIBRARY IOKit)
+    target_link_libraries(ForensicPlugin PRIVATE
+        ${FOUNDATION_LIBRARY}
+        ${IOKIT_LIBRARY}
+        pthread
+        dl
+        m
+    )
+endif()
+
+# Generate export header for forensic plugin if it exists
+if(TARGET ForensicPlugin)
+    generate_export_header(ForensicPlugin
+        EXPORT_FILE_NAME "forensic_plugin_exports.h"
+        EXPORT_MACRO_NAME "FORENSIC_PLUGIN_API"
+        STATIC_DEFINE "FORENSIC_PLUGIN_STATIC"
+    )
+endif()
 
 # Modern target properties
 set_target_properties(ModernSystemPlugin PROPERTIES
