@@ -363,9 +363,8 @@ Write-Host ""
 Write-Host "REAL DEMO INTERFACE:" -ForegroundColor Magenta
 Write-Host "  Opening real-time monitoring dashboard..." -ForegroundColor Yellow
 
-# Open real demo page in browser
-Start-Process "http://localhost:8081" -ErrorAction SilentlyContinue
-Start-Process "$PSScriptRoot\..\real_demo.html" -ErrorAction SilentlyContinue
+# Open real demo page in browser (served from server static files)
+Start-Process "http://localhost:$ServerPort/static/index.html" -ErrorAction SilentlyContinue
 
 Write-Host ""
 Write-Host "Press Ctrl+C to stop" -ForegroundColor Yellow
