@@ -47,6 +47,10 @@ pub struct PluginLoader {
     plugin_version: String,
 }
 
+// libloading::Library is thread-safe, so PluginLoader is Send + Sync
+unsafe impl Send for PluginLoader {}
+unsafe impl Sync for PluginLoader {}
+
 impl PluginLoader {
     /// Detect current platform and load appropriate plugin
     pub fn load() -> Result<Self> {

@@ -54,6 +54,15 @@ impl BrokerClient {
         Ok(subscriber)
     }
 
+    /// Subscribe to all agent responses
+    pub async fn subscribe_all_responses(&self) -> Result<async_nats::Subscriber> {
+        let subscriber = self.nats.subscribe("responses.>").await
+            .map_err(|e| anyhow::anyhow!("Failed to subscribe to all responses: {}", e))?;
+        
+        info!("Subscribed to all agent responses");
+        Ok(subscriber)
+    }
+
     /// Subscribe to plugin events from all agents
     pub async fn subscribe_plugin_events(&self) -> Result<async_nats::Subscriber> {
         let subscriber = self.nats.subscribe("events.*.*").await

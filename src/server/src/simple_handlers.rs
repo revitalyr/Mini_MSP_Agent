@@ -11,6 +11,7 @@ use serde_json::json;
 use std::sync::Arc;
 
 use crate::AppState;
+use mini_msp_shared::AgentInfo;
 
 // Simple health check
 pub async fn health_check() -> Json<serde_json::Value> {
@@ -28,11 +29,14 @@ pub async fn list_agents(State(app_state): State<Arc<AppState>>) -> Json<serde_j
     let agents = app_state.agents.lock().unwrap();
     
     let agents_list: Vec<_> = agents.iter()
-        .map(|(id, info)| json!({
-            "id": id,
-            "status": info,
-            "last_seen": "now"
-        }))
+        .map(|(id, info)| {
+            json!({
+                "id": id,
+                "hostname": info.hostname,
+                "version": info.version,
+                "platform": info.platform,
+            })
+        })
         .collect();
     
     Json(json!({
@@ -53,7 +57,13 @@ pub async fn handle_heartbeat(
     // Update agent
     {
         let mut agents = app_state.agents.lock().unwrap();
-        agents.insert(agent_id.to_string(), "online".to_string());
+        let agent = AgentInfo {
+            id: agent_id.to_string(),
+            hostname: "unknown".to_string(),
+            version: "1.0.0".to_string(),
+            platform: "unknown".to_string(),
+        };
+        agents.insert(agent_id.to_string(), agent);
     }
     
     Ok(Json(json!({

@@ -24,19 +24,27 @@ use tower_http::{
     services::ServeDir,
     trace::TraceLayer,
 };
-use tracing::{info, debug, error, warn, Level};
+use tracing::{info, error, warn, Level};
 use anyhow::Context;
 
 use config::Config;
-use broker::BrokerClient;
+use broker::{BrokerClient, BrokerMessageHandler};
 use custom_plugin::CustomPluginRegistry;
+use plugin_loader::PluginLoader;
+use mini_msp_shared::{AgentInfo, CommandResponse, Heartbeat};
+use futures_util::StreamExt;
 
-// Unified AppState for all modules
+/// Complete application state with all integrated components
 #[derive(Clone)]
 pub struct AppState {
-    pub agents: Arc<Mutex<HashMap<String, String>>>,
+    /// Registered agents: agent_id -> AgentInfo
+    pub agents: Arc<Mutex<HashMap<String, AgentInfo>>>,
+    /// NATS broker client for agent communication
     pub broker_client: Option<Arc<BrokerClient>>,
+    /// Custom plugin registry for extensible functionality
     pub plugin_registry: Arc<Mutex<CustomPluginRegistry>>,
+    /// C++ forensic plugin loader (SystemPluginV3 + ForensicPlugin)
+    pub forensic_plugin: Arc<Mutex<Option<PluginLoader>>>,
 }
 
 #[tokio::main]
@@ -101,8 +109,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     info!("Starting Mini MSP Server on {}", addr);
 
-    // Initialize application state
-    let broker_client = None; // Will be initialized later if needed
+    // Initialize custom plugin registry
     let plugin_registry = Arc::new(Mutex::new(CustomPluginRegistry::new()));
     
     // Load custom plugins from directory
@@ -115,49 +122,128 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 }
             }
             Err(e) => {
-                warn!("Failed to load plugins from directory: {}", e);
+                warn!("Failed to load custom plugins from directory: {}", e);
             }
         }
     }
     
+    // Load C++ forensic plugin (SystemPluginV3 + ForensicPlugin)
+    let forensic_plugin = Arc::new(Mutex::new(None));
+    match PluginLoader::load() {
+        Ok(loader) => {
+            info!("Loaded forensic plugin: {} v{}", loader.name(), loader.version());
+            *forensic_plugin.lock().unwrap() = Some(loader);
+        }
+        Err(e) => {
+            warn!("Failed to load forensic plugin: {}", e);
+            info!("Continuing without forensic plugin functionality");
+        }
+    }
+    
+    // Initialize NATS broker client if broker URL is configured
+    let mut broker_client: Option<Arc<BrokerClient>> = None;
+    if let Some(ref broker_url) = config.broker_url {
+        if !broker_url.is_empty() {
+            match BrokerClient::connect(broker_url).await {
+                Ok(client) => {
+                    info!("Connected to NATS broker at {}", broker_url);
+                    broker_client = Some(Arc::new(client));
+                }
+                Err(e) => {
+                    warn!("Failed to connect to NATS broker: {}", e);
+                    info!("Continuing without broker functionality");
+                }
+            }
+        }
+    }
+    
+    // Create application state
     let app_state = Arc::new(AppState {
         agents: Arc::new(Mutex::new(HashMap::new())),
-        broker_client,
+        broker_client: broker_client.clone(),
         plugin_registry,
+        forensic_plugin,
     });
 
-    // Initialize broker message handler if broker is available
-    if let Some(ref broker) = app_state.broker_client {
-        let handler = broker::BrokerMessageHandler::new(broker.clone());
-        info!("Broker message handler initialized");
-        
-        // Start background task to handle broker messages
-        let handler_arc = Arc::new(handler);
+    // Start broker message processing if broker is connected
+    if let Some(ref broker) = broker_client {
+        let handler = BrokerMessageHandler::new(broker.clone());
         let app_state_clone = app_state.clone();
-        let _handler_task = tokio::spawn(async move {
-            // Example: handle heartbeats in background
-            // This would normally subscribe to broker topics
-            info!("Broker message handler task started");
-            loop {
-                tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
-                
-                // Log current agent count
-                let agent_count = {
-                    let agents = app_state_clone.agents.lock().unwrap();
-                    agents.len()
-                };
-                
-                info!("Current registered agents: {}", agent_count);
-                
-                // Use handler to process any pending messages
-                // In real implementation, this would subscribe to NATS topics
-                // and call handler.handle_heartbeat(), handler.handle_response(), etc.
-                // For now, just log that handler is available
-                debug!("Handler available for {} agents", agent_count);
-                
-                // Use broker getter method
-                let _broker_client = handler_arc.broker();
-                debug!("Broker client available");
+        let broker_clone = broker.clone();
+        
+        tokio::spawn(async move {
+            info!("Starting NATS message processor...");
+            
+            // Subscribe to heartbeats
+            let mut heartbeat_sub = match broker_clone.subscribe_heartbeats().await {
+                Ok(sub) => {
+                    info!("Subscribed to agent heartbeats");
+                    sub
+                }
+                Err(e) => {
+                    error!("Failed to subscribe to heartbeats: {}", e);
+                    return;
+                }
+            };
+            
+            // Process incoming messages
+            while let Some(msg) = heartbeat_sub.next().await {
+                if let Ok(payload) = std::str::from_utf8(&msg.payload) {
+                    if let Ok(heartbeat) = serde_json::from_str::<Heartbeat>(payload) {
+                        // Extract agent_id from subject (heartbeat.{agent_id})
+                        let subject = msg.subject.as_str();
+                        let agent_id = subject.strip_prefix("heartbeat.").unwrap_or("unknown");
+                        
+                        // Update agent info
+                        {
+                            let mut agents = app_state_clone.agents.lock().unwrap();
+                            let agent = agents.entry(agent_id.to_string()).or_insert_with(|| AgentInfo {
+                                id: agent_id.to_string(),
+                                hostname: heartbeat.hostname.clone(),
+                                version: "1.0.0".to_string(),
+                                platform: "unknown".to_string(),
+                            });
+                        }
+                        
+                        // Handle heartbeat via broker handler
+                        if let Err(e) = handler.handle_heartbeat(agent_id, heartbeat).await {
+                            warn!("Failed to handle heartbeat from {}: {}", agent_id, e);
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Start command response processor
+        let app_state_clone = app_state.clone();
+        let broker_clone = broker.clone();
+        
+        tokio::spawn(async move {
+            // Subscribe to all agent responses
+            let mut response_sub = match broker_clone.subscribe_all_responses().await {
+                Ok(sub) => {
+                    info!("Subscribed to agent responses");
+                    sub
+                }
+                Err(e) => {
+                    error!("Failed to subscribe to responses: {}", e);
+                    return;
+                }
+            };
+            
+            while let Some(msg) = response_sub.next().await {
+                if let Ok(payload) = std::str::from_utf8(&msg.payload) {
+                    if let Ok(response) = serde_json::from_str::<CommandResponse>(payload) {
+                        let subject = msg.subject.as_str();
+                        let parts: Vec<&str> = subject.split('.').collect();
+                        if parts.len() >= 2 {
+                            let agent_id = parts[1];
+                            info!("Received response from {}: status={}", agent_id, response.status);
+                            // Here you would update command status in database
+                            // and notify WebSocket clients
+                        }
+                    }
+                }
             }
         });
     }

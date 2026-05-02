@@ -19,6 +19,7 @@ use chrono::Utc;
 use tracing::{info, error, debug};
 
 use crate::AppState;
+use mini_msp_shared::AgentInfo;
 
 /// Simple WebSocket manager for agent connections
 pub struct WebSocketManager {
@@ -83,7 +84,13 @@ async fn handle_socket(socket: WebSocket, app_state: Arc<AppState>) {
     // Add to app state agents
     {
         let mut agents = app_state.agents.lock().unwrap();
-        agents.insert(agent_id.clone(), "connected".to_string());
+        let agent = AgentInfo {
+            id: agent_id.clone(),
+            hostname: "unknown".to_string(),
+            version: "1.0.0".to_string(),
+            platform: "unknown".to_string(),
+        };
+        agents.insert(agent_id.clone(), agent);
         debug!("Added agent {} to app state", agent_id);
     }
 
@@ -123,7 +130,13 @@ async fn handle_socket(socket: WebSocket, app_state: Arc<AppState>) {
                                 // Add agent to app state for API
                                 {
                                     let mut agents = app_state.agents.lock().unwrap();
-                                    agents.insert(agent_id.to_string(), "connected".to_string());
+                                    let agent = AgentInfo {
+                                        id: agent_id.to_string(),
+                                        hostname: "unknown".to_string(),
+                                        version: "1.0.0".to_string(),
+                                        platform: "unknown".to_string(),
+                                    };
+                                    agents.insert(agent_id.to_string(), agent);
                                     info!("Added agent {} to app state via registration", agent_id);
                                 }
                                 
