@@ -81,20 +81,9 @@ async fn handle_socket(socket: WebSocket, app_state: Arc<AppState>) {
     let connected_agents = ws_manager.get_connected_agents().await;
     info!("Connected agents: {:?}", connected_agents);
     
-    // Add to app state agents
-    {
-        let mut agents = app_state.agents.lock().unwrap();
-        let agent = AgentInfo {
-            id: agent_id.clone(),
-            hostname: "unknown".to_string(),
-            version: "1.0.0".to_string(),
-            platform: "unknown".to_string(),
-            last_seen: chrono::Utc::now().timestamp() as u64,
-        };
-        agents.insert(agent_id.clone(), agent);
-        debug!("Added agent {} to app state", agent_id);
-    }
-
+    // Note: Agent registration is now handled via NATS heartbeat only
+    // WebSocket is used for real-time commands and data streaming
+    
     let (mut sender, mut receiver) = socket.split();
     
     // Send welcome message
@@ -128,23 +117,9 @@ async fn handle_socket(socket: WebSocket, app_state: Arc<AppState>) {
                             
                             // Extract agent info from registration message
                             if let Some(agent_id) = value.get("agent_id").and_then(|v| v.as_str()) {
-                                // Add agent to app state for API
-                                {
-                                    let mut agents = app_state.agents.lock().unwrap();
-                                    let agent = AgentInfo {
-                                        id: agent_id.to_string(),
-                                        hostname: "unknown".to_string(),
-                                        version: "1.0.0".to_string(),
-                                        platform: "unknown".to_string(),
-                                        last_seen: chrono::Utc::now().timestamp() as u64,
-                                    };
-                                    agents.insert(agent_id.to_string(), agent);
-                                    info!("Added agent {} to app state via registration", agent_id);
-                                }
-                                
-                                // Store mapping from WebSocket UUID to agent_id
-                                // This allows us to forward commands to the correct agent
-                                // For now, we'll use the agent_id from registration
+                                // Note: Agent registration is now handled via NATS heartbeat only
+                                // WebSocket is used for real-time commands and data streaming
+                                info!("Agent {} registered via WebSocket (NATS heartbeat handles registration)", agent_id);
                             }
                         } else if let Some(target_agent_id) = value.get("agent_id").and_then(|v| v.as_str()) {
                             if let Some(command) = value.get("command").and_then(|v| v.as_str()) {
