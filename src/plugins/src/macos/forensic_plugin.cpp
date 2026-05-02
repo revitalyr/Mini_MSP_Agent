@@ -15,6 +15,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/sysctl.h>
@@ -40,16 +41,6 @@ static const char* kLaunchPaths[] = {
     "/System/Library/LaunchAgents/",
     "/System/Library/LaunchDaemons/",
     "~/Library/LaunchAgents/"
-};
-
-// Structure to hold forensic findings
-struct ForensicFinding {
-    char category[64];
-    char artifact_type[64];
-    char path[512];
-    char value[512];
-    bool suspicious;
-    char details[1024];
 };
 
 // Read file contents
@@ -81,7 +72,7 @@ static std::string ExecCommand(const char* cmd) {
 }
 
 // Collect LaunchAgents/Daemons
-static bool CollectLaunchItems(std::vector<ForensicFinding>& findings) {
+static bool CollectLaunchItems(std::vector<forensic_finding_t>& findings) {
     for (const auto& path : kLaunchPaths) {
         DIR* dir = opendir(path);
         if (!dir) continue;
@@ -90,7 +81,7 @@ static bool CollectLaunchItems(std::vector<ForensicFinding>& findings) {
         while ((entry = readdir(dir)) != NULL) {
             // Check for .plist files
             if (strstr(entry->d_name, ".plist")) {
-                ForensicFinding finding;
+                forensic_finding_t finding;
                 memset(&finding, 0, sizeof(finding));
                 
                 strncpy(finding.category, "Persistence", sizeof(finding.category) - 1);
@@ -130,14 +121,14 @@ static bool CollectLaunchItems(std::vector<ForensicFinding>& findings) {
 }
 
 // Collect kernel extensions
-static bool CollectKexts(std::vector<ForensicFinding>& findings) {
+static bool CollectKexts(std::vector<forensic_finding_t>& findings) {
     // Use kextstat command
     std::string kext_output = ExecCommand("/usr/sbin/kextstat -l");
     
     char* line = strtok(const_cast<char*>(kext_output.c_str()), "\n");
     while (line) {
         if (strlen(line) > 10) {
-            ForensicFinding finding;
+            forensic_finding_t finding;
             memset(&finding, 0, sizeof(finding));
             
             strncpy(finding.category, "Kernel", sizeof(finding.category) - 1);
@@ -395,6 +386,37 @@ static void free_memory_impl(void* ptr) {
     }
 }
 
+// Forensic data implementation
+static forensic_data_t* get_forensic_data_impl() {
+    static std::vector<forensic_finding_t> cached_findings;
+    static forensic_data_t cached_data;
+    
+    cached_findings.clear();
+    
+    // Collect all forensic artifacts
+    CollectLaunchItems(cached_findings);
+    CollectKexts(cached_findings);
+    
+    // Allocate and populate findings array
+    if (!cached_findings.empty()) {
+        size_t findings_size = sizeof(forensic_finding_t) * cached_findings.size();
+        cached_data.findings = (forensic_finding_t*)malloc(findings_size);
+        if (cached_data.findings) {
+            memcpy(cached_data.findings, cached_findings.data(), findings_size);
+            cached_data.count = cached_findings.size();
+        } else {
+            cached_data.count = 0;
+        }
+    } else {
+        cached_data.findings = nullptr;
+        cached_data.count = 0;
+    }
+    
+    cached_data.collection_time = static_cast<Timestamp>(time(nullptr));
+    
+    return &cached_data;
+}
+
 // Plugin interface
 static plugin_interface_t plugin_interface = {
     get_plugin_info_impl,
@@ -413,6 +435,7 @@ static plugin_interface_t plugin_interface = {
     nullptr,  // get_camera_data
     nullptr,  // get_processing_results
     nullptr,  // get_video_frame
+    get_forensic_data_impl,
     free_memory_impl
 };
 

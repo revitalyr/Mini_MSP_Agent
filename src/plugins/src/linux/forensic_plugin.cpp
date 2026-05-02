@@ -15,6 +15,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <dirent.h>
 #include <sys/stat.h>
 #include <sys/sysinfo.h>
@@ -29,16 +30,6 @@
 static const char* PLUGIN_NAME = "linux_forensic_plugin";
 static const char* PLUGIN_VERSION = "1.0.0";
 static const char* PLUGIN_DESCRIPTION = "Linux forensic artifacts collector";
-
-// Structure to hold forensic findings
-struct ForensicFinding {
-    char category[64];
-    char artifact_type[64];
-    char path[512];
-    char value[512];
-    bool suspicious;
-    char details[1024];
-};
 
 // Read file contents into string
 static std::string ReadFile(const char* path) {
@@ -91,7 +82,7 @@ static std::string GetProcessEnviron(pid_t pid) {
 }
 
 // Collect kernel modules
-static bool CollectKernelModules(std::vector<ForensicFinding>& findings) {
+static bool CollectKernelModules(std::vector<forensic_finding_t>& findings) {
     FILE* fp = fopen("/proc/modules", "r");
     if (!fp) return false;
     
@@ -101,7 +92,7 @@ static bool CollectKernelModules(std::vector<ForensicFinding>& findings) {
         
         // Parse: name size instances dependencies state memory
         if (sscanf(line, "%s %s %s %s %s %s", name, size, instances, dependencies, state, memory) >= 5) {
-            ForensicFinding finding;
+            forensic_finding_t finding;
             memset(&finding, 0, sizeof(finding));
             
             strncpy(finding.category, "Kernel", sizeof(finding.category) - 1);
@@ -126,7 +117,7 @@ static bool CollectKernelModules(std::vector<ForensicFinding>& findings) {
 }
 
 // Collect systemd units
-static bool CollectSystemdUnits(std::vector<ForensicFinding>& findings) {
+static bool CollectSystemdUnits(std::vector<forensic_finding_t>& findings) {
     // Check common systemd paths
     const char* systemd_paths[] = {
         "/etc/systemd/system/",
@@ -147,7 +138,7 @@ static bool CollectSystemdUnits(std::vector<ForensicFinding>& findings) {
                     strstr(entry->d_name, ".timer") ||
                     strstr(entry->d_name, ".socket")) {
                     
-                    ForensicFinding finding;
+                    forensic_finding_t finding;
                     memset(&finding, 0, sizeof(finding));
                     
                     strncpy(finding.category, "Persistence", sizeof(finding.category) - 1);
@@ -178,7 +169,7 @@ static bool CollectSystemdUnits(std::vector<ForensicFinding>& findings) {
 }
 
 // Collect crontab entries
-static bool CollectCrontab(std::vector<ForensicFinding>& findings) {
+static bool CollectCrontab(std::vector<forensic_finding_t>& findings) {
     const char* crontab_paths[] = {
         "/etc/crontab",
         "/etc/cron.d/",
@@ -192,7 +183,7 @@ static bool CollectCrontab(std::vector<ForensicFinding>& findings) {
     for (const auto& path : crontab_paths) {
         struct stat st;
         if (stat(path, &st) == 0) {
-            ForensicFinding finding;
+            forensic_finding_t finding;
             memset(&finding, 0, sizeof(finding));
             
             strncpy(finding.category, "Persistence", sizeof(finding.category) - 1);
@@ -392,6 +383,38 @@ static void free_memory_impl(void* ptr) {
     }
 }
 
+// Forensic data implementation
+static forensic_data_t* get_forensic_data_impl() {
+    static std::vector<forensic_finding_t> cached_findings;
+    static forensic_data_t cached_data;
+    
+    cached_findings.clear();
+    
+    // Collect all forensic artifacts
+    CollectKernelModules(cached_findings);
+    CollectSystemdUnits(cached_findings);
+    CollectCrontab(cached_findings);
+    
+    // Allocate and populate findings array
+    if (!cached_findings.empty()) {
+        size_t findings_size = sizeof(forensic_finding_t) * cached_findings.size();
+        cached_data.findings = (forensic_finding_t*)malloc(findings_size);
+        if (cached_data.findings) {
+            memcpy(cached_data.findings, cached_findings.data(), findings_size);
+            cached_data.count = cached_findings.size();
+        } else {
+            cached_data.count = 0;
+        }
+    } else {
+        cached_data.findings = nullptr;
+        cached_data.count = 0;
+    }
+    
+    cached_data.collection_time = static_cast<Timestamp>(time(nullptr));
+    
+    return &cached_data;
+}
+
 // Plugin interface
 static plugin_interface_t plugin_interface = {
     get_plugin_info_impl,
@@ -410,6 +433,7 @@ static plugin_interface_t plugin_interface = {
     nullptr,  // get_camera_data
     nullptr,  // get_processing_results
     nullptr,  // get_video_frame
+    get_forensic_data_impl,
     free_memory_impl
 };
 
