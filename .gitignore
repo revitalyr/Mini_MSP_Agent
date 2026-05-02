@@ -51,6 +51,7 @@ reports/
 agent/plugins/*.dll
 agent/plugins/*.so
 agent/plugins/*.dylib
+src/agent/plugins/
 
 # Configuration
 config.toml
