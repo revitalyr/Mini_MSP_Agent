@@ -131,6 +131,10 @@ pub enum PluginStatus {
 }
 
 /// Plugin registry
+<<<<<<< HEAD
+=======
+#[derive(Debug, Clone, PartialEq)]
+>>>>>>> github/master
 pub struct PluginRegistry {
     pub plugins: HashMap<String, Box<dyn Plugin>>,
 }
@@ -143,15 +147,126 @@ impl std::fmt::Debug for PluginRegistry {
     }
 }
 
+<<<<<<< HEAD
 /// Plugin trait interface
 #[async_trait::async_trait]
 pub trait Plugin: Send + Sync {
+=======
+// Custom serialization for PluginRegistry
+impl serde::Serialize for PluginRegistry {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeMap;
+        
+        let mut map = serializer.serialize_map(Some(self.plugins.len()))?;
+        for (name, plugin) in &self.plugins {
+            let plugin_data = plugin.serialize_box()
+                .map_err(|e| serde::ser::Error::custom(format!("Failed to serialize plugin '{}': {}", name, e)))?;
+            map.serialize_entry(name, &plugin_data)?;
+        }
+        map.end()
+    }
+}
+
+// Custom deserialization for PluginRegistry
+impl<'de> serde::Deserialize<'de> for PluginRegistry {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct PluginRegistryVisitor;
+        
+        impl<'de> serde::de::Visitor<'de> for PluginRegistryVisitor {
+            type Value = PluginRegistry;
+            
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a plugin registry")
+            }
+            
+            fn visit_map<M>(self, mut map: M) -> Result<Self::Value, M::Error>
+            where
+                M: serde::de::MapAccess<'de>,
+            {
+                let plugins = HashMap::new();
+                
+                while let Some((name, _plugin_data)) = map.next_entry::<String, serde_json::Value>()? {
+                    // For now, we'll skip deserialization of actual plugins
+                    // In a real implementation, you'd have a plugin factory system
+                    // that can create plugins from their serialized data
+                    println!("Warning: Cannot deserialize plugin '{}' - skipping", name);
+                }
+                
+                Ok(PluginRegistry { plugins })
+            }
+        }
+        
+        deserializer.deserialize_map(PluginRegistryVisitor)
+    }
+}
+
+/// Plugin trait interface
+#[async_trait::async_trait]
+pub trait Plugin: Send + Sync + std::fmt::Debug {
+>>>>>>> github/master
     fn name(&self) -> &str;
     fn version(&self) -> &str;
     async fn init(&mut self) -> Result<(), Box<dyn std::error::Error>>;
     async fn shutdown(&mut self) -> Result<(), Box<dyn std::error::Error>>;
     async fn get_metrics(&self) -> Option<SystemMetrics>;
     async fn handle_command(&self, cmd: &Command) -> Result<CommandResponse, Box<dyn std::error::Error>>;
+<<<<<<< HEAD
+=======
+    
+    // Clone functionality
+    fn clone_box(&self) -> Box<dyn Plugin>;
+    
+    // Equality functionality
+    fn eq_box(&self, other: &Box<dyn Plugin>) -> bool;
+    
+    // Serialization functionality
+    fn serialize_box(&self) -> Result<serde_json::Value, Box<dyn std::error::Error>>;
+    fn deserialize_box(&self, data: &serde_json::Value) -> Result<Box<dyn Plugin>, Box<dyn std::error::Error>>;
+}
+
+// Implement Clone for Box<dyn Plugin>
+impl Clone for Box<dyn Plugin> {
+    fn clone(&self) -> Self {
+        self.clone_box()
+    }
+}
+
+// Implement PartialEq for Box<dyn Plugin>
+impl PartialEq for Box<dyn Plugin> {
+    fn eq(&self, other: &Self) -> bool {
+        self.eq_box(other)
+    }
+}
+
+// Implement Serialize for Box<dyn Plugin>
+impl serde::Serialize for Box<dyn Plugin> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let json_value = self.serialize_box()
+            .map_err(|e| serde::ser::Error::custom(format!("Serialization failed: {}", e)))?;
+        json_value.serialize(serializer)
+    }
+}
+
+// Implement Deserialize for Box<dyn Plugin>
+impl<'de> serde::Deserialize<'de> for Box<dyn Plugin> {
+    fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        // For now, we'll create a simple placeholder plugin
+        // In a real implementation, you'd need a plugin registry system
+        Err(serde::de::Error::custom("Cannot deserialize Box<dyn Plugin> directly. Use a plugin registry system instead."))
+    }
+>>>>>>> github/master
 }
 
 /// System metrics structure

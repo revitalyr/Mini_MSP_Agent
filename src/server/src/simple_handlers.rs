@@ -74,3 +74,29 @@ pub async fn handle_heartbeat(
             .as_secs()
     })))
 }
+
+// Simple command handler
+pub async fn send_command(
+    State(app_state): State<Arc<AppState>>,
+    axum::extract::Path(agent_id): axum::extract::Path<String>,
+    Json(command): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let agents = app_state.agents.lock().unwrap();
+    
+    // Check if agent exists and is connected
+    if !agents.contains_key(&agent_id) {
+        return Err(StatusCode::NOT_FOUND);
+    }
+    
+    // For now, just return a response indicating the command was received
+    // In a real implementation, you'd forward this to the agent via WebSocket
+    Ok(Json(json!({
+        "status": "command_sent",
+        "agent_id": agent_id,
+        "command": command,
+        "timestamp": std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+    })))
+}

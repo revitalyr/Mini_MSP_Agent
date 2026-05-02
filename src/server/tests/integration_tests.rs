@@ -13,8 +13,9 @@ use tokio::sync::Mutex;
 use std::time::Instant;
 
 // Import the server modules directly from crate
-use crate::main::{AppState, AgentInfo, health_check, handle_heartbeat, list_agents, send_command};
+use crate::simple_handlers::{health_check, handle_heartbeat, list_agents, send_command};
 use crate::websocket::WebSocketManager;
+use crate::main::AppState;
 
 /// Integration tests for the Mini MSP Server
 /// These tests verify the complete API functionality

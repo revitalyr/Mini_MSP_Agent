@@ -22,7 +22,11 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+<<<<<<< HEAD
 # Enable CMake features
+=======
+# Enable modern CMake features
+>>>>>>> github/master
 # Note: CMAKE_CXX_SCAN_FOR_MODULES disabled due to AppleClang compatibility
 set(CMAKE_ENABLE_EXPORTS ON)
 
