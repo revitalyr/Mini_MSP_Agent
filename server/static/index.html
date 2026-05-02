@@ -330,32 +330,31 @@
         </header>
 
         <div class="grid">
-            <!-- System Metrics Card -->
+            <!-- OS Information Card -->
             <div class="card">
                 <div class="card-header">
-                    <div class="card-icon blue">📊</div>
-                    <div class="card-title">System Metrics</div>
+                    <div class="card-icon blue">�</div>
+                    <div class="card-title">OS Information</div>
                 </div>
                 <div class="metric">
-                    <span class="metric-label">CPU Usage</span>
-                    <span class="metric-value" id="cpuUsage">--%</span>
-                </div>
-                <div class="progress-bar">
-                    <div class="progress-fill green" id="cpuBar" style="width: 0%"></div>
+                    <span class="metric-label">Hostname</span>
+                    <span class="metric-value" id="osHostname">--</span>
                 </div>
                 <div class="metric">
-                    <span class="metric-label">Memory Usage</span>
-                    <span class="metric-value" id="memoryUsage">--%</span>
-                </div>
-                <div class="progress-bar">
-                    <div class="progress-fill green" id="memoryBar" style="width: 0%"></div>
+                    <span class="metric-label">OS Type</span>
+                    <span class="metric-value" id="osType">--</span>
                 </div>
                 <div class="metric">
-                    <span class="metric-label">Disk Usage</span>
-                    <span class="metric-value" id="diskUsage">--%</span>
+                    <span class="metric-label">OS Version</span>
+                    <span class="metric-value" id="osVersion" style="font-size: 0.85rem;">--</span>
                 </div>
-                <div class="progress-bar">
-                    <div class="progress-fill green" id="diskBar" style="width: 0%"></div>
+                <div class="metric">
+                    <span class="metric-label">Architecture</span>
+                    <span class="metric-value" id="osArch">--</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Platform</span>
+                    <span class="metric-value" id="osPlatform">--</span>
                 </div>
             </div>
 
@@ -681,12 +680,13 @@
             try {
                 const response = await fetchWithRetry(`${API_BASE}/system-info`);
                 const data = await response.json();
-                
-                document.getElementById('hostname').textContent = data.hostname || 'Unknown';
-                document.getElementById('osName').textContent = data.platform_name || data.platform || 'Unknown';
+
+                document.getElementById('osHostname').textContent = data.hostname || 'Unknown';
+                document.getElementById('osType').textContent = data.platform_name || data.platform || 'Unknown';
                 document.getElementById('osVersion').textContent = data.version || 'Unknown';
-                document.getElementById('architecture').textContent = data.architecture || 'Unknown';
-                
+                document.getElementById('osArch').textContent = data.architecture || 'Unknown';
+                document.getElementById('osPlatform').textContent = data.platform || 'Unknown';
+
             } catch (error) {
                 console.log('System info fetch failed:', error.message);
             }
@@ -765,7 +765,14 @@
                     statusDiv.textContent = `✅ Found ${data.count} forensic findings from ${data.plugin_name}`;
                     statusDiv.style.background = '#dcfce7';
                     
-                    listDiv.innerHTML = data.findings.map(finding => `
+                    // Sort findings: suspicious first, then by category
+                    const sortedFindings = [...data.findings].sort((a, b) => {
+                        if (a.suspicious && !b.suspicious) return -1;
+                        if (!a.suspicious && b.suspicious) return 1;
+                        return a.category.localeCompare(b.category);
+                    });
+                    
+                    listDiv.innerHTML = sortedFindings.map(finding => `
                         <div class="forensic-item" style="padding: 12px; border-bottom: 1px solid #e5e7eb; ${finding.suspicious ? 'background: #fee2e2;' : 'background: #f9fafb;'} margin-bottom: 8px; border-radius: 6px;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                                 <span style="font-weight: 600; color: #1f2937;">${finding.category}</span>
