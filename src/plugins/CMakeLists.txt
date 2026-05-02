@@ -93,7 +93,7 @@ endif()
 
 #  source file organization - Base plugin
 set(SOURCES
-    src/working_system_plugin.cpp
+    src/system_plugin_v3.cpp
 )
 
 # Create library target
