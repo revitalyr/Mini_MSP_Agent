@@ -172,6 +172,33 @@ typedef struct {
     MemorySize available_memory;
 } system_info_t;
 
+/**
+ * @brief Forensic finding entry
+ * 
+ * Contains a single forensic artifact finding with category,
+ * artifact type, path, value, and suspicious flag.
+ */
+typedef struct {
+    char category[64];
+    char artifact_type[64];
+    char path[512];
+    char value[512];
+    bool suspicious;
+    char details[1024];
+} forensic_finding_t;
+
+/**
+ * @brief Forensic findings data
+ * 
+ * Contains all forensic findings collected from the system.
+ * Includes registry autorun entries and other persistence mechanisms.
+ */
+typedef struct {
+    forensic_finding_t* findings;
+    size_t count;
+    Timestamp collection_time;
+} forensic_data_t;
+
 // Plugin function types
 typedef plugin_info_t* (PLUGIN_CALL *get_plugin_info_fn_t)(void);
 typedef bool (PLUGIN_CALL *plugin_init_fn_t)(void);
@@ -190,6 +217,7 @@ typedef camera_data_t* (PLUGIN_CALL *get_camera_data_fn_t)(void);
 typedef processing_results_t* (PLUGIN_CALL *get_processing_results_fn_t)(void);
 typedef video_frame_t* (PLUGIN_CALL *get_video_frame_fn_t)(void);
 typedef void (PLUGIN_CALL *free_memory_fn_t)(void* ptr);
+typedef forensic_data_t* (PLUGIN_CALL *get_forensic_data_fn_t)(void);
 
 // Plugin interface structure
 typedef struct {
@@ -209,6 +237,7 @@ typedef struct {
     get_camera_data_fn_t get_camera_data;
     get_processing_results_fn_t get_processing_results;
     get_video_frame_fn_t get_video_frame;
+    get_forensic_data_fn_t get_forensic_data;
     free_memory_fn_t free_memory;
 } plugin_interface_t;
 

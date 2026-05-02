@@ -17,6 +17,7 @@
 #include <vector>
 #include <string>
 #include <cstring>
+#include <ctime>
 #include "../../include/plugin_interface.h"
 
 #define EXPORT __declspec(dllexport)
@@ -24,6 +25,162 @@
 static const char* PLUGIN_NAME = "windows_forensic_plugin";
 static const char* PLUGIN_VERSION = "1.0.0";
 static const char* PLUGIN_DESCRIPTION = "Windows forensic artifacts collector";
+
+// Registry key paths for persistence detection
+static const wchar_t* kAutorunKeys[] = {
+    L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run",
+    L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\RunOnce",
+    L"SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Run",
+    L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",
+    L"SYSTEM\\CurrentControlSet\\Services",
+    L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options"
+};
+
+static const size_t kAutorunKeysCount = sizeof(kAutorunKeys) / sizeof(kAutorunKeys[0]);
+
+// Registry helper - read registry value
+static bool ReadRegistryValue(HKEY root, const wchar_t* subkey, const wchar_t* value_name, 
+                               char* output, size_t output_size) {
+    HKEY hKey;
+    if (RegOpenKeyExW(root, subkey, 0, KEY_READ, &hKey) != ERROR_SUCCESS) {
+        return false;
+    }
+    
+    DWORD type;
+    DWORD size = (DWORD)(output_size * sizeof(wchar_t));
+    wchar_t wbuffer[1024] = {0};
+    
+    LRESULT result = RegQueryValueExW(hKey, value_name, NULL, &type, (LPBYTE)wbuffer, &size);
+    RegCloseKey(hKey);
+    
+    if (result != ERROR_SUCCESS) {
+        return false;
+    }
+    
+    // Convert wide char to utf-8
+    WideCharToMultiByte(CP_UTF8, 0, wbuffer, -1, output, (int)output_size, NULL, NULL);
+    return true;
+}
+
+// Registry helper - enumerate registry values
+static bool EnumRegistryValues(HKEY root, const wchar_t* subkey, 
+                               std::vector<std::pair<std::wstring, std::wstring>>& values) {
+    HKEY hKey;
+    if (RegOpenKeyExW(root, subkey, 0, KEY_READ, &hKey) != ERROR_SUCCESS) {
+        return false;
+    }
+    
+    wchar_t valueName[256];
+    DWORD valueNameSize = 256;
+    DWORD index = 0;
+    
+    while (RegEnumValueW(hKey, index, valueName, &valueNameSize, NULL, NULL, NULL, NULL) == ERROR_SUCCESS) {
+        wchar_t valueData[1024] = {0};
+        DWORD valueSize = sizeof(valueData);
+        DWORD type;
+        
+        if (RegQueryValueExW(hKey, valueName, NULL, &type, (LPBYTE)valueData, &valueSize) == ERROR_SUCCESS) {
+            values.push_back({valueName, valueData});
+        }
+        
+        valueNameSize = 256;
+        index++;
+    }
+    
+    RegCloseKey(hKey);
+    return true;
+}
+
+// Collect autorun entries from registry
+static bool CollectAutorunEntries(std::vector<forensic_finding_t>& findings) {
+    for (size_t i = 0; i < kAutorunKeysCount; i++) {
+        const wchar_t* reg_path = kAutorunKeys[i];
+        std::vector<std::pair<std::wstring, std::wstring>> values;
+        
+        // Check HKLM (HKEY_LOCAL_MACHINE)
+        if (EnumRegistryValues(HKEY_LOCAL_MACHINE, reg_path, values)) {
+            for (const auto& val : values) {
+                forensic_finding_t finding;
+                memset(&finding, 0, sizeof(finding));
+                
+                strncpy_s(finding.category, sizeof(finding.category), "Persistence", _TRUNCATE);
+                strncpy_s(finding.artifact_type, sizeof(finding.artifact_type), "Registry Autorun (HKLM)", _TRUNCATE);
+                
+                // Build full path
+                char utf8_path[512];
+                char utf8_name[256];
+                WideCharToMultiByte(CP_UTF8, 0, reg_path, -1, utf8_path, 512, NULL, NULL);
+                WideCharToMultiByte(CP_UTF8, 0, val.first.c_str(), -1, utf8_name, 256, NULL, NULL);
+                snprintf(finding.path, sizeof(finding.path), "HKLM\\%s\\%s", utf8_path, utf8_name);
+                
+                // Store value
+                WideCharToMultiByte(CP_UTF8, 0, val.second.c_str(), -1, finding.value, 512, NULL, NULL);
+                
+                // Check for suspicious patterns
+                char lower_value[512];
+                strncpy_s(lower_value, sizeof(lower_value), finding.value, _TRUNCATE);
+                _strlwr_s(lower_value, sizeof(lower_value));
+                
+                if (strstr(lower_value, "cmd.exe") || 
+                    strstr(lower_value, "powershell.exe") ||
+                    strstr(lower_value, "rundll32.exe") ||
+                    strstr(lower_value, "regsvr32.exe") ||
+                    strstr(lower_value, "mshta.exe") ||
+                    strstr(lower_value, "wscript.exe") ||
+                    strstr(lower_value, "cscript.exe")) {
+                    finding.suspicious = true;
+                    strncpy_s(finding.details, sizeof(finding.details), 
+                             "Suspicious: Script interpreter or LOLBIN in autorun", _TRUNCATE);
+                }
+                
+                findings.push_back(finding);
+            }
+        }
+        
+        // Check HKCU (HKEY_CURRENT_USER)
+        values.clear();
+        if (EnumRegistryValues(HKEY_CURRENT_USER, reg_path, values)) {
+            for (const auto& val : values) {
+                forensic_finding_t finding;
+                memset(&finding, 0, sizeof(finding));
+                
+                strncpy_s(finding.category, sizeof(finding.category), "Persistence", _TRUNCATE);
+                strncpy_s(finding.artifact_type, sizeof(finding.artifact_type), "Registry Autorun (HKCU)", _TRUNCATE);
+                
+                // Build full path
+                char utf8_path[512];
+                char utf8_name[256];
+                WideCharToMultiByte(CP_UTF8, 0, reg_path, -1, utf8_path, 512, NULL, NULL);
+                WideCharToMultiByte(CP_UTF8, 0, val.first.c_str(), -1, utf8_name, 256, NULL, NULL);
+                snprintf(finding.path, sizeof(finding.path), "HKCU\\%s\\%s", utf8_path, utf8_name);
+                
+                // Store value
+                WideCharToMultiByte(CP_UTF8, 0, val.second.c_str(), -1, finding.value, 512, NULL, NULL);
+                
+                // Check for suspicious patterns
+                char lower_value[512];
+                strncpy_s(lower_value, sizeof(lower_value), finding.value, _TRUNCATE);
+                _strlwr_s(lower_value, sizeof(lower_value));
+                
+                if (strstr(lower_value, "cmd.exe") || 
+                    strstr(lower_value, "powershell.exe") ||
+                    strstr(lower_value, "rundll32.exe") ||
+                    strstr(lower_value, "regsvr32.exe") ||
+                    strstr(lower_value, "mshta.exe") ||
+                    strstr(lower_value, "wscript.exe") ||
+                    strstr(lower_value, "cscript.exe")) {
+                    finding.suspicious = true;
+                    strncpy_s(finding.details, sizeof(finding.details), 
+                             "Suspicious: Script interpreter or LOLBIN in autorun", _TRUNCATE);
+                }
+                
+                findings.push_back(finding);
+            }
+        }
+    }
+    
+    return true;
+}
 
 // Collect running processes with full details
 static bool CollectProcesses(std::vector<process_info_t>& processes) {
@@ -202,6 +359,36 @@ static void free_memory_impl(void* ptr) {
     }
 }
 
+// Forensic data implementation
+static forensic_data_t* get_forensic_data_impl() {
+    static std::vector<forensic_finding_t> cached_findings;
+    static forensic_data_t cached_data;
+    
+    cached_findings.clear();
+    
+    // Collect autorun entries
+    CollectAutorunEntries(cached_findings);
+    
+    // Allocate and populate findings array
+    if (!cached_findings.empty()) {
+        size_t findings_size = sizeof(forensic_finding_t) * cached_findings.size();
+        cached_data.findings = (forensic_finding_t*)malloc(findings_size);
+        if (cached_data.findings) {
+            memcpy(cached_data.findings, cached_findings.data(), findings_size);
+            cached_data.count = cached_findings.size();
+        } else {
+            cached_data.count = 0;
+        }
+    } else {
+        cached_data.findings = nullptr;
+        cached_data.count = 0;
+    }
+    
+    cached_data.collection_time = static_cast<Timestamp>(time(nullptr));
+    
+    return &cached_data;
+}
+
 // Plugin interface
 static plugin_interface_t plugin_interface = {
     get_plugin_info_impl,
@@ -220,6 +407,7 @@ static plugin_interface_t plugin_interface = {
     nullptr,  // get_camera_data
     nullptr,  // get_processing_results
     nullptr,  // get_video_frame
+    get_forensic_data_impl,
     free_memory_impl
 };
 
