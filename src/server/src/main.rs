@@ -133,7 +133,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     match PluginLoader::load() {
         Ok(loader) => {
             info!("✓ Successfully loaded forensic plugin: {} v{}", loader.name(), loader.version());
-            info!("  Plugin path: {:?}", loader.plugin_path());
             *forensic_plugin.lock().unwrap() = Some(loader);
         }
         Err(e) => {

@@ -19,7 +19,6 @@ use chrono::Utc;
 use tracing::{info, error, debug};
 
 use crate::AppState;
-use mini_msp_shared::AgentInfo;
 
 /// Simple WebSocket manager for agent connections
 pub struct WebSocketManager {
