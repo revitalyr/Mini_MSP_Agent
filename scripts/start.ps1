@@ -7,10 +7,22 @@ param(
     [switch]$Build = $false
 )
 
+# Handle Unix-style arguments passed as positional parameters
+if ($ServerPort -eq "--build" -or $ServerPort -eq "-build") {
+    $Build = $true
+    $ServerPort = "8081"
+}
+if ($AgentConfig -eq "--build" -or $AgentConfig -eq "-build") {
+    $Build = $true
+    $AgentConfig = "configs/config.toml"
+}
+
 # Validate port is a number
 if ($ServerPort -notmatch '^\d+$') {
     Write-Host "Error: ServerPort must be a number, got: $ServerPort" -ForegroundColor Red
-    Write-Host "Usage: .\scripts\start.ps1 [-ServerPort <port>] [-AgentConfig <config>] [-Build]" -ForegroundColor Yellow
+    Write-Host "Usage: .\scripts\start.ps1 [[-ServerPort] <port>] [-AgentConfig <config>] [-Build]" -ForegroundColor Yellow
+    Write-Host "       .\scripts\start.ps1 -Build              # Build and run with defaults" -ForegroundColor Yellow
+    Write-Host "       .\scripts\start.ps1 8081 -Build         # Build and run on port 8081" -ForegroundColor Yellow
     exit 1
 }
 

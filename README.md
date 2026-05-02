@@ -60,8 +60,11 @@ Mini MSP Agent is a comprehensive monitoring and management solution for distrib
 git clone https://github.com/your-repo/mini-msp-agent.git
 cd mini-msp-agent
 
-# Build all components
+# Build all components (Linux/macOS)
 ./scripts/start.sh --build
+
+# Build all components (Windows PowerShell)
+./scripts/start.ps1 -Build
 
 # Or build manually
 cargo build --release
