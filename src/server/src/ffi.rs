@@ -58,6 +58,27 @@ pub struct SystemInfo {
     pub uptime: c_ulonglong,
 }
 
+/// Forensic finding structure
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct ForensicFinding {
+    pub category: [c_char; 64],
+    pub artifact_type: [c_char; 64],
+    pub path: [c_char; 512],
+    pub value: [c_char; 512],
+    pub suspicious: bool,
+    pub details: [c_char; 1024],
+}
+
+/// Forensic data structure
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct ForensicData {
+    pub findings: *mut ForensicFinding,
+    pub count: usize,
+    pub collection_time: c_ulonglong,
+}
+
 /// Plugin information structure
 #[repr(C)]
 #[derive(Debug, Clone)]
@@ -74,6 +95,7 @@ type CleanupFn = unsafe extern "C" fn();
 type GetSystemMetricsFn = unsafe extern "C" fn(metrics: *mut SystemMetrics) -> bool;
 type GetProcessesFn = unsafe extern "C" fn(processes: *mut *mut ProcessInfo, count: *mut usize) -> bool;
 type GetSystemInfoFn = unsafe extern "C" fn(info: *mut SystemInfo) -> bool;
+type GetForensicDataFn = unsafe extern "C" fn() -> *mut ForensicData;
 type FreeMemoryFn = unsafe extern "C" fn(ptr: *mut c_void);
 
 /// C plugin interface structure
@@ -96,6 +118,7 @@ pub struct PluginInterface {
     pub get_camera_data: *const c_void,  // Placeholder
     pub get_processing_results: *const c_void,  // Placeholder
     pub get_video_frame: *const c_void,  // Placeholder
+    pub get_forensic_data: *const c_void,  // Get forensic findings
     pub free_memory: FreeMemoryFn,
 }
 
@@ -167,6 +190,27 @@ impl PluginInterface {
         }
         Ok(info.assume_init())
     }
+    
+    /// Get forensic data
+    pub unsafe fn get_forensic_data(&self) -> Result<Option<ForensicData>> {
+        if self.get_forensic_data.is_null() {
+            return Ok(None); // Not implemented by plugin
+        }
+        
+        let fn_ptr: GetForensicDataFn = std::mem::transmute(self.get_forensic_data);
+        let data_ptr = fn_ptr();
+        
+        if data_ptr.is_null() {
+            return Ok(None);
+        }
+        
+        let data = std::ptr::read(data_ptr);
+        
+        // Free the data pointer (but not findings - they need separate handling)
+        (self.free_memory)(data_ptr as *mut c_void);
+        
+        Ok(Some(data))
+    }
 }
 
 /// Safe wrapper for plugin info
@@ -209,6 +253,11 @@ impl SafePluginInterface {
     
     pub fn get_system_info(&self) -> Result<SystemInfo> {
         unsafe { self.interface.get_system_info() }
+    }
+    
+    /// Get forensic findings
+    pub fn get_forensic_data(&self) -> Result<Option<ForensicData>> {
+        unsafe { self.interface.get_forensic_data() }
     }
 }
 

@@ -81,6 +81,81 @@ pub async fn get_system_info() -> Result<Json<Value>, StatusCode> {
     })))
 }
 
+/// Get forensic data from C++ plugin
+pub async fn get_forensic_data(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<Value>, StatusCode> {
+    let forensic = state.forensic_plugin.lock().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    if let Some(ref loader) = *forensic {
+        let interface = loader.interface();
+        
+        match interface.get_forensic_data() {
+            Ok(Some(data)) => {
+                info!("Retrieved forensic data: {} findings", data.count);
+                
+                // Convert findings to JSON
+                let findings: Vec<Value> = if data.count > 0 && !data.findings.is_null() {
+                    let slice = unsafe { std::slice::from_raw_parts(data.findings, data.count) };
+                    slice.iter().map(|f| {
+                        let category = unsafe { std::ffi::CStr::from_ptr(f.category.as_ptr()) }.to_string_lossy();
+                        let artifact_type = unsafe { std::ffi::CStr::from_ptr(f.artifact_type.as_ptr()) }.to_string_lossy();
+                        let path = unsafe { std::ffi::CStr::from_ptr(f.path.as_ptr()) }.to_string_lossy();
+                        let value = unsafe { std::ffi::CStr::from_ptr(f.value.as_ptr()) }.to_string_lossy();
+                        let details = unsafe { std::ffi::CStr::from_ptr(f.details.as_ptr()) }.to_string_lossy();
+                        
+                        json!({
+                            "category": category.to_string(),
+                            "artifact_type": artifact_type.to_string(),
+                            "path": path.to_string(),
+                            "value": value.to_string(),
+                            "suspicious": f.suspicious,
+                            "details": details.to_string()
+                        })
+                    }).collect()
+                } else {
+                    Vec::new()
+                };
+                
+                return Ok(Json(json!({
+                    "source": "forensic_plugin",
+                    "plugin_name": loader.name(),
+                    "plugin_version": loader.version(),
+                    "collection_time": data.collection_time,
+                    "count": data.count,
+                    "findings": findings,
+                    "status": "success"
+                })));
+            }
+            Ok(None) => {
+                return Ok(Json(json!({
+                    "source": "forensic_plugin",
+                    "plugin_name": loader.name(),
+                    "plugin_version": loader.version(),
+                    "status": "not_implemented",
+                    "message": "Forensic data collection not implemented in this plugin version"
+                })));
+            }
+            Err(e) => {
+                warn!("Failed to get forensic data: {}", e);
+                return Ok(Json(json!({
+                    "source": "forensic_plugin",
+                    "plugin_name": loader.name(),
+                    "plugin_version": loader.version(),
+                    "status": "error",
+                    "error": e.to_string()
+                })));
+            }
+        }
+    }
+    
+    Ok(Json(json!({
+        "source": "forensic_plugin",
+        "status": "not_loaded",
+        "message": "Forensic plugin is not loaded or available"
+    })))
+}
+
 struct OSInfo {
     platform: String,
     name: String,

@@ -454,6 +454,23 @@
                 </div>
             </div>
 
+            <!-- Forensic Data Card -->
+            <div class="card" style="grid-column: 1 / -1;">
+                <div class="card-header">
+                    <div class="card-icon red">🔍</div>
+                    <div class="card-title">Forensic Data</div>
+                    <button onclick="fetchForensicData()" style="margin-left: auto; padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">
+                        🔄 Collect Data
+                    </button>
+                </div>
+                <div id="forensicStatus" style="padding: 10px; background: #f3f4f6; border-radius: 8px; margin-bottom: 12px; font-size: 0.9rem; color: #6b7280;">
+                    Click "Collect Data" to retrieve forensic findings from the system
+                </div>
+                <div class="forensic-list" id="forensicList" style="max-height: 300px; overflow-y: auto;">
+                    <!-- Forensic findings will be displayed here -->
+                </div>
+            </div>
+
             <!-- Live Logs Card -->
             <div class="card">
                 <div class="card-header">
@@ -672,6 +689,55 @@
                 addLog('Health check: ' + data.status, 'info');
             } catch (error) {
                 addLog('Health check failed - server may be starting...', 'warn');
+            }
+        }
+        
+        // Fetch forensic data
+        async function fetchForensicData() {
+            const statusDiv = document.getElementById('forensicStatus');
+            const listDiv = document.getElementById('forensicList');
+            
+            statusDiv.textContent = '🔍 Collecting forensic data...';
+            statusDiv.style.background = '#fef3c7';
+            
+            try {
+                const response = await fetchWithRetry(`${API_BASE}/forensic/data`);
+                const data = await response.json();
+                
+                if (data.status === 'success' && data.count > 0) {
+                    statusDiv.textContent = `✅ Found ${data.count} forensic findings from ${data.plugin_name}`;
+                    statusDiv.style.background = '#dcfce7';
+                    
+                    listDiv.innerHTML = data.findings.map(finding => `
+                        <div class="forensic-item" style="padding: 12px; border-bottom: 1px solid #e5e7eb; ${finding.suspicious ? 'background: #fee2e2;' : 'background: #f9fafb;'} margin-bottom: 8px; border-radius: 6px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                <span style="font-weight: 600; color: #1f2937;">${finding.category}</span>
+                                ${finding.suspicious ? '<span style="background: #ef4444; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem;">⚠️ SUSPICIOUS</span>' : ''}
+                            </div>
+                            <div style="font-size: 0.85rem; color: #4b5563; margin-bottom: 4px;">
+                                <strong>${finding.artifact_type}:</strong> ${finding.path}
+                            </div>
+                            <div style="font-size: 0.8rem; color: #6b7280; font-family: monospace; background: #f3f4f6; padding: 6px; border-radius: 4px;">
+                                Value: ${finding.value}
+                            </div>
+                            ${finding.details ? `<div style="font-size: 0.8rem; color: #6b7280; margin-top: 4px;">${finding.details}</div>` : ''}
+                        </div>
+                    `).join('');
+                    
+                    addLog(`Forensic data collected: ${data.count} findings`, 'info');
+                } else if (data.status === 'not_implemented' || data.status === 'not_loaded') {
+                    statusDiv.textContent = 'ℹ️ Forensic data collection not available in current plugin version';
+                    statusDiv.style.background = '#f3f4f6';
+                    listDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #6b7280;">Forensic plugin does not implement data collection API</div>';
+                } else {
+                    statusDiv.textContent = '❌ No forensic findings detected';
+                    statusDiv.style.background = '#fee2e2';
+                    listDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #6b7280;">No forensic data available</div>';
+                }
+            } catch (error) {
+                statusDiv.textContent = '❌ Failed to collect forensic data: ' + error.message;
+                statusDiv.style.background = '#fee2e2';
+                console.log('Forensic data fetch failed:', error.message);
             }
         }
         

@@ -328,6 +328,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .route("/heartbeat", post(simple_handlers::handle_heartbeat))
         .route("/system-info", get(api::system::get_system_info))
         .route("/forensic/metrics", get(api::system::get_forensic_metrics))
+        .route("/forensic/data", get(api::system::get_forensic_data))
         
         // WebSocket
         .route("/ws", get(websocket::handle_websocket))
