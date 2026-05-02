@@ -202,7 +202,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                                 id: agent_id.to_string(),
                                 hostname: heartbeat.hostname.clone(),
                                 version: "1.0.0".to_string(),
-                                platform: "unknown".to_string(),
+                                platform: heartbeat.platform.clone(),
                             });
                             // Agent registration/heartbeat tracking is handled by or_insert_with
                         }

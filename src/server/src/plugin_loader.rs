@@ -179,29 +179,22 @@ fn detect_platform() -> &'static str {
 fn find_plugin_file(platform: &str) -> Result<PathBuf> {
     for dir in PLUGIN_DIRS {
         for name in PLUGIN_NAMES {
-            let filename = format!("{}.{}.{}", name, platform, PLUGIN_EXT);
-            let path = Path::new(dir).join(&filename);
-            
-            if path.exists() {
-                return Ok(path);
-            }
-
-            // Try without platform suffix
-            let filename_simple = format!("{}.{}.{}", name, PLUGIN_EXT, PLUGIN_EXT);
+            // Try simple name first: ForensicPlugin.dll
+            let filename_simple = format!("{}.{}", name, PLUGIN_EXT);
             let path_simple = Path::new(dir).join(&filename_simple);
             if path_simple.exists() {
                 return Ok(path_simple);
             }
             
-            // Try base name
-            let filename_base = format!("{}.{}.{}", name, platform, PLUGIN_EXT);
-            let path_base = Path::new(dir).join(&filename_base);
-            if path_base.exists() {
-                return Ok(path_base);
+            // Try with platform suffix: ForensicPlugin.windows.dll
+            let filename = format!("{}.{}.{}", name, platform, PLUGIN_EXT);
+            let path = Path::new(dir).join(&filename);
+            if path.exists() {
+                return Ok(path);
             }
 
-            // Try direct name
-            let filename_direct = format!("lib{}.{}.{}", name, platform, PLUGIN_EXT);
+            // Try lib prefix (Unix style): libForensicPlugin.dll
+            let filename_direct = format!("lib{}.{}", name, PLUGIN_EXT);
             let path_direct = Path::new(dir).join(&filename_direct);
             if path_direct.exists() {
                 return Ok(path_direct);

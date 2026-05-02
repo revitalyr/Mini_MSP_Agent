@@ -36,6 +36,7 @@ use constants::*;
 /// * `timestamp` - Unix timestamp of the heartbeat
 /// * `metrics` - Current system performance metrics
 /// * `hostname` - System hostname
+/// * `platform` - Operating system platform (windows/linux/macos)
 /// * `uptime` - System uptime in seconds
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Heartbeat {
@@ -43,6 +44,7 @@ pub struct Heartbeat {
     pub timestamp: Timestamp,
     pub metrics: Metrics,
     pub hostname: String,
+    pub platform: String,
     pub uptime: Uptime,
 }
 

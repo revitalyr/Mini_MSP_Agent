@@ -20,6 +20,22 @@ fn get_platform() -> String {
     std::env::consts::OS.to_string()
 }
 
+/// Get system uptime in seconds (simplified)
+fn get_uptime() -> u64 {
+    // TODO: Get real system uptime
+    // For now, return process uptime
+    0
+}
+
+/// Get system metrics (simplified)
+fn get_metrics() -> serde_json::Value {
+    json!({
+        "cpu": 0.0,
+        "ram": 0.0,
+        "disk": 0.0
+    })
+}
+
 // Register agent with API server
 async fn register_with_api(agent_info: &AgentInfo) -> Result<()> {
     let client = reqwest::Client::new();
@@ -210,14 +226,14 @@ async fn main() -> Result<()> {
         loop {
             interval.tick().await;
             
-            // Send NATS heartbeat with full agent info
+            // Send NATS heartbeat with full agent info (matching server Heartbeat struct)
             let heartbeat = json!({
                 "agent_id": agent_id,
                 "hostname": agent_info.hostname,
                 "platform": agent_info.platform,
-                "version": agent_info.version,
-                "timestamp": chrono::Utc::now(),
-                "status": "active"
+                "timestamp": chrono::Utc::now().timestamp(),
+                "metrics": get_metrics(),
+                "uptime": get_uptime()
             });
             
             if let Err(e) = nats_heartbeat.publish("agent.heartbeat", heartbeat.to_string().into()).await {
