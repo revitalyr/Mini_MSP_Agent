@@ -2,9 +2,69 @@
 //! 
 //! Предоставление информации о системе
 
-use axum::{response::Json, http::StatusCode};
+use axum::{response::Json, http::StatusCode, extract::State};
 use serde_json::{json, Value};
 use std::process::Command;
+use std::sync::Arc;
+use crate::AppState;
+use tracing::{info, warn};
+
+/// Get forensic metrics from C++ plugin
+pub async fn get_forensic_metrics(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<Value>, StatusCode> {
+    let forensic = state.forensic_plugin.lock().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    if let Some(ref loader) = *forensic {
+        let interface = loader.interface();
+        
+        // Get system metrics from forensic plugin
+        match interface.get_system_metrics() {
+            Ok(metrics) => {
+                info!("Retrieved forensic metrics from plugin: {} v{}", loader.name(), loader.version());
+                // Convert C-string hostname to Rust String
+                let hostname = unsafe {
+                    std::ffi::CStr::from_ptr(metrics.hostname.as_ptr())
+                        .to_string_lossy()
+                        .to_string()
+                };
+                
+                return Ok(Json(json!({
+                    "source": "forensic_plugin",
+                    "plugin_name": loader.name(),
+                    "plugin_version": loader.version(),
+                    "metrics": {
+                        "hostname": hostname,
+                        "ram_usage": metrics.ram_usage,
+                        "cpu_usage": metrics.cpu_usage,
+                        "uptime": metrics.uptime
+                    },
+                    "timestamp": std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs()
+                })));
+            }
+            Err(e) => {
+                warn!("Failed to get forensic metrics: {}", e);
+                return Ok(Json(json!({
+                    "source": "forensic_plugin",
+                    "plugin_name": loader.name(),
+                    "plugin_version": loader.version(),
+                    "error": e.to_string(),
+                    "status": "error"
+                })));
+            }
+        }
+    }
+    
+    // No forensic plugin loaded
+    Ok(Json(json!({
+        "source": "forensic_plugin",
+        "status": "not_loaded",
+        "message": "Forensic plugin is not loaded or available"
+    })))
+}
 
 /// Get system information
 pub async fn get_system_info() -> Result<Json<Value>, StatusCode> {
