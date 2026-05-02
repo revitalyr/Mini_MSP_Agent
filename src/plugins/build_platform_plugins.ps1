@@ -71,16 +71,24 @@ try {
                 if (Test-Path $VCVarsPath) {
                     Write-Host "🔧 Setting up Visual Studio environment..." -ForegroundColor Yellow
                     
-                    # Import VS environment
-                    $VCVarsOutput = cmd /c "`"$VCVarsPath`" && set" | Out-String
-                    $VCVarsLines = $VCVarsOutput -split "`r`n"
+                    # Import VS environment using safer method
+                    # Run vcvars64.bat and capture env vars to temp file
+                    $TempEnvFile = [System.IO.Path]::GetTempFileName()
+                    cmd /c "`"$VCVarsPath`" >nul 2>&1 && set > `"$TempEnvFile`""
                     
-                    foreach ($line in $VCVarsLines) {
-                        if ($line -match "^(.+?)=(.*)$") {
-                            $VarName = $matches[1]
-                            $VarValue = $matches[2]
-                            Set-Item -Path "env:$VarName" -Value $VarValue
+                    if (Test-Path $TempEnvFile) {
+                        $EnvLines = Get-Content -Path $TempEnvFile -ErrorAction SilentlyContinue
+                        foreach ($line in $EnvLines) {
+                            if ($line -match "^(.+?)=(.*)$") {
+                                $VarName = $matches[1]
+                                $VarValue = $matches[2]
+                                # Skip variables that are too long or contain special chars
+                                if ($VarValue.Length -lt 8192) {
+                                    Set-Item -Path "env:$VarName" -Value $VarValue -ErrorAction SilentlyContinue
+                                }
+                            }
                         }
+                        Remove-Item -Path $TempEnvFile -Force -ErrorAction SilentlyContinue
                     }
                 }
             } catch {

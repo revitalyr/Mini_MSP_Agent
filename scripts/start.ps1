@@ -130,16 +130,24 @@ if ($Build) {
                             if (Test-Path $vcVarsPath) {
                                 Write-Host "🔧 Настройка окружения Visual Studio..." -ForegroundColor Yellow
                                 
-                                # Запускаем vcvars64.bat и импортируем окружение
-                                $vcVarsOutput = & cmd /c "`"$vcVarsPath`" && set" 2>&1 | Out-String
-                                $vcVarsLines = $vcVarsOutput -split "`r`n"
+                                # Import VS environment using safer method
+                                # Run vcvars64.bat and capture env vars to temp file
+                                $TempEnvFile = [System.IO.Path]::GetTempFileName()
+                                cmd /c "`"$vcVarsPath`" >nul 2>&1 && set > `"$TempEnvFile`""
                                 
-                                foreach ($line in $vcVarsLines) {
-                                    if ($line -match "^(.+?)=(.*)$") {
-                                        $varName = $matches[1]
-                                        $varValue = $matches[2]
-                                        Set-Item -Path "env:$varName" -Value $varValue
+                                if (Test-Path $TempEnvFile) {
+                                    $EnvLines = Get-Content -Path $TempEnvFile -ErrorAction SilentlyContinue
+                                    foreach ($line in $EnvLines) {
+                                        if ($line -match "^(.+?)=(.*)$") {
+                                            $varName = $matches[1]
+                                            $varValue = $matches[2]
+                                            # Skip variables that are too long or contain special chars
+                                            if ($varValue.Length -lt 8192) {
+                                                Set-Item -Path "env:$varName" -Value $varValue -ErrorAction SilentlyContinue
+                                            }
+                                        }
                                     }
+                                    Remove-Item -Path $TempEnvFile -Force -ErrorAction SilentlyContinue
                                 }
                                 
                                 # Используем современный CMakeLists.txt для C++23 плагинов с Ninja
