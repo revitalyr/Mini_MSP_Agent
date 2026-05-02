@@ -5,7 +5,7 @@ edition = "2021"
 
 [[bin]]
 name = "agent"
-path = "main.rs"
+path = "src/main.rs"
 
 [dependencies]
 mini_msp_shared = { path = "../../shared" }
