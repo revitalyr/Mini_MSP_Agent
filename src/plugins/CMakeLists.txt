@@ -17,6 +17,9 @@ project(SystemPluginV3
     LANGUAGES CXX
 )
 
+# Include required CMake modules
+include(GenerateExportHeader)
+
 # Set C++23 standard with features
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
