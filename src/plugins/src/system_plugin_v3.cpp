@@ -345,9 +345,11 @@ public:
             
             initialized_.store(true, std::memory_order_release);
             return true;
-        } catch (const std::system_error&) {
+        } catch (const std::system_error& e) {
+            std::cerr << "System error in init: " << e.what() << " (code: " << e.code() << ")\n";
             return std::unexpected(SystemError::SystemCallFailed);
         } catch (...) {
+            std::cerr << "Unknown error in init\n";
             return std::unexpected(SystemError::Unknown);
         }
     }
@@ -491,9 +493,11 @@ public:
             });
             
             return processes;
-        } catch (const std::system_error&) {
+        } catch (const std::system_error& e) {
+            std::cerr << "System error in get_processes: " << e.what() << " (code: " << e.code() << ")\n";
             return std::unexpected(SystemError::SystemCallFailed);
         } catch (...) {
+            std::cerr << "Unknown error in get_processes\n";
             return std::unexpected(SystemError::Unknown);
         }
     }
@@ -628,9 +632,11 @@ public:
                 execution_time
             };
 #endif
-        } catch (const std::system_error&) {
+        } catch (const std::system_error& e) {
+            std::cerr << "System error in execute_command: " << e.what() << " (code: " << e.code() << ")\n";
             return std::unexpected(SystemError::SystemCallFailed);
         } catch (...) {
+            std::cerr << "Unknown error in execute_command\n";
             return std::unexpected(SystemError::Unknown);
         }
     }
