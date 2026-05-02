@@ -89,6 +89,7 @@ async fn handle_socket(socket: WebSocket, app_state: Arc<AppState>) {
             hostname: "unknown".to_string(),
             version: "1.0.0".to_string(),
             platform: "unknown".to_string(),
+            last_seen: chrono::Utc::now().timestamp() as u64,
         };
         agents.insert(agent_id.clone(), agent);
         debug!("Added agent {} to app state", agent_id);
@@ -135,6 +136,7 @@ async fn handle_socket(socket: WebSocket, app_state: Arc<AppState>) {
                                         hostname: "unknown".to_string(),
                                         version: "1.0.0".to_string(),
                                         platform: "unknown".to_string(),
+                                        last_seen: chrono::Utc::now().timestamp() as u64,
                                     };
                                     agents.insert(agent_id.to_string(), agent);
                                     info!("Added agent {} to app state via registration", agent_id);

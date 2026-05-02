@@ -75,6 +75,7 @@ pub async fn handle_heartbeat(
             hostname: hostname.to_string(),
             version: version.to_string(),
             platform: platform.to_string(),
+            last_seen: chrono::Utc::now().timestamp() as u64,
         };
         agents.insert(agent_id.to_string(), agent);
     }
