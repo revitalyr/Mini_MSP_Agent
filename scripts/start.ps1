@@ -58,9 +58,9 @@ if ($Build) {
     
     # Сборка C++ плагинов
     Write-Host "🔧 Сборка C++ плагинов..." -ForegroundColor Yellow
-    $PluginDir = "plugins"
+    $PluginDir = "src\plugins"
     $BuildDir = "$PluginDir\build"
-    $AgentPluginDir = "plugins"  # Изменено на "plugins" как ожидает агент
+    $AgentPluginDir = "plugins"  # Output directory for agent to find plugins
     
     # Создание директорий
     if (-not (Test-Path $BuildDir)) {
@@ -73,12 +73,12 @@ if ($Build) {
     # Сборка плагинов через CMake
     Push-Location $PluginDir
     try {
-        # Use platform-aware build script
-        $BuildScript = Join-Path $PluginDir "build_platform_plugins.ps1"
+        # Use platform-aware build script (relative to current directory now)
+        $BuildScript = "build_platform_plugins.ps1"
         
         if (Test-Path $BuildScript) {
             Write-Host "🔧 Using platform-aware plugin builder..." -ForegroundColor Yellow
-            & $BuildScript
+            & ".\$BuildScript"
         } else {
             Write-Host "⚠️ Platform-aware builder not found, using fallback..." -ForegroundColor Yellow
             
@@ -152,9 +152,9 @@ if ($Build) {
                                     Write-Host "Ninja exit code: $LASTEXITCODE" -ForegroundColor Yellow
                                     
                                     if ($LASTEXITCODE -eq 0) {
-                                        # Копирование плагинов в корневую директорию
+                                        # Копирование плагинов в корневую директорию проекта (на 2 уровня вверх: build/ -> src/plugins/ -> project root)
                                         Write-Host "📋 Копирование плагинов..." -ForegroundColor Yellow
-                                        Copy-Item "*.dll" "..\" -Force -ErrorAction SilentlyContinue
+                                        Copy-Item "*.dll" "..\..\" -Force -ErrorAction SilentlyContinue
                                     } else {
                                         Write-Host "❌ Ошибка сборки плагинов с Ninja" -ForegroundColor Red
                                     }
