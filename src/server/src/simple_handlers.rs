@@ -54,14 +54,27 @@ pub async fn handle_heartbeat(
         .and_then(|v| v.as_str())
         .unwrap_or("unknown");
     
+    // Extract agent info from payload with fallbacks
+    let hostname = payload.get("hostname")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
+    
+    let platform = payload.get("platform")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
+    
+    let version = payload.get("version")
+        .and_then(|v| v.as_str())
+        .unwrap_or("1.0.0");
+    
     // Update agent
     {
         let mut agents = app_state.agents.lock().unwrap();
         let agent = AgentInfo {
             id: agent_id.to_string(),
-            hostname: "unknown".to_string(),
-            version: "1.0.0".to_string(),
-            platform: "unknown".to_string(),
+            hostname: hostname.to_string(),
+            version: version.to_string(),
+            platform: platform.to_string(),
         };
         agents.insert(agent_id.to_string(), agent);
     }

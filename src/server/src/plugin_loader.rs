@@ -26,6 +26,9 @@ const PLUGIN_EXT: &str = "dylib";
 /// Default plugin search directories
 const PLUGIN_DIRS: &[&str] = &[
     "./plugins",
+    "./src/plugins/windows",  // Windows DLL location
+    "./src/plugins/linux",    // Linux SO location
+    "./src/plugins/macos",    // macOS dylib location
     "../plugins",
     "./build/plugins",
     "../src/plugins/build",

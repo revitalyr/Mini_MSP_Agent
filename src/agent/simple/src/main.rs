@@ -10,8 +10,14 @@ mod websocket;
 struct AgentInfo {
     id: String,
     hostname: String,
+    platform: String,
     version: String,
     timestamp: chrono::DateTime<chrono::Utc>,
+}
+
+/// Get current platform name
+fn get_platform() -> String {
+    std::env::consts::OS.to_string()
 }
 
 // Register agent with API server
@@ -158,6 +164,7 @@ async fn main() -> Result<()> {
     let agent_info = AgentInfo {
         id: Uuid::new_v4().to_string(),
         hostname: gethostname::gethostname().to_string_lossy().to_string(),
+        platform: get_platform(),
         version: "0.1.0".to_string(),
         timestamp: chrono::Utc::now(),
     };
@@ -203,9 +210,12 @@ async fn main() -> Result<()> {
         loop {
             interval.tick().await;
             
-            // Send NATS heartbeat
+            // Send NATS heartbeat with full agent info
             let heartbeat = json!({
                 "agent_id": agent_id,
+                "hostname": agent_info.hostname,
+                "platform": agent_info.platform,
+                "version": agent_info.version,
                 "timestamp": chrono::Utc::now(),
                 "status": "active"
             });
