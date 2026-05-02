@@ -57,7 +57,7 @@ impl Default for Config {
             port: 8080,
             log_level: "info".to_string(),
             log_dir: "logs".to_string(),
-            broker_url: None, // Optional broker
+            broker_url: Some("nats://localhost:4222".to_string()), // Enable NATS by default
         }
     }
 }

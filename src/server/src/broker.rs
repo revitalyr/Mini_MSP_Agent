@@ -37,10 +37,10 @@ impl BrokerClient {
 
     /// Subscribe to heartbeats from all agents
     pub async fn subscribe_heartbeats(&self) -> Result<async_nats::Subscriber> {
-        let subscriber = self.nats.subscribe("heartbeat.>").await
+        let subscriber = self.nats.subscribe("agent.heartbeat").await
             .map_err(|e| anyhow::anyhow!("Failed to subscribe to heartbeats: {}", e))?;
         
-        info!("Subscribed to heartbeat topics");
+        info!("Subscribed to heartbeat topic: agent.heartbeat");
         Ok(subscriber)
     }
 

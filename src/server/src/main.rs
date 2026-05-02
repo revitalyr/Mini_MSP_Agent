@@ -191,20 +191,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             while let Some(msg) = heartbeat_sub.next().await {
                 if let Ok(payload) = std::str::from_utf8(&msg.payload) {
                     if let Ok(heartbeat) = serde_json::from_str::<Heartbeat>(payload) {
-                        // Extract agent_id from subject (heartbeat.{agent_id})
-                        let subject = msg.subject.as_str();
-                        let agent_id = subject.strip_prefix("heartbeat.").unwrap_or("unknown");
+                        // Extract agent_id from heartbeat payload
+                        let agent_id = &heartbeat.agent_id;
                         
                         // Update agent info
                         {
                             let mut agents = app_state_clone.agents.lock().unwrap();
-                            let _agent = agents.entry(agent_id.to_string()).or_insert_with(|| AgentInfo {
-                                id: agent_id.to_string(),
+                            let _agent = agents.entry(agent_id.clone()).or_insert_with(|| AgentInfo {
+                                id: agent_id.clone(),
                                 hostname: heartbeat.hostname.clone(),
                                 version: "1.0.0".to_string(),
                                 platform: heartbeat.platform.clone(),
                             });
-                            // Agent registration/heartbeat tracking is handled by or_insert_with
+                            info!("Agent registered/updated: {} ({} - {})", agent_id, heartbeat.hostname, heartbeat.platform);
                         }
                         
                         // Handle heartbeat via broker handler
