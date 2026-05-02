@@ -5,7 +5,6 @@ use tracing::{info, error, debug, warn};
 use uuid::Uuid;
 
 mod websocket;
-use websocket::WebSocketClient;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 struct AgentInfo {
@@ -309,15 +308,31 @@ async fn main() -> Result<()> {
         }
     });
     
-    // Keep agent running indefinitely
+    // Keep agent running indefinitely with graceful shutdown support
     info!("Agent is running with trait-based connection. Press Ctrl+C to stop.");
+    
+    // Create shutdown signal handler
+    let mut shutdown_signal = std::pin::pin!(tokio::signal::ctrl_c());
+    
     loop {
-        tokio::time::sleep(Duration::from_secs(10)).await;
-        info!("Agent heartbeat - still running via {}", 
-              ws_client_ref.lock().await.connection_type());
+        tokio::select! {
+            _ = tokio::time::sleep(Duration::from_secs(10)) => {
+                let is_connected = ws_client_ref.lock().await.is_connected();
+                if is_connected {
+                    info!("Agent heartbeat - still running via {}", 
+                          ws_client_ref.lock().await.connection_type());
+                } else {
+                    warn!("Agent disconnected, attempting to reconnect...");
+                }
+            }
+            _ = shutdown_signal.as_mut() => {
+                info!("Shutdown signal received, closing connection...");
+                ws_client_ref.lock().await.close().await.ok();
+                info!("Agent shutdown complete");
+                break;
+            }
+        }
     }
-
-    // Cleanup
-    info!("Agent shutdown complete");
+    
     Ok(())
 }

@@ -109,7 +109,14 @@ pub async fn execute_command(
     let registry = state.plugin_registry.lock()
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     
-    match registry.execute_command(&request.plugin_name, &request.command) {
+    // Execute command with parameters if provided
+    let result = if let Some(ref params) = request.parameters {
+        registry.execute_command_with_params(&request.plugin_name, &request.command, params)
+    } else {
+        registry.execute_command(&request.plugin_name, &request.command)
+    };
+    
+    match result {
         Ok(response) => {
             Ok(Json(response))
         }

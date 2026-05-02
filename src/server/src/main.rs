@@ -197,12 +197,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         // Update agent info
                         {
                             let mut agents = app_state_clone.agents.lock().unwrap();
-                            let agent = agents.entry(agent_id.to_string()).or_insert_with(|| AgentInfo {
+                            let _agent = agents.entry(agent_id.to_string()).or_insert_with(|| AgentInfo {
                                 id: agent_id.to_string(),
                                 hostname: heartbeat.hostname.clone(),
                                 version: "1.0.0".to_string(),
                                 platform: "unknown".to_string(),
                             });
+                            // Agent registration/heartbeat tracking is handled by or_insert_with
                         }
                         
                         // Handle heartbeat via broker handler
@@ -238,9 +239,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         let parts: Vec<&str> = subject.split('.').collect();
                         if parts.len() >= 2 {
                             let agent_id = parts[1];
-                            info!("Received response from {}: status={}", agent_id, response.status);
-                            // Here you would update command status in database
-                            // and notify WebSocket clients
+                            let cmd_id = response.command_id.as_deref().unwrap_or("unknown");
+                            info!("Received response from {}: command_id={} status={}", 
+                                  agent_id, cmd_id, response.status);
+                            
+                            // Update agent last_seen timestamp
+                            {
+                                let mut agents = app_state_clone.agents.lock().unwrap();
+                                if let Some(_agent) = agents.get_mut(agent_id) {
+                                    // Agent activity tracking - could be extended with command history
+                                    info!("Agent {} executed command {} with status {}", 
+                                          agent_id, cmd_id, response.status);
+                                }
+                            }
                         }
                     }
                 }

@@ -246,6 +246,25 @@ impl CustomPluginRegistry {
         plugin.execute_command(command)
     }
 
+    /// Execute command with parameters on a specific plugin
+    pub fn execute_command_with_params(
+        &self, 
+        plugin_name: &str, 
+        command: &str,
+        parameters: &serde_json::Value
+    ) -> Result<CustomCommandResponse> {
+        let plugin = self.plugins.get(plugin_name)
+            .ok_or_else(|| anyhow!("Plugin not found: {}", plugin_name))?;
+        
+        // Serialize parameters to JSON string and append to command
+        // Format: "command_name\n{param1:value1,param2:value2}"
+        let params_str = serde_json::to_string(parameters)
+            .unwrap_or_else(|_| "{}".to_string());
+        let full_command = format!("{}\n{}", command, params_str);
+        
+        plugin.execute_command(&full_command)
+    }
+
     /// Get metrics from a specific plugin
     pub fn get_metrics(&self, plugin_name: &str) -> Result<CustomMetrics> {
         let plugin = self.plugins.get(plugin_name)
