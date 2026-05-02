@@ -192,7 +192,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 if let Ok(payload) = std::str::from_utf8(&msg.payload) {
                     if let Ok(heartbeat) = serde_json::from_str::<Heartbeat>(payload) {
                         // Extract agent_id from heartbeat payload
-                        let agent_id = &heartbeat.agent_id;
+                        let agent_id = heartbeat.agent_id.clone();
                         
                         // Update agent info
                         {
@@ -207,7 +207,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         }
                         
                         // Handle heartbeat via broker handler
-                        if let Err(e) = handler.handle_heartbeat(agent_id, heartbeat).await {
+                        if let Err(e) = handler.handle_heartbeat(&agent_id, heartbeat).await {
                             warn!("Failed to handle heartbeat from {}: {}", agent_id, e);
                         }
                     }
