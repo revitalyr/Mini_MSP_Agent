@@ -535,7 +535,7 @@
         // Fetch system metrics
         async function fetchMetrics() {
             try {
-                const response = await fetchWithRetry(`${API_BASE}/api/system/metrics`);
+                const response = await fetchWithRetry(`${API_BASE}/forensic/metrics`);
                 const data = await response.json();
                 
                 // Update CPU
@@ -563,8 +563,11 @@
         // Fetch agents
         async function fetchAgents() {
             try {
-                const response = await fetchWithRetry(`${API_BASE}/agents`);
-                const agents = await response.json();
+                const response = await fetchWithRetry(`${API_BASE}/agents/simple`);
+                const data = await response.json();
+                
+                // Handle both array and object responses
+                const agents = Array.isArray(data) ? data : (data.agents || []);
                 
                 document.getElementById('agentCount').textContent = agents.length + ' Agent' + (agents.length !== 1 ? 's' : '');
                 
@@ -598,7 +601,7 @@
         // Fetch system info
         async function fetchSystemInfo() {
             try {
-                const response = await fetchWithRetry(`${API_BASE}/api/system/info`);
+                const response = await fetchWithRetry(`${API_BASE}/system-info`);
                 const data = await response.json();
                 
                 document.getElementById('hostname').textContent = data.hostname || 'Unknown';
