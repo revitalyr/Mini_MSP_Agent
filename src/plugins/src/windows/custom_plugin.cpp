@@ -8,6 +8,7 @@
 #include <windows.h>
 #include <string>
 #include <cstring>
+#include <ctime>
 #include <chrono>
 #include <sstream>
 

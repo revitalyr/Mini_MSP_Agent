@@ -38,7 +38,8 @@ static const wchar_t* kAutorunKeys[] = {
 
 static const size_t kAutorunKeysCount = sizeof(kAutorunKeys) / sizeof(kAutorunKeys[0]);
 
-// Registry helper - read registry value
+// Registry helper - read specific registry value by name
+// Used by CheckMaliciousRegistryKeys for IOC detection
 static bool ReadRegistryValue(HKEY root, const wchar_t* subkey, const wchar_t* value_name, 
                                char* output, size_t output_size) {
     HKEY hKey;
@@ -62,7 +63,8 @@ static bool ReadRegistryValue(HKEY root, const wchar_t* subkey, const wchar_t* v
     return true;
 }
 
-// Registry helper - enumerate registry values
+// Registry helper - enumerate all registry values in a key
+// Used by CollectAutorunEntries to get all autorun entries
 static bool EnumRegistryValues(HKEY root, const wchar_t* subkey, 
                                std::vector<std::pair<std::wstring, std::wstring>>& values) {
     HKEY hKey;
@@ -176,6 +178,98 @@ static bool CollectAutorunEntries(std::vector<forensic_finding_t>& findings) {
                 
                 findings.push_back(finding);
             }
+        }
+    }
+    
+    return true;
+}
+
+// Known malicious registry indicators (IOC checks)
+struct MaliciousRegistryKey {
+    HKEY root;
+    const wchar_t* subkey;
+    const wchar_t* value_name;
+    const char* description;
+    const char* malware_family;
+};
+
+// IOC database - known malicious registry keys
+static const MaliciousRegistryKey kMaliciousKeys[] = {
+    // Winlogon shell hijacking
+    {HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon", L"Shell", 
+     "Winlogon Shell registry key", "Persistence mechanism"},
+    {HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon", L"Userinit",
+     "Winlogon Userinit registry key", "Persistence mechanism"},
+    
+    // IFEO debugger injection (common technique)
+    {HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\notepad.exe", L"Debugger",
+     "IFEO debugger injection on notepad.exe", "Process hijacking"},
+    {HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\calc.exe", L"Debugger",
+     "IFEO debugger injection on calc.exe", "Process hijacking"},
+    
+    // LSA notification packages (credential theft)
+    {HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Control\\Lsa", L"Notification Packages",
+     "LSA notification packages", "Credential theft"},
+    
+    // Security providers (rootkit technique)
+    {HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Control\\SecurityProviders", L"SecurityProviders",
+     "LSA Security Providers", "Authentication hijacking"},
+    
+    // Boot execute (early persistence)
+    {HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Control\\Session Manager", L"BootExecute",
+     "Session Manager BootExecute", "Early boot persistence"},
+    
+    // AppCert DLLs (DLL injection)
+    {HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Control\\Session Manager\\AppCertDlls", nullptr,
+     "AppCert DLL injection", "DLL hijacking"},
+};
+
+static const size_t kMaliciousKeysCount = sizeof(kMaliciousKeys) / sizeof(kMaliciousKeys[0]);
+
+// Check for known malicious registry keys using ReadRegistryValue
+static bool CheckMaliciousRegistryKeys(std::vector<forensic_finding_t>& findings) {
+    for (size_t i = 0; i < kMaliciousKeysCount; i++) {
+        const auto& ioc = kMaliciousKeys[i];
+        char value_data[1024] = {0};
+        
+        // Try to read the value
+        bool found = false;
+        if (ioc.value_name) {
+            // Check specific value
+            found = ReadRegistryValue(ioc.root, ioc.subkey, ioc.value_name, value_data, sizeof(value_data));
+        } else {
+            // Check if key exists (any value in it)
+            HKEY hKey;
+            if (RegOpenKeyExW(ioc.root, ioc.subkey, 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+                found = true;
+                RegCloseKey(hKey);
+                strncpy_s(value_data, sizeof(value_data), "[Key exists with entries]", _TRUNCATE);
+            }
+        }
+        
+        if (found) {
+            forensic_finding_t finding;
+            memset(&finding, 0, sizeof(finding));
+            
+            strncpy_s(finding.category, sizeof(finding.category), "IOC Detection", _TRUNCATE);
+            strncpy_s(finding.artifact_type, sizeof(finding.artifact_type), "Malicious Registry Key", _TRUNCATE);
+            
+            // Build full path
+            char utf8_path[512];
+            WideCharToMultiByte(CP_UTF8, 0, ioc.subkey, -1, utf8_path, 512, NULL, NULL);
+            if (ioc.value_name) {
+                char utf8_value[256];
+                WideCharToMultiByte(CP_UTF8, 0, ioc.value_name, -1, utf8_value, 256, NULL, NULL);
+                snprintf(finding.path, sizeof(finding.path), "%s\\%s", utf8_path, utf8_value);
+            } else {
+                strncpy_s(finding.path, sizeof(finding.path), utf8_path, _TRUNCATE);
+            }
+            
+            strncpy_s(finding.value, sizeof(finding.value), value_data, _TRUNCATE);
+            strncpy_s(finding.details, sizeof(finding.details), ioc.description, _TRUNCATE);
+            finding.suspicious = true;
+            
+            findings.push_back(finding);
         }
     }
     
@@ -368,6 +462,9 @@ static forensic_data_t* get_forensic_data_impl() {
     
     // Collect autorun entries
     CollectAutorunEntries(cached_findings);
+    
+    // Check for known malicious registry keys (IOCs)
+    CheckMaliciousRegistryKeys(cached_findings);
     
     // Allocate and populate findings array
     if (!cached_findings.empty()) {
