@@ -38,7 +38,7 @@ if ($Clean) {
 # Create build directory
 New-Item -ItemType Directory -Path $BuildDir -Force | Out-Null
 
-# Use unified CMakeLists.txt (supports all platforms)
+# Check CMakeLists.txt exists
 $CMakeFile = "CMakeLists.txt"
 $CMakeSource = Join-Path $SourceDir $CMakeFile
 
@@ -48,10 +48,6 @@ if (-not (Test-Path $CMakeSource)) {
 }
 
 Write-Host "📋 Using CMake file: $CMakeFile (unified for all platforms)" -ForegroundColor Cyan
-
-# Copy CMakeLists.txt to build directory
-Copy-Item $CMakeSource (Join-Path $BuildDir "CMakeLists.txt") -Force
-Write-Host "✅ Copied $CMakeFile to build/CMakeLists.txt" -ForegroundColor Green
 
 # Change to build directory
 Push-Location $BuildDir
@@ -96,11 +92,11 @@ try {
             }
         }
         
-        # Configure CMake
-        & cmake . -DCMAKE_BUILD_TYPE=Release -G "Ninja"
+        # Configure CMake from parent directory (source is in ..)
+        & cmake .. -DCMAKE_BUILD_TYPE=Release -G "Ninja"
     } else {
-        # Linux/macOS
-        & cmake . -DCMAKE_BUILD_TYPE=Release
+        # Linux/macOS - configure from parent directory
+        & cmake .. -DCMAKE_BUILD_TYPE=Release
     }
     
     if ($LASTEXITCODE -ne 0) {

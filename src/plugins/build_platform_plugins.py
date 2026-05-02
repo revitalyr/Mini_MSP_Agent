@@ -62,7 +62,7 @@ def main():
     build_dir = source_dir / "build"
     build_dir.mkdir(exist_ok=True)
     
-    # Get appropriate CMakeLists.txt
+    # Check CMakeLists.txt exists
     cmake_file = get_cmake_file(current_platform)
     cmake_source = source_dir / cmake_file
     
@@ -72,16 +72,12 @@ def main():
     
     print(f"📋 Using CMake file: {cmake_file} (unified for all platforms)")
     
-    # Copy unified CMakeLists.txt to build directory
-    shutil.copy2(cmake_source, build_dir / "CMakeLists.txt")
-    print(f"✅ Copied {cmake_file} to build/CMakeLists.txt")
-    
     # Change to build directory
     os.chdir(build_dir)
     
-    # Configure with CMake
+    # Configure with CMake (source is in parent directory)
     print("🔧 Configuring with CMake...")
-    cmake_cmd = ["cmake", ".", "-DCMAKE_BUILD_TYPE=Release"]
+    cmake_cmd = ["cmake", "..", "-DCMAKE_BUILD_TYPE=Release"]
     
     if current_platform == "windows":
         # Try to find Visual Studio
