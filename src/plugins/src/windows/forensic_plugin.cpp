@@ -11,6 +11,9 @@
  * - Services and drivers
  */
 
+// Disable MSVC warnings about "unsafe" functions
+#define _CRT_SECURE_NO_WARNINGS
+
 #include <windows.h>
 #include <tlhelp32.h>
 #include <psapi.h>

@@ -45,7 +45,6 @@ if(MSVC)
         /Zc:twoPhaseLookup
         /Zc:threadSafeInit
         /W4
-        /WX
         /utf-8
         /bigobj
     )

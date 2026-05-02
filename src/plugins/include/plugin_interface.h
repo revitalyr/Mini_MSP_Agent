@@ -125,6 +125,15 @@ typedef struct {
  * @var success - true if command executed successfully
  * @var error - Error message if success is false (null-terminated)
  */
+
+// Save and disable stdout/stderr macros to avoid conflicts with Windows CRT
+#ifdef _WIN32
+    #pragma push_macro("stdout")
+    #pragma push_macro("stderr")
+    #undef stdout
+    #undef stderr
+#endif
+
 typedef struct {
     char* stdout;
     char* stderr;
@@ -132,6 +141,12 @@ typedef struct {
     bool success;
     char m_error[kMaxErrorMsgLen];
 } command_result_t;
+
+// Restore stdout/stderr macros
+#ifdef _WIN32
+    #pragma pop_macro("stderr")
+    #pragma pop_macro("stdout")
+#endif
 
 /**
  * @brief System information structure
