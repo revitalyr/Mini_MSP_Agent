@@ -81,11 +81,11 @@ pub struct ForensicData {
 
 /// Plugin information structure
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct PluginInfo {
-    pub name: [c_char; MAX_NAME_LEN],
-    pub version: [c_char; MAX_VERSION_LEN],
-    pub description: [c_char; MAX_DESCRIPTION_LEN],
+    pub name: *const c_char,
+    pub version: *const c_char,
+    pub description: *const c_char,
 }
 
 /// Plugin interface function types
@@ -132,9 +132,9 @@ impl PluginInterface {
         
         let info = &*ptr;
         Ok(PluginInfoSafe {
-            name: cstr_to_string(&info.name)?,
-            version: cstr_to_string(&info.version)?,
-            description: cstr_to_string(&info.description)?,
+            name: cstr_to_string_from_ptr(info.name)?,
+            version: cstr_to_string_from_ptr(info.version)?,
+            description: cstr_to_string_from_ptr(info.description)?,
         })
     }
     
@@ -269,6 +269,17 @@ impl SafePluginInterface {
 /// Helper to convert C string to Rust String
 fn cstr_to_string(buf: &[c_char]) -> Result<String> {
     let cstr = unsafe { CStr::from_ptr(buf.as_ptr()) };
+    cstr.to_str()
+        .map(|s| s.to_owned())
+        .map_err(|e| anyhow!("Invalid UTF-8 in C string: {}", e))
+}
+
+/// Helper to convert C string pointer to Rust String
+fn cstr_to_string_from_ptr(ptr: *const c_char) -> Result<String> {
+    if ptr.is_null() {
+        return Ok(String::from("unknown"));
+    }
+    let cstr = unsafe { CStr::from_ptr(ptr) };
     cstr.to_str()
         .map(|s| s.to_owned())
         .map_err(|e| anyhow!("Invalid UTF-8 in C string: {}", e))
