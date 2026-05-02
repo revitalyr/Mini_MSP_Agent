@@ -8,10 +8,14 @@ use std::mem::MaybeUninit;
 use anyhow::{anyhow, Result};
 
 /// Maximum sizes matching plugin_interface.h
+/// These constants are used by C++ plugins via FFI.
+/// Some are unused in Rust code but kept for API compatibility.
 pub const MAX_HOSTNAME_LEN: usize = 256;
 pub const MAX_OS_TYPE_LEN: usize = 64;
 pub const MAX_OS_VERSION_LEN: usize = 64;
+#[allow(dead_code)]
 pub const MAX_COMMAND_LEN: usize = 1024;
+#[allow(dead_code)]
 pub const MAX_PATH_LEN: usize = 4096;
 pub const MAX_NAME_LEN: usize = 128;
 pub const MAX_VERSION_LEN: usize = 64;
@@ -217,6 +221,11 @@ fn cstr_to_string(buf: &[c_char]) -> Result<String> {
 }
 
 /// Helper to get string from fixed-size buffer
+/// 
+/// This is a public API utility for external FFI usage.
+/// Marked as allow(dead_code) since it's primarily used by
+/// external C plugins through FFI, not internally.
+#[allow(dead_code)]
 pub fn buffer_to_string(buf: &[c_char]) -> String {
     cstr_to_string(buf).unwrap_or_default()
 }

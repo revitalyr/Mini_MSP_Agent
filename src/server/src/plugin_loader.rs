@@ -56,6 +56,19 @@ impl PluginLoader {
     pub fn load() -> Result<Self> {
         let platform = detect_platform();
         info!("Detected platform: {}", platform);
+        
+        // Log expected filename for debugging
+        let expected_filename = expected_plugin_filename();
+        info!("Expected plugin filename: {}", expected_filename);
+        
+        // Log all possible plugin paths for diagnostics
+        let debug_paths = debug_plugin_paths();
+        if !debug_paths.is_empty() {
+            info!("Searching for plugin in {} path(s):", debug_paths.len());
+            for path in &debug_paths {
+                info!("  - {}", path.display());
+            }
+        }
 
         let plugin_path = find_plugin_file(platform)?;
         info!("Loading plugin from: {}", plugin_path.display());
@@ -126,6 +139,14 @@ impl PluginLoader {
     /// Get plugin version
     pub fn version(&self) -> &str {
         &self.plugin_version
+    }
+    
+    /// Get reference to the loaded library
+    /// 
+    /// This provides access to the underlying library handle.
+    /// The library is kept alive as long as PluginLoader exists.
+    pub fn library(&self) -> &Library {
+        &self.library
     }
 }
 
