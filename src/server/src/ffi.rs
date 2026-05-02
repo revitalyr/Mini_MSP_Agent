@@ -206,7 +206,12 @@ impl PluginInterface {
         
         let data = std::ptr::read(data_ptr);
         
-        // Free the data pointer (but not findings - they need separate handling)
+        // Free the findings array first (if allocated)
+        if !data.findings.is_null() {
+            (self.free_memory)(data.findings as *mut c_void);
+        }
+        
+        // Free the data struct itself
         (self.free_memory)(data_ptr as *mut c_void);
         
         Ok(Some(data))

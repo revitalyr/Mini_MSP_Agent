@@ -453,10 +453,9 @@ static void free_memory_impl(void* ptr) {
     }
 }
 
-// Forensic data implementation
+// Forensic data implementation - allocates on heap for FFI safety
 static forensic_data_t* get_forensic_data_impl() {
     static std::vector<forensic_finding_t> cached_findings;
-    static forensic_data_t cached_data;
     
     cached_findings.clear();
     
@@ -466,24 +465,30 @@ static forensic_data_t* get_forensic_data_impl() {
     // Check for known malicious registry keys (IOCs)
     CheckMaliciousRegistryKeys(cached_findings);
     
+    // Allocate forensic_data_t on heap
+    forensic_data_t* data = (forensic_data_t*)malloc(sizeof(forensic_data_t));
+    if (!data) {
+        return nullptr;
+    }
+    
     // Allocate and populate findings array
     if (!cached_findings.empty()) {
         size_t findings_size = sizeof(forensic_finding_t) * cached_findings.size();
-        cached_data.findings = (forensic_finding_t*)malloc(findings_size);
-        if (cached_data.findings) {
-            memcpy(cached_data.findings, cached_findings.data(), findings_size);
-            cached_data.count = cached_findings.size();
+        data->findings = (forensic_finding_t*)malloc(findings_size);
+        if (data->findings) {
+            memcpy(data->findings, cached_findings.data(), findings_size);
+            data->count = cached_findings.size();
         } else {
-            cached_data.count = 0;
+            data->count = 0;
         }
     } else {
-        cached_data.findings = nullptr;
-        cached_data.count = 0;
+        data->findings = nullptr;
+        data->count = 0;
     }
     
-    cached_data.collection_time = static_cast<Timestamp>(time(nullptr));
+    data->collection_time = static_cast<Timestamp>(time(nullptr));
     
-    return &cached_data;
+    return data;
 }
 
 // Plugin interface
