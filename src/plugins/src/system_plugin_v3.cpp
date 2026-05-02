@@ -930,20 +930,19 @@ extern "C" {
     
     // Plugin interface getter for Rust agent
     [[nodiscard]] PluginInterface* get_plugin_interface() {
-        static PluginInterface interface{};
+        static PluginInterface interface;
         static bool initialized = false;
         
         if (!initialized) {
             // Initialize function pointers only once
             interface.get_plugin_info = reinterpret_cast<void*>(+[]() -> PluginInfo* {
-                static PluginInfo info{
-                    .name = const_cast<char*>("_system_plugin_v3"),
-                    .version = const_cast<char*>("3.0.0"),
-                    .description = const_cast<char*>("C++23 system plugin"),
-                    .author = const_cast<char*>("Mini MSP Agent Team"),
-                    .license = const_cast<char*>("MIT"),
-                    .m_timestamp = static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count())
-                };
+                static PluginInfo info;
+                info.name = const_cast<char*>("_system_plugin_v3");
+                info.version = const_cast<char*>("3.0.0");
+                info.description = const_cast<char*>("C++23 system plugin");
+                info.author = const_cast<char*>("Mini MSP Agent Team");
+                info.license = const_cast<char*>("MIT");
+                info.m_timestamp = static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count());
                 return &info;
             });
             
