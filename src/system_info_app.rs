@@ -6,7 +6,6 @@ use mini_msp_shared::{Plugin, SystemMetrics, Command, CommandResponse};
 use std::path::Path;
 use std::fs;
 use std::env;
-use async_trait::async_trait;
 use serde_json::json;
 use std::process::Command as ProcessCommand;
 
@@ -358,7 +357,7 @@ fn get_running_processes() -> Vec<serde_json::Value> {
 
 fn load_os_plugins() -> Vec<Box<dyn Plugin>> {
     let mut loaded_plugins = Vec::new();
-    let plugins_dir = Path::new("src/plugins/src");
+    let _plugins_dir = Path::new("src/plugins/src");
     let os_type = get_os_type();
     
     println!("Loading plugins for OS: {}", os_type);

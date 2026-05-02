@@ -3,9 +3,7 @@
 //! This plugin reads sys_info.md and gathers system information according to the forensic categories
 
 use mini_msp_shared::{Plugin, SystemMetrics, Command, CommandResponse};
-use std::path::Path;
 use std::fs;
-use async_trait::async_trait;
 use serde_json::json;
 use std::process::Command as ProcessCommand;
 
@@ -240,10 +238,12 @@ pub struct SystemInfoPlugin {
     version: String,
     sys_info_path: String,
     os_type: String,
+    #[allow(dead_code)]
     cpp_plugins: Vec<Box<dyn Plugin>>,
 }
 
 impl SystemInfoPlugin {
+    #[allow(dead_code)]
     pub fn new(sys_info_path: String, os_type: String) -> Self {
         Self {
             name: "system_info_plugin".to_string(),
@@ -269,7 +269,7 @@ impl SystemInfoPlugin {
         Ok(content)
     }
 
-    fn parse_sys_info_categories(&self, content: &str) -> ForensicCategories {
+    fn parse_sys_info_categories(&self, _content: &str) -> ForensicCategories {
         // Parse the sys_info.md content to extract categories
         // This is a simplified implementation - in reality, you'd parse the markdown more thoroughly
         ForensicCategories {
@@ -283,7 +283,7 @@ impl SystemInfoPlugin {
     }
 
     fn get_identification_time(&self) -> IdentificationTime {
-        let current_time = std::time::SystemTime::now()
+        let _current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs();
@@ -298,12 +298,12 @@ impl SystemInfoPlugin {
     }
 
     fn get_network_state(&self) -> NetworkState {
-        let mut active_connections = self.get_active_connections();
-        let mut arp_table = self.get_arp_table();
-        let mut routing_table = self.get_routing_table();
-        let mut network_interfaces = self.get_network_interfaces();
-        let mut dns_cache = self.get_dns_cache();
-        let mut firewall_state = self.get_firewall_state();
+        let active_connections = self.get_active_connections();
+        let arp_table = self.get_arp_table();
+        let routing_table = self.get_routing_table();
+        let network_interfaces = self.get_network_interfaces();
+        let dns_cache = self.get_dns_cache();
+        let firewall_state = self.get_firewall_state();
         
         // Note: C++ plugin calls would be async in real implementation
         // For now, we'll use the built-in methods for network information
@@ -320,12 +320,12 @@ impl SystemInfoPlugin {
     }
 
     fn get_processes_memory(&self) -> ProcessesMemory {
-        let mut process_tree = self.get_process_tree();
-        let mut running_services = self.get_running_services();
-        let mut command_line_args = self.get_command_line_args();
-        let mut loaded_libraries = self.get_loaded_libraries();
-        let mut handles = self.get_handles();
-        let mut memory_regions = self.get_memory_regions();
+        let process_tree = self.get_process_tree();
+        let running_services = self.get_running_services();
+        let command_line_args = self.get_command_line_args();
+        let loaded_libraries = self.get_loaded_libraries();
+        let handles = self.get_handles();
+        let memory_regions = self.get_memory_regions();
         
         // Note: C++ plugin calls would be async in real implementation
         // For now, we'll use built-in methods for process and memory information
@@ -371,7 +371,7 @@ impl SystemInfoPlugin {
     fn get_uptime(&self) -> u64 {
         match self.os_type.as_str() {
             "macos" => {
-                let output = ProcessCommand::new("sysctl")
+                let _output = ProcessCommand::new("sysctl")
                     .arg("-n")
                     .arg("kern.boottime")
                     .output()
@@ -641,7 +641,7 @@ impl SystemInfoPlugin {
     fn get_network_interfaces(&self) -> Vec<NetworkInterface> {
         match self.os_type.as_str() {
             "macos" | "linux" => {
-                let output = ProcessCommand::new("ifconfig")
+                let _output = ProcessCommand::new("ifconfig")
                     .output()
                     .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
                     .unwrap_or_else(|_| String::new());
@@ -657,7 +657,7 @@ impl SystemInfoPlugin {
                 interfaces
             },
             "windows" => {
-                let output = ProcessCommand::new("ipconfig")
+                let _output = ProcessCommand::new("ipconfig")
                     .arg("/all")
                     .output()
                     .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
@@ -693,7 +693,7 @@ impl SystemInfoPlugin {
     fn get_firewall_state(&self) -> String {
         match self.os_type.as_str() {
             "macos" => {
-                let output = ProcessCommand::new("sudo")
+                let _output = ProcessCommand::new("sudo")
                     .args(&["pfctl", "-s", "info"])
                     .output()
                     .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
@@ -701,7 +701,7 @@ impl SystemInfoPlugin {
                 "Enabled".to_string()
             },
             "linux" => {
-                let output = ProcessCommand::new("sudo")
+                let _output = ProcessCommand::new("sudo")
                     .args(&["iptables", "-L"])
                     .output()
                     .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
@@ -709,7 +709,7 @@ impl SystemInfoPlugin {
                 "Active".to_string()
             },
             "windows" => {
-                let output = ProcessCommand::new("netsh")
+                let _output = ProcessCommand::new("netsh")
                     .args(&["advfirewall", "show", "allprofiles"])
                     .output()
                     .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
@@ -786,7 +786,7 @@ impl SystemInfoPlugin {
     fn get_running_services(&self) -> Vec<ServiceInfo> {
         match self.os_type.as_str() {
             "macos" => {
-                let output = ProcessCommand::new("launchctl")
+                let _output = ProcessCommand::new("launchctl")
                     .arg("list")
                     .output()
                     .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
@@ -802,7 +802,7 @@ impl SystemInfoPlugin {
                 services
             },
             "linux" => {
-                let output = ProcessCommand::new("systemctl")
+                let _output = ProcessCommand::new("systemctl")
                     .args(&["list-units", "--type=service"])
                     .output()
                     .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
@@ -818,7 +818,7 @@ impl SystemInfoPlugin {
                 services
             },
             "windows" => {
-                let output = ProcessCommand::new("sc")
+                let _output = ProcessCommand::new("sc")
                     .args(&["query"])
                     .output()
                     .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
@@ -933,7 +933,7 @@ impl SystemInfoPlugin {
     fn get_mount_points(&self) -> Vec<MountPoint> {
         match self.os_type.as_str() {
             "macos" | "linux" => {
-                let output = ProcessCommand::new("mount")
+                let _output = ProcessCommand::new("mount")
                     .output()
                     .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
                     .unwrap_or_else(|_| String::new());
@@ -948,7 +948,7 @@ impl SystemInfoPlugin {
                 mounts
             },
             "windows" => {
-                let output = ProcessCommand::new("wmic")
+                let _output = ProcessCommand::new("wmic")
                     .args(&["logicaldisk", "get", "size,freespace,caption"])
                     .output()
                     .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
@@ -1006,7 +1006,7 @@ impl SystemInfoPlugin {
     fn get_kernel_modules(&self) -> Vec<KernelModule> {
         match self.os_type.as_str() {
             "macos" => {
-                let output = ProcessCommand::new("kextstat")
+                let _output = ProcessCommand::new("kextstat")
                     .output()
                     .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
                     .unwrap_or_else(|_| String::new());
@@ -1024,7 +1024,7 @@ impl SystemInfoPlugin {
                 modules
             },
             "linux" => {
-                let output = ProcessCommand::new("lsmod")
+                let _output = ProcessCommand::new("lsmod")
                     .output()
                     .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
                     .unwrap_or_else(|_| String::new());
@@ -1042,7 +1042,7 @@ impl SystemInfoPlugin {
                 modules
             },
             "windows" => {
-                let output = ProcessCommand::new("driverquery")
+                let _output = ProcessCommand::new("driverquery")
                     .output()
                     .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
                     .unwrap_or_else(|_| String::new());
