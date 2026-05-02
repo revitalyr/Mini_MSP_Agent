@@ -38,14 +38,8 @@ if ($Clean) {
 # Create build directory
 New-Item -ItemType Directory -Path $BuildDir -Force | Out-Null
 
-# Get appropriate CMakeLists.txt
-$CMakeFiles = @{
-    "windows" = "CMakeLists_windows.txt"
-    "linux"   = "CMakeLists_linux.txt"
-    "macos"   = "CMakeLists_macos.txt"
-}
-
-$CMakeFile = $CMakeFiles[$Platform]
+# Use unified CMakeLists.txt (supports all platforms)
+$CMakeFile = "CMakeLists.txt"
 $CMakeSource = Join-Path $SourceDir $CMakeFile
 
 if (-not (Test-Path $CMakeSource)) {
@@ -53,9 +47,9 @@ if (-not (Test-Path $CMakeSource)) {
     exit 1
 }
 
-Write-Host "📋 Using CMake file: $CMakeFile" -ForegroundColor Cyan
+Write-Host "📋 Using CMake file: $CMakeFile (unified for all platforms)" -ForegroundColor Cyan
 
-# Copy platform-specific CMakeLists.txt to build directory
+# Copy CMakeLists.txt to build directory
 Copy-Item $CMakeSource (Join-Path $BuildDir "CMakeLists.txt") -Force
 Write-Host "✅ Copied $CMakeFile to build/CMakeLists.txt" -ForegroundColor Green
 

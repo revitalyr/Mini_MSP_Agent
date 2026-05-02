@@ -24,13 +24,9 @@ def detect_platform():
         return "unknown"
 
 def get_cmake_file(platform_name):
-    """Get the appropriate CMakeLists.txt file for the platform"""
-    cmake_files = {
-        "windows": "CMakeLists_windows.txt",
-        "linux": "CMakeLists_linux.txt", 
-        "macos": "CMakeLists_macos.txt"
-    }
-    return cmake_files.get(platform_name, "CMakeLists_windows.txt")
+    """Get the CMakeLists.txt file (unified for all platforms)"""
+    # Project uses unified CMakeLists.txt for all platforms
+    return "CMakeLists.txt"
 
 def copy_plugins_to_platform_dir(platform_name, source_dir):
     """Copy built plugins to platform-specific directory"""
@@ -74,9 +70,9 @@ def main():
         print(f"❌ CMake file not found: {cmake_file}")
         return 1
     
-    print(f"📋 Using CMake file: {cmake_file}")
+    print(f"📋 Using CMake file: {cmake_file} (unified for all platforms)")
     
-    # Copy platform-specific CMakeLists.txt to build directory
+    # Copy unified CMakeLists.txt to build directory
     shutil.copy2(cmake_source, build_dir / "CMakeLists.txt")
     print(f"✅ Copied {cmake_file} to build/CMakeLists.txt")
     
