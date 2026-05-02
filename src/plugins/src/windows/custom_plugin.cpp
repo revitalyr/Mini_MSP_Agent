@@ -5,9 +5,6 @@
  * Replaces the Rust custom_plugin.rs with native C++ implementation
  */
 
-// Disable MSVC warnings about "unsafe" functions (strncpy, etc.)
-#define _CRT_SECURE_NO_WARNINGS
-
 #include <windows.h>
 #include <string>
 #include <cstring>

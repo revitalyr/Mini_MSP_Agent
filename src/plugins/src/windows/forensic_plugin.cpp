@@ -11,9 +11,6 @@
  * - Services and drivers
  */
 
-// Disable MSVC warnings about "unsafe" functions
-#define _CRT_SECURE_NO_WARNINGS
-
 #include <windows.h>
 #include <tlhelp32.h>
 #include <psapi.h>
@@ -106,8 +103,8 @@ static bool CollectAutorunEntries(std::vector<ForensicFinding>& findings) {
                 ForensicFinding finding;
                 memset(&finding, 0, sizeof(finding));
                 
-                strncpy(finding.category, "Persistence", sizeof(finding.category) - 1);
-                strncpy(finding.artifact_type, "Registry Autorun", sizeof(finding.artifact_type) - 1);
+                strncpy_s(finding.category, sizeof(finding.category), "Persistence", sizeof(finding.category) - 1);
+                strncpy_s(finding.artifact_type, sizeof(finding.artifact_type), "Registry Autorun", sizeof(finding.artifact_type) - 1);
                 
                 // Convert wide string path to utf-8
                 char utf8_path[512];
@@ -119,7 +116,7 @@ static bool CollectAutorunEntries(std::vector<ForensicFinding>& findings) {
                     strstr(finding.path, "powershell.exe") ||
                     strstr(finding.path, "rundll32.exe")) {
                     finding.suspicious = true;
-                    strncpy(finding.details, "Suspicious: Shell interpreter in autorun", 
+                    strncpy_s(finding.details, sizeof(finding.details), "Suspicious: Shell interpreter in autorun", 
                            sizeof(finding.details) - 1);
                 }
                 
@@ -256,7 +253,7 @@ static bool get_system_info_impl(system_info_t* info) {
     if (!info) return false;
     memset(info, 0, sizeof(system_info_t));
     
-    strncpy(info->m_os_type, "Windows", kMaxOsTypeLen - 1);
+    strncpy_s(info->m_os_type, sizeof(info->m_os_type), "Windows", kMaxOsTypeLen - 1);
     
     // Get Windows version
     OSVERSIONINFOEXW osvi;
