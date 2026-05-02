@@ -1,34 +1,34 @@
-# Modern C++23 CMakeLists.txt for Mini MSP Agent Plugin
+# C++23 CMakeLists.txt for Mini MSP Agent Plugin
 # 
-# This CMake configuration demonstrates modern CMake practices:
+# This CMake configuration demonstrates CMake practices:
 # - C++23 standard with latest features
-# - Modern target-based configuration
+# - Target-based configuration
 # - Proper compiler-specific flags
 # - Cross-platform support
-# - Modern dependency management
+# - Dependency management
 # - Export targets with proper visibility
 
 cmake_minimum_required(VERSION 3.25)
 
-# Modern project configuration
-project(ModernSystemPlugin
+# Project configuration
+project(SystemPluginV3
     VERSION 2.0.0
-    DESCRIPTION "Modern C++23 System Plugin for Mini MSP Agent"
+    DESCRIPTION "C++23 System Plugin for Mini MSP Agent"
     LANGUAGES CXX
 )
 
-# Set C++23 standard with modern features
+# Set C++23 standard with features
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Enable modern CMake features
+# Enable CMake features
 # Note: CMAKE_CXX_SCAN_FOR_MODULES disabled due to AppleClang compatibility
 set(CMAKE_ENABLE_EXPORTS ON)
 
 # Compiler-specific optimizations
 if(MSVC)
-    # Modern MSVC flags for C++23
+    #  MSVC flags for C++23
     add_compile_options(
         /std:c++latest
         /permissive-
@@ -48,7 +48,7 @@ if(MSVC)
     )
     
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    # Modern GCC flags for C++23
+    #  GCC flags for C++23
     add_compile_options(
         -std=c++23
         -fmodules-ts
@@ -65,13 +65,13 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         -march=native
     )
     
-    # Modern GCC definitions
-    target_compile_definitions(ModernSystemPlugin PRIVATE
+    #  GCC definitions
+    target_compile_definitions(SystemPluginV3 PRIVATE
         _GNU_SOURCE
     )
     
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    # Modern Clang flags for C++23
+    #  Clang flags for C++23
     add_compile_options(
         -std=c++23
         -fmodules
@@ -85,19 +85,19 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
         -march=native
     )
     
-    # Modern Clang definitions
-    target_compile_definitions(ModernSystemPlugin PRIVATE
+    #  Clang definitions
+    target_compile_definitions(SystemPluginV3 PRIVATE
         __STDC_LIBC1__
     )
 endif()
 
-# Modern source file organization - Base plugin
+#  source file organization - Base plugin
 set(SOURCES
     src/working_system_plugin.cpp
 )
 
-# Create modern library target
-add_library(ModernSystemPlugin SHARED ${SOURCES})
+# Create library target
+add_library(SystemPluginV3 SHARED ${SOURCES})
 
 # Platform-specific Forensic Plugin
 # This plugin provides real forensic artifact collection for each OS
@@ -204,8 +204,8 @@ if(TARGET ForensicPlugin)
     )
 endif()
 
-# Modern target properties
-set_target_properties(ModernSystemPlugin PROPERTIES
+# Target properties
+set_target_properties(SystemPluginV3 PROPERTIES
     VERSION ${PROJECT_VERSION}
     SOVERSION ${PROJECT_VERSION_MAJOR}
     CXX_STANDARD 23
@@ -215,21 +215,21 @@ set_target_properties(ModernSystemPlugin PROPERTIES
     VISIBILITY_INLINES_HIDDEN ON
 )
 
-# Modern Windows-specific configuration
+#  Windows-specific configuration
 if(WIN32)
     # Windows-specific definitions
-    target_compile_definitions(ModernSystemPlugin PRIVATE
+    target_compile_definitions(SystemPluginV3 PRIVATE
         WIN32_LEAN_AND_MEAN
         NOMINMAX
         _WIN32_WINNT=0x0A00
         WINVER=0x0A00
         UNICODE
         _UNICODE
-        MODERN_SYSTEM_PLUGIN_EXPORTS
+        SYSTEM_PLUGIN_V3_EXPORTS
     )
     
     # Windows-specific libraries
-    target_link_libraries(ModernSystemPlugin PRIVATE
+    target_link_libraries(SystemPluginV3 PRIVATE
         kernel32
         user32
         psapi
@@ -243,172 +243,172 @@ if(WIN32)
         winspool
     )
     
-    # Modern Windows DLL configuration
-    set_target_properties(ModernSystemPlugin PROPERTIES
+    #  Windows DLL configuration
+    set_target_properties(SystemPluginV3 PROPERTIES
         WINDOWS_EXPORT_ALL_SYMBOLS ON
         LINK_FLAGS "/IGNORE:4221"
     )
     
-    # Modern Windows subsystem
+    #  Windows subsystem
     if(MSVC)
-        set_target_properties(ModernSystemPlugin PROPERTIES
+        set_target_properties(SystemPluginV3 PROPERTIES
             LINK_FLAGS "/SUBSYSTEM:WINDOWS"
         )
     endif()
 endif()
 
-# Modern Unix-like configuration
+#  Unix-like configuration
 if(UNIX)
     # Unix-specific libraries
-    target_link_libraries(ModernSystemPlugin PRIVATE
+    target_link_libraries(SystemPluginV3 PRIVATE
         pthread
         dl
         m
     )
     
     # Unix-specific definitions
-    target_compile_definitions(ModernSystemPlugin PRIVATE
+    target_compile_definitions(SystemPluginV3 PRIVATE
         _POSIX_C_SOURCE=200809L
         _XOPEN_SOURCE=700
-        MODERN_SYSTEM_PLUGIN_EXPORTS
+        SYSTEM_PLUGIN_V3_EXPORTS
     )
 endif()
 
-# Modern include directories
-target_include_directories(ModernSystemPlugin PRIVATE
+# Include directories
+target_include_directories(SystemPluginV3 PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-# Modern compiler-specific include directories
+# Compiler-specific include directories
 if(MSVC)
-    target_include_directories(ModernSystemPlugin PRIVATE
+    target_include_directories(SystemPluginV3 PRIVATE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/msvc>
     )
 else()
-    target_include_directories(ModernSystemPlugin PRIVATE
+    target_include_directories(SystemPluginV3 PRIVATE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/unix>
     )
 endif()
 
-# Modern export configuration
+#  export configuration
 include(GenerateExportHeader)
 
-# Generate modern export header
-generate_export_header(ModernSystemPlugin
-    EXPORT_FILE_NAME "modern_system_plugin_exports.h"
-    EXPORT_MACRO_NAME "MODERN_SYSTEM_PLUGIN_API"
-    STATIC_DEFINE "MODERN_SYSTEM_PLUGIN_STATIC"
+# Generate export header
+generate_export_header(SystemPluginV3
+    EXPORT_FILE_NAME "system_plugin_v3_exports.h"
+    EXPORT_MACRO_NAME "SYSTEM_PLUGIN_V3_API"
+    STATIC_DEFINE "SYSTEM_PLUGIN_V3_STATIC"
 )
 
-# Modern installation configuration
+# Installation configuration
 include(GNUInstallDirs)
 
-install(TARGETS ModernSystemPlugin
-    EXPORT ModernSystemPluginTargets
+install(TARGETS SystemPluginV3
+    EXPORT SystemPluginV3Targets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-# Modern header installation
+# Header installation
 install(FILES
-    ${CMAKE_CURRENT_BINARY_DIR}/modern_system_plugin_exports.h
+    ${CMAKE_CURRENT_BINARY_DIR}/system_plugin_v3_exports.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-# Modern CMake package configuration (disabled for now - requires cmake/ directory)
+#  CMake package configuration (disabled for now - requires cmake/ directory)
 # include(CMakePackageConfigHelpers)
 # 
 # write_basic_package_version_file(
-#     "${CMAKE_CURRENT_BINARY_DIR}/ModernSystemPluginConfigVersion.cmake"
+#     "${CMAKE_CURRENT_BINARY_DIR}/SystemPluginConfigVersion.cmake"
 #     VERSION ${PROJECT_VERSION}
 #     COMPATIBILITY SameMajorVersion
 # )
 # 
 # configure_package_config_file(
-#     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/ModernSystemPluginConfig.cmake.in"
-#     "${CMAKE_CURRENT_BINARY_DIR}/ModernSystemPluginConfig.cmake"
-#     INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ModernSystemPlugin
+#     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/SystemPluginConfig.cmake.in"
+#     "${CMAKE_CURRENT_BINARY_DIR}/SystemPluginConfig.cmake"
+#     INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SystemPlugin
 # )
 # 
 # install(FILES
-#     "${CMAKE_CURRENT_BINARY_DIR}/ModernSystemPluginConfig.cmake"
-#     "${CMAKE_CURRENT_BINARY_DIR}/ModernSystemPluginConfigVersion.cmake"
-#     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ModernSystemPlugin
+#     "${CMAKE_CURRENT_BINARY_DIR}/SystemPluginConfig.cmake"
+#     "${CMAKE_CURRENT_BINARY_DIR}/SystemPluginConfigVersion.cmake"
+#     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SystemPlugin
 # )
 # 
-# # Modern export configuration
-# install(EXPORT ModernSystemPluginTargets
-#     FILE ModernSystemPluginTargets.cmake
-#     NAMESPACE ModernSystemPlugin::
-#     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ModernSystemPlugin
+# #  export configuration
+# install(EXPORT SystemPluginTargets
+#     FILE SystemPluginTargets.cmake
+#     NAMESPACE SystemPlugin::
+#     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/SystemPlugin
 # )
 
-# Modern testing configuration
+#  testing configuration
 option(BUILD_TESTING "Build tests" OFF)
 
 if(BUILD_TESTING)
     enable_testing()
     
-    # Modern test executable
-    add_executable(ModernSystemPluginTest
-        tests/test_modern_plugin.cpp
+    #  test executable
+    add_executable(SystemPluginTest
+        tests/test_system_plugin_v3.cpp
     )
     
-    target_link_libraries(ModernSystemPluginTest PRIVATE
-        ModernSystemPlugin
+    target_link_libraries(SystemPluginTest PRIVATE
+        SystemPluginV3
     )
     
-    add_test(NAME ModernSystemPluginTest COMMAND ModernSystemPluginTest)
+    add_test(NAME SystemPluginTest COMMAND SystemPluginTest)
 endif()
 
-# Modern documentation configuration
+#  documentation configuration
 option(BUILD_DOCS "Build documentation" OFF)
 
 if(BUILD_DOCS)
     find_package(Doxygen QUIET)
     if(DOXYGEN_FOUND)
-        # Modern Doxygen configuration
+        #  Doxygen configuration
         set(DOXYGEN_INPUT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
         set(DOXYGEN_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/docs)
-        set(DOXYGEN_PROJECT_NAME "Modern System Plugin")
+        set(DOXYGEN_PROJECT_NAME " System Plugin")
         set(DOXYGEN_PROJECT_NUMBER ${PROJECT_VERSION})
         
-        doxygen_add_docs(ModernSystemPlugin
+        doxygen_add_docs(SystemPluginV3
             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-            COMMENT "Generate modern plugin documentation"
+            COMMENT "Generate plugin documentation"
         )
     endif()
 endif()
 
-# Modern benchmarking configuration
+#  benchmarking configuration
 option(BUILD_BENCHMARKS "Build benchmarks" OFF)
 
 if(BUILD_BENCHMARKS)
-    # Modern benchmark executable
-    add_executable(ModernSystemPluginBenchmark
-        benchmarks/benchmark_modern_plugin.cpp
+    #  benchmark executable
+    add_executable(SystemPluginBenchmark
+        benchmarks/benchmark_system_plugin_v3.cpp
     )
     
-    target_link_libraries(ModernSystemPluginBenchmark PRIVATE
-        ModernSystemPlugin
+    target_link_libraries(SystemPluginBenchmark PRIVATE
+        SystemPluginV3
     )
 endif()
 
-# Modern code analysis
+#  code analysis
 option(ENABLE_CODE_ANALYSIS "Enable static code analysis" OFF)
 
 if(ENABLE_CODE_ANALYSIS AND MSVC)
     # Enable MSVC code analysis
     add_compile_options(/analyze)
-    set_target_properties(ModernSystemPlugin PROPERTIES
+    set_target_properties(SystemPluginV3 PROPERTIES
         VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     )
 endif()
 
-# Modern sanitizers
+#  sanitizers
 option(ENABLE_SANITIZERS "Enable address and undefined behavior sanitizers" OFF)
 
 if(ENABLE_SANITIZERS AND NOT MSVC)
@@ -419,28 +419,28 @@ if(ENABLE_SANITIZERS AND NOT MSVC)
         -fno-omit-frame-pointer
     )
     
-    target_link_options(ModernSystemPlugin PRIVATE
+    target_link_options(SystemPluginV3 PRIVATE
         -fsanitize=address
         -fsanitize=undefined
     )
 endif()
 
-# Modern profiling
+#  profiling
 option(ENABLE_PROFILING "Enable profiling support" OFF)
 
 if(ENABLE_PROFILING)
     if(MSVC)
         add_compile_options(/PROFILE)
-        target_link_options(ModernSystemPlugin PRIVATE /PROFILE)
+        target_link_options(SystemPluginV3 PRIVATE /PROFILE)
     else()
         add_compile_options(-pg)
-        target_link_options(ModernSystemPlugin PRIVATE -pg)
+        target_link_options(SystemPluginV3 PRIVATE -pg)
     endif()
 endif()
 
-# Print modern configuration summary
+# Print configuration summary
 message(STATUS "")
-message(STATUS "Modern System Plugin Configuration Summary:")
+message(STATUS " System Plugin Configuration Summary:")
 message(STATUS "  Version: ${PROJECT_VERSION}")
 message(STATUS "  C++ Standard: ${CMAKE_CXX_STANDARD}")
 message(STATUS "  Build Type: ${CMAKE_BUILD_TYPE}")

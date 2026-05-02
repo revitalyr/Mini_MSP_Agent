@@ -1,9 +1,9 @@
 #include <windows.h>
 #include <cstring>
 
-static const char* PLUGIN_NAME = "modern_directory_info_plugin";
+static const char* PLUGIN_NAME = "directory_info_plugin";
 static const char* PLUGIN_VERSION = "1.0.0";
-static const char* PLUGIN_DESCRIPTION = "Modern directory monitoring plugin for Windows";
+static const char* PLUGIN_DESCRIPTION = "Directory monitoring plugin for Windows";
 
 extern "C" {
     typedef struct {

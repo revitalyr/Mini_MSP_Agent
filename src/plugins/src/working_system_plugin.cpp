@@ -16,9 +16,9 @@
     #define PLUGIN_PLATFORM "unknown"
 #endif
 
-static const char* PLUGIN_NAME = "modern_system_plugin";
+static const char* PLUGIN_NAME = "system_plugin";
 static const char* PLUGIN_VERSION = "1.0.0";
-static const char* PLUGIN_DESCRIPTION = "Modern system monitoring plugin";
+static const char* PLUGIN_DESCRIPTION = "System monitoring plugin";
 
 extern "C" {
     EXPORT const char* get_plugin_name() {

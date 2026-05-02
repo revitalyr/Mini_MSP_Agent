@@ -1,6 +1,6 @@
-//! Modern C++23 System Plugin for Mini MSP Agent v3
+//! C++23 System Plugin for Mini MSP Agent v3
 //! 
-//! Complete rewrite of the original C system plugin using modern C++23:
+//! Complete rewrite of the original C system plugin using C++23:
 //! - std::expected for error handling
 //! - std::span for safe array access
 //! - std::jthread for threading
@@ -126,7 +126,7 @@ extern "C" {
 #include <libproc.h>
 #endif
 
-// Modern C++23 error handling
+// C++23 error handling
 enum class SystemError : int {
     Success = 0,
     InvalidArgument = 1,
@@ -137,18 +137,18 @@ enum class SystemError : int {
     Unknown = 99
 };
 
-// Modern error type with context
+// Error type with context
 template<typename T>
 using SystemResult = std::expected<T, SystemError>;
 
-// Modern string view wrapper
+// String view wrapper
 using StringView = std::string_view;
 
-// Modern span wrapper
+// Span wrapper
 template<typename T>
 using Span = std::span<T>;
 
-// Modern system metrics with C++23 features
+// System metrics with C++23 features
 struct SystemMetrics {
     double cpu_usage{0.0};
     double memory_usage{0.0};
@@ -175,7 +175,7 @@ struct SystemMetrics {
         return disk_usage <=> other.disk_usage;
     }
     
-    // Modern formatting support
+    //  formatting support
     friend auto operator<<(std::ostream& os, const SystemMetrics& metrics) -> std::ostream& {
         os << std::format("CPU: {:.1f}%, Memory: {:.1f}%, Disk: {:.1f}%, Uptime: {}s", 
                        metrics.cpu_usage, metrics.memory_usage, metrics.disk_usage,
@@ -184,7 +184,7 @@ struct SystemMetrics {
     }
 };
 
-// Modern process information with RAII
+//  process information with RAII
 struct ProcessInfo {
     uint32_t pid{0};
     std::string name{};
@@ -204,12 +204,12 @@ struct ProcessInfo {
         : pid{id}, name{std::move(proc_name)}, cpu_usage{cpu}, 
           memory_usage{memory}, start_time{start} {}
     
-    // Modern range support
+    //  range support
     [[nodiscard]] auto id() const noexcept -> uint32_t { return pid; }
     [[nodiscard]] auto get_name() const noexcept -> StringView { return name; }
 };
 
-// Modern command result with expected
+//  command result with expected
 struct CommandResult {
     int exit_code{0};
     std::string stdout_data{};
@@ -230,7 +230,7 @@ struct CommandResult {
     [[nodiscard]] auto success() const noexcept -> bool { return exit_code == 0; }
 };
 
-// Modern file content with RAII
+//  file content with RAII
 struct FileContent {
     std::vector<uint8_t> data{};
     std::filesystem::path file_path{};
@@ -250,7 +250,7 @@ struct FileContent {
     [[nodiscard]] auto empty() const noexcept -> bool { return data.empty(); }
 };
 
-// Modern system information
+//  system information
 struct SystemInfo {
     std::string hostname{};
     std::string os_name{};
@@ -274,7 +274,7 @@ struct SystemInfo {
           total_memory{memory}, total_disk_space{disk} {}
 };
 
-// Modern plugin interface with concepts
+//  plugin interface with concepts
 template<typename T>
 concept SystemPlugin = requires(T plugin) {
     { plugin.get_name() } -> std::convertible_to<StringView>;
@@ -288,40 +288,40 @@ concept SystemPlugin = requires(T plugin) {
     { plugin.get_system_info() } -> std::convertible_to<SystemResult<SystemInfo>>;
 };
 
-// Modern system plugin implementation
-class ModernSystemPlugin {
+//  system plugin implementation
+class SystemPlugin {
 private:
-    // Modern atomic state
+    //  atomic state
     std::atomic<bool> initialized_{false};
     mutable std::atomic<uint32_t> request_count_{0};
     
-    // Modern thread management
+    //  thread management
     std::jthread monitoring_thread_;
     mutable std::shared_mutex metrics_mutex_;
     SystemMetrics cached_metrics_;
     
-    // Modern configuration
+    //  configuration
     static constexpr std::chrono::seconds UPDATE_INTERVAL{5};
     static constexpr std::chrono::milliseconds COMMAND_TIMEOUT{30000};
     
 public:
-    // Modern constructors
-    constexpr ModernSystemPlugin() noexcept = default;
+    //  constructors
+    constexpr SystemPlugin() noexcept = default;
     
     // Non-copyable, movable
-    ModernSystemPlugin(const ModernSystemPlugin&) = delete;
-    ModernSystemPlugin& operator=(const ModernSystemPlugin&) = delete;
-    ModernSystemPlugin(ModernSystemPlugin&&) noexcept = delete;
-    ModernSystemPlugin& operator=(ModernSystemPlugin&&) noexcept = delete;
+    SystemPlugin(const SystemPlugin&) = delete;
+    SystemPlugin& operator=(const SystemPlugin&) = delete;
+    SystemPlugin(SystemPlugin&&) noexcept = delete;
+    SystemPlugin& operator=(SystemPlugin&&) noexcept = delete;
     
-    // Modern destructor
-    ~ModernSystemPlugin() noexcept {
+    //  destructor
+    ~SystemPlugin() noexcept {
         cleanup();
     }
     
     // Plugin interface
     [[nodiscard]] constexpr auto get_name() const noexcept -> StringView {
-        return "modern_system_plugin_v3";
+        return "_system_plugin_v3";
     }
     
     [[nodiscard]] constexpr auto get_version() const noexcept -> StringView {
@@ -329,7 +329,7 @@ public:
     }
     
     [[nodiscard]] constexpr auto get_description() const noexcept -> StringView {
-        return "Modern C++23 system plugin with advanced features";
+        return "C++23 system plugin with advanced features";
     }
     
     auto initialize() -> SystemResult<bool> {
@@ -338,7 +338,7 @@ public:
         }
         
         try {
-            // Start monitoring thread with modern jthread
+            // Start monitoring thread with jthread
             monitoring_thread_ = std::jthread([this](std::stop_token stop_token) {
                 this->monitoring_loop(std::move(stop_token));
             });
@@ -370,7 +370,7 @@ public:
         }
     }
     
-    // Modern system metrics collection
+    //  system metrics collection
     [[nodiscard]] auto get_system_metrics() const -> SystemResult<SystemMetrics> {
         if (!initialized_.load(std::memory_order_acquire)) {
             return std::unexpected(SystemError::InvalidArgument);
@@ -380,7 +380,7 @@ public:
         return cached_metrics_;
     }
     
-    // Modern process enumeration with ranges
+    //  process enumeration with ranges
     [[nodiscard]] auto get_processes() const -> SystemResult<std::vector<ProcessInfo>> {
         if (!initialized_.load(std::memory_order_acquire)) {
             return std::unexpected(SystemError::InvalidArgument);
@@ -390,7 +390,7 @@ public:
             std::vector<ProcessInfo> processes;
             
 #ifdef _WIN32
-            // Modern Windows API with RAII
+            //  Windows API with RAII
             HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
             if (snapshot == INVALID_HANDLE_VALUE) {
                 return std::unexpected(SystemError::SystemCallFailed);
@@ -405,7 +405,7 @@ public:
             
             if (Process32FirstW(snapshot, &pe32)) {
                 do {
-                    // Convert wide string to UTF-8 using modern C++
+                    // Convert wide string to UTF-8 using  C++
                     int size = WideCharToMultiByte(CP_UTF8, 0, pe32.szExeFile, -1, 
                                                  nullptr, 0, nullptr, nullptr);
                     if (size > 0) {
@@ -425,7 +425,7 @@ public:
             }
             
 #elif __linux__
-            // Modern Linux /proc filesystem
+            //  Linux /proc filesystem
             std::filesystem::path proc_dir{"/proc"};
             if (!std::filesystem::exists(proc_dir)) {
                 return std::unexpected(SystemError::NotFound);
@@ -457,7 +457,7 @@ public:
             }
             
 #elif __APPLE__
-            // Modern macOS using libproc
+            //  macOS using libproc
             // This is a simplified implementation
             // In production, use libproc.h for proper process enumeration
             int pid_count = proc_listpids(PROC_ALL_PIDS, 0, nullptr, 0);
@@ -498,7 +498,7 @@ public:
         }
     }
     
-    // Modern command execution with expected and timeout
+    //  command execution with expected and timeout
     [[nodiscard]] auto execute_command(StringView command) const -> SystemResult<CommandResult> {
         if (!initialized_.load(std::memory_order_acquire)) {
             return std::unexpected(SystemError::InvalidArgument);
@@ -514,7 +514,7 @@ public:
             
             auto start_time = std::chrono::steady_clock::now();
             
-            // Modern process execution with RAII
+            //  process execution with RAII
             std::string cmd_str(command);
             
 #ifdef _WIN32
@@ -635,7 +635,7 @@ public:
         }
     }
     
-    // Modern file reading with RAII
+    //  file reading with RAII
     [[nodiscard]] auto read_file(StringView path) const -> SystemResult<FileContent> {
         if (!initialized_.load(std::memory_order_acquire)) {
             return std::unexpected(SystemError::InvalidArgument);
@@ -699,7 +699,7 @@ public:
         }
     }
     
-    // Modern system information collection
+    //  system information collection
     [[nodiscard]] auto get_system_info() const -> SystemResult<SystemInfo> {
         if (!initialized_.load(std::memory_order_acquire)) {
             return std::unexpected(SystemError::InvalidArgument);
@@ -786,13 +786,13 @@ public:
         }
     }
     
-    // Modern statistics
+    //  statistics
     [[nodiscard]] auto get_request_count() const noexcept -> uint32_t {
         return request_count_.load(std::memory_order_relaxed);
     }
 
 private:
-    // Modern monitoring loop with stop token
+    //  monitoring loop with stop token
     auto monitoring_loop(std::stop_token stop_token) -> void {
         while (!stop_token.stop_requested()) {
             try {
@@ -801,12 +801,12 @@ private:
                 // Log error but continue monitoring
             }
             
-            // Modern sleep with stop token support
+            //  sleep with stop token support
             std::this_thread::sleep_for(UPDATE_INTERVAL);
         }
     }
     
-    // Modern metrics update
+    //  metrics update
     auto update_metrics() -> void {
         SystemMetrics metrics{};
         
@@ -903,32 +903,32 @@ private:
     }
 };
 
-// Modern plugin factory with concepts
+// Plugin factory with concepts
 template<typename T>
 requires SystemPlugin<T>
 auto create_system_plugin() -> std::unique_ptr<T> {
     return std::make_unique<T>();
 }
 
-// Modern C++23 exported functions using extern "C"
+// C++23 exported functions using extern "C"
 extern "C" {
-    // Modern plugin information
+    // Plugin information
     [[nodiscard]] const char* get_plugin_info() {
-        static constexpr const char* info = "modern_system_plugin_v3:3.0.0:Modern C++23 system plugin";
+        static constexpr const char* info = "_system_plugin_v3:3.0.0:C++23 system plugin";
         return info;
     }
     
-    // Modern plugin initialization
+    // Plugin initialization
     [[nodiscard]] bool plugin_initialize() {
         return true; // Simplified initialization
     }
     
-    // Modern plugin cleanup
+    // Plugin cleanup
     void plugin_cleanup() noexcept {
         // Cleanup handled by destructor
     }
     
-    // Modern plugin interface getter for Rust agent
+    // Plugin interface getter for Rust agent
     [[nodiscard]] PluginInterface* get_plugin_interface() {
         static PluginInterface interface{};
         static bool initialized = false;
@@ -937,9 +937,9 @@ extern "C" {
             // Initialize function pointers only once
             interface.get_plugin_info = reinterpret_cast<void*>(+[]() -> PluginInfo* {
                 static PluginInfo info{
-                    .name = const_cast<char*>("modern_system_plugin_v3"),
+                    .name = const_cast<char*>("_system_plugin_v3"),
                     .version = const_cast<char*>("3.0.0"),
-                    .description = const_cast<char*>("Modern C++23 system plugin"),
+                    .description = const_cast<char*>("C++23 system plugin"),
                     .author = const_cast<char*>("Mini MSP Agent Team"),
                     .license = const_cast<char*>("MIT"),
                     .m_timestamp = static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count())
@@ -982,12 +982,12 @@ extern "C" {
     }
 }
 
-// Modern DLL entry point
+//  DLL entry point
 #ifdef _WIN32
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) noexcept {
     switch (ul_reason_for_call) {
         case DLL_PROCESS_ATTACH:
-            // Modern initialization
+            //  initialization
             DisableThreadLibraryCalls(hModule);
             break;
         case DLL_THREAD_ATTACH:
