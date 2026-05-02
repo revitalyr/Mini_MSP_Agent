@@ -1,4 +1,4 @@
 port = 8080
 log_level = "debug"
 log_dir = "logs"
-# broker_url = "nats://localhost:4222"  # Disabled for testing
+broker_url = "nats://localhost:4222"
