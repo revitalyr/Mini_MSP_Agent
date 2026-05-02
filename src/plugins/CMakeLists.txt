@@ -195,6 +195,24 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     )
 endif()
 
+# Custom Plugin - Example for extensible functionality
+# This plugin demonstrates how to create custom commands and metrics
+set(CUSTOM_PLUGIN_SOURCES
+    src/custom_plugin.cpp
+)
+add_library(CustomPlugin SHARED ${CUSTOM_PLUGIN_SOURCES})
+set_target_properties(CustomPlugin PROPERTIES
+    VERSION ${PROJECT_VERSION}
+    SOVERSION ${PROJECT_VERSION_MAJOR}
+    CXX_STANDARD 23
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+    POSITION_INDEPENDENT_CODE ON
+)
+target_include_directories(CustomPlugin PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
 # Generate export header for forensic plugin if it exists
 if(TARGET ForensicPlugin)
     generate_export_header(ForensicPlugin

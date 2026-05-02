@@ -9,6 +9,7 @@ mod config;
 mod broker;
 mod ffi;
 mod plugin_loader;
+mod custom_plugin;
 
 use axum::{
     routing::{get, post},
@@ -28,6 +29,7 @@ use anyhow::Context;
 
 use config::Config;
 use broker::BrokerClient;
+use custom_plugin::CustomPluginRegistry;
 use mini_msp_shared::{Heartbeat, Metrics, CommandResponse};
 
 // Unified AppState for all modules
@@ -35,6 +37,7 @@ use mini_msp_shared::{Heartbeat, Metrics, CommandResponse};
 pub struct AppState {
     pub agents: Arc<Mutex<HashMap<String, String>>>,
     pub broker_client: Option<Arc<BrokerClient>>,
+    pub plugin_registry: Arc<Mutex<CustomPluginRegistry>>,
 }
 
 #[tokio::main]
@@ -101,9 +104,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     // Initialize application state
     let broker_client = None; // Will be initialized later if needed
+    let plugin_registry = Arc::new(Mutex::new(CustomPluginRegistry::new()));
+    
+    // Load custom plugins from directory
+    {
+        let mut registry = plugin_registry.lock().unwrap();
+        match registry.load_from_directory("./plugins") {
+            Ok(plugins) => {
+                for plugin in &plugins {
+                    info!("Auto-loaded custom plugin: {} v{}", plugin.name, plugin.version);
+                }
+            }
+            Err(e) => {
+                warn!("Failed to load plugins from directory: {}", e);
+            }
+        }
+    }
+    
     let app_state = Arc::new(AppState {
         agents: Arc::new(Mutex::new(HashMap::new())),
         broker_client,
+        plugin_registry,
     });
 
     // Initialize broker message handler if broker is available
@@ -167,6 +188,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // WebSocket
         .route("/ws", get(websocket::handle_websocket))
         
+        // Plugin management
+        .route("/plugins", get(api::plugins::list_plugins))
+        .route("/plugins/load", post(api::plugins::load_plugin))
+        .route("/plugins/:name/unload", post(api::plugins::unload_plugin))
+        .route("/plugins/:name/metrics", get(api::plugins::get_plugin_metrics))
+        .route("/plugins/:name/health", get(api::plugins::plugin_health))
+        .route("/plugins/execute", post(api::plugins::execute_command))
+        
         // Static files
         .nest_service("/static", ServeDir::new("server/static"))
         .layer(cors)
@@ -194,6 +223,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     info!("  GET  /agents - List agents");
     info!("  POST /agents/:id/command - Send command to agent");
     info!("  GET  /ws - WebSocket endpoint");
+    info!("  GET  /plugins - List loaded plugins");
+    info!("  POST /plugins/load - Load a plugin");
+    info!("  POST /plugins/:name/execute - Execute plugin command");
+    info!("  GET  /plugins/:name/metrics - Get plugin metrics");
     info!("  GET  /static/* - Static files");
     
     match axum::serve(listener, app).await {

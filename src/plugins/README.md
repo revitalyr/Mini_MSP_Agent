@@ -60,6 +60,37 @@ cmake --build --preset macos-arm-release
 ### Output
 - `SystemPluginV3.dll/.so/.dylib` - Base plugin
 - `ForensicPlugin.dll/.so/.dylib` - Forensic plugin (per platform)
+- `CustomPlugin.dll/.so/.dylib` - Example extensible plugin
+
+## Custom Plugin API
+
+Server provides HTTP API for plugin management:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/plugins` | GET | List loaded plugins |
+| `/plugins/load` | POST | Load plugin from file |
+| `/plugins/:name/unload` | POST | Unload plugin |
+| `/plugins/execute` | POST | Execute command on plugin |
+| `/plugins/:name/metrics` | GET | Get plugin metrics |
+| `/plugins/:name/health` | GET | Plugin health check |
+
+### Example Usage
+
+```bash
+# Load custom plugin
+curl -X POST http://localhost:8080/plugins/load \
+  -H "Content-Type: application/json" \
+  -d '{"path": "./plugins/CustomPlugin.so"}'
+
+# Execute command
+curl -X POST http://localhost:8080/plugins/execute \
+  -H "Content-Type: application/json" \
+  -d '{"plugin_name": "custom_plugin", "command": "status"}'
+
+# Get metrics
+curl http://localhost:8080/plugins/custom_plugin/metrics
+```
 
 ## Plugin Interface
 

@@ -10,6 +10,7 @@ pub mod health;
 pub mod agents;
 pub mod auth;
 pub mod system;
+pub mod plugins;
 
 // Re-export commonly used types
 pub use health::*;
