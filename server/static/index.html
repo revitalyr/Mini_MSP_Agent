@@ -538,24 +538,28 @@
                 const response = await fetchWithRetry(`${API_BASE}/forensic/metrics`);
                 const data = await response.json();
                 
-                // Update CPU
-                document.getElementById('cpuUsage').textContent = data.cpu?.toFixed(1) + '%' || '--%';
-                updateProgressBar('cpuBar', data.cpu || 0);
+                // Handle nested metrics structure from forensic plugin
+                const metrics = data.metrics || data;
                 
-                // Update Memory
-                document.getElementById('memoryUsage').textContent = data.memory?.toFixed(1) + '%' || '--%';
-                updateProgressBar('memoryBar', data.memory || 0);
+                // Update CPU (cpu_usage from server)
+                const cpu = metrics.cpu_usage || 0;
+                document.getElementById('cpuUsage').textContent = cpu.toFixed(1) + '%';
+                updateProgressBar('cpuBar', cpu);
                 
-                // Update Disk
-                document.getElementById('diskUsage').textContent = data.disk?.toFixed(1) + '%' || '--%';
-                updateProgressBar('diskBar', data.disk || 0);
+                // Update Memory (ram_usage from server, treat as percentage)
+                const memory = metrics.ram_usage || 0;
+                document.getElementById('memoryUsage').textContent = memory.toFixed(1) + '%';
+                updateProgressBar('memoryBar', memory);
                 
-                // Update uptime
-                const uptime = data.uptime_seconds ? Math.floor(data.uptime_seconds / 60) : 0;
+                // Update Disk (not available from forensic plugin, use placeholder)
+                document.getElementById('diskUsage').textContent = '--%';
+                updateProgressBar('diskBar', 0);
+                
+                // Update uptime (uptime from server)
+                const uptime = metrics.uptime ? Math.floor(metrics.uptime / 60) : 0;
                 document.getElementById('uptime').textContent = uptime + ' min';
                 
             } catch (error) {
-                // Silent fail - don't spam logs with network errors
                 console.log('Metrics fetch failed:', error.message);
             }
         }
@@ -584,10 +588,10 @@
                 } else {
                     agentList.innerHTML = agents.map(agent => `
                         <div class="agent-item">
-                            <div class="agent-status ${agent.status === 'online' ? 'online' : 'offline'}"></div>
+                            <div class="agent-status online"></div>
                             <div class="agent-info">
                                 <div class="agent-id">${agent.id || 'Unknown'}</div>
-                                <div class="agent-meta">${agent.hostname || 'Unknown host'} • ${agent.os || 'Unknown OS'}</div>
+                                <div class="agent-meta">${agent.hostname || 'Unknown host'} • ${agent.platform || 'Unknown OS'}</div>
                             </div>
                         </div>
                     `).join('');
@@ -605,8 +609,8 @@
                 const data = await response.json();
                 
                 document.getElementById('hostname').textContent = data.hostname || 'Unknown';
-                document.getElementById('osName').textContent = data.os_name || 'Unknown';
-                document.getElementById('osVersion').textContent = data.os_version || 'Unknown';
+                document.getElementById('osName').textContent = data.platform_name || data.platform || 'Unknown';
+                document.getElementById('osVersion').textContent = data.version || 'Unknown';
                 document.getElementById('architecture').textContent = data.architecture || 'Unknown';
                 
             } catch (error) {
