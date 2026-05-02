@@ -108,6 +108,10 @@ RUST_LOG=debug ./target/release/agent --config configs/config.toml
 
 ## 📚 Documentation
 
+- **[CLI Usage](docs/CLI_USAGE.md)** - Complete command-line reference
+- **[Project Structure](docs/PROJECT_STRUCTURE.md)** - Directory layout and component overview
+- **[Web Frontend](docs/README-WEB.md)** - Web interface documentation
+
 ### 📖 Code Documentation
 
 - **Rust Documentation**: Full rustdoc coverage for all modules
