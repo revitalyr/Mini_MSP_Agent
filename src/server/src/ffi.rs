@@ -280,9 +280,8 @@ fn cstr_to_string_from_ptr(ptr: *const c_char) -> Result<String> {
         return Ok(String::from("unknown"));
     }
     let cstr = unsafe { CStr::from_ptr(ptr) };
-    cstr.to_str()
-        .map(|s| s.to_owned())
-        .map_err(|e| anyhow!("Invalid UTF-8 in C string: {}", e))
+    // Use to_string_lossy to handle invalid UTF-8 gracefully
+    Ok(cstr.to_string_lossy().to_string())
 }
 
 /// Helper to get string from fixed-size buffer
