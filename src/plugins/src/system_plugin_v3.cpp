@@ -345,7 +345,7 @@ public:
             
             initialized_.store(true, std::memory_order_release);
             return true;
-        } catch (const std::system_error& e) {
+        } catch (const std::system_error&) {
             return std::unexpected(SystemError::SystemCallFailed);
         } catch (...) {
             return std::unexpected(SystemError::Unknown);
@@ -491,7 +491,7 @@ public:
             });
             
             return processes;
-        } catch (const std::system_error& e) {
+        } catch (const std::system_error&) {
             return std::unexpected(SystemError::SystemCallFailed);
         } catch (...) {
             return std::unexpected(SystemError::Unknown);
@@ -628,19 +628,20 @@ public:
                 execution_time
             };
 #endif
-        } catch (const std::system_error& e) {
+        } catch (const std::system_error&) {
             return std::unexpected(SystemError::SystemCallFailed);
         } catch (...) {
             return std::unexpected(SystemError::Unknown);
         }
     }
     
-    //  file reading with RAII
+    // System information gathering with RAII
     [[nodiscard]] auto read_file(StringView path) const -> SystemResult<FileContent> {
         if (!initialized_.load(std::memory_order_acquire)) {
             return std::unexpected(SystemError::InvalidArgument);
         }
         
+        // ... (rest of the code remains the same)
         if (path.empty()) {
             return std::unexpected(SystemError::InvalidArgument);
         }
@@ -716,13 +717,19 @@ public:
                 info.hostname = hostname_buffer;
             }
             
-            // OS information
+            // OS information (use RtlGetVersion to avoid deprecation warning)
+            typedef LONG (WINAPI *RtlGetVersionPtr)(POSVERSIONINFOEXA);
             OSVERSIONINFOEXA osvi{};
             osvi.dwOSVersionInfoSize = sizeof(osvi);
-            if (GetVersionExA(reinterpret_cast<OSVERSIONINFOA*>(&osvi))) {
-                info.os_name = "Windows";
-                info.os_version = std::format("{}.{}.{}", 
-                    osvi.dwMajorVersion, osvi.dwMinorVersion, osvi.dwBuildNumber);
+            
+            HMODULE hMod = GetModuleHandleA("ntdll.dll");
+            if (hMod) {
+                RtlGetVersionPtr rtlGetVersion = (RtlGetVersionPtr)GetProcAddress(hMod, "RtlGetVersion");
+                if (rtlGetVersion && rtlGetVersion(&osvi) == 0) {
+                    info.os_name = "Windows";
+                    info.os_version = std::format("{}.{}.{}", 
+                        osvi.dwMajorVersion, osvi.dwMinorVersion, osvi.dwBuildNumber);
+                }
             }
             
             // Architecture
@@ -930,60 +937,45 @@ extern "C" {
     
     // Plugin interface getter for Rust agent
     [[nodiscard]] PluginInterface* get_plugin_interface() {
-        static PluginInterface interface;
+        static PluginInterface plugin_interface;
         static bool initialized = false;
         
         if (!initialized) {
             // Initialize function pointers only once
-            interface.get_plugin_info = reinterpret_cast<void*>(+[]() -> PluginInfo* {
-                static PluginInfo info;
-                info.name = const_cast<char*>("_system_plugin_v3");
-                info.version = const_cast<char*>("3.0.0");
-                info.description = const_cast<char*>("C++23 system plugin");
-                info.author = const_cast<char*>("Mini MSP Agent Team");
-                info.license = const_cast<char*>("MIT");
-                info.m_timestamp = static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count());
-                return &info;
-            });
-            
-            interface.init = reinterpret_cast<void*>(+[]() -> bool {
-                return true; // Simplified initialization
-            });
-            
-            interface.cleanup = reinterpret_cast<void*>(+[]() -> void {
-                // No cleanup needed
-            });
+            plugin_interface.get_plugin_info = nullptr;
+            plugin_interface.init = nullptr;
+            plugin_interface.cleanup = nullptr;
             
             // Set other functions to nullptr for now
-            interface.get_system_metrics = nullptr;
-            interface.get_processes = nullptr;
-            interface.execute_command = nullptr;
-            interface.read_file = nullptr;
-            interface.get_system_info = nullptr;
-            interface.get_directory_info_data = nullptr;
-            interface.free_directory_info_data = nullptr;
-            interface.get_file_signature_data = nullptr;
-            interface.free_file_signature_data = nullptr;
-            interface.get_root_directory_info = nullptr;
-            interface.scan_directory = nullptr;
-            interface.free_scan_result = nullptr;
-            interface.create_folder_watcher = nullptr;
-            interface.destroy_folder_watcher = nullptr;
-            interface.create_file_listener = nullptr;
-            interface.destroy_file_listener = nullptr;
-            interface.get_watcher_events = nullptr;
-            interface.free_watcher_events = nullptr;
+            plugin_interface.get_system_metrics = nullptr;
+            plugin_interface.get_processes = nullptr;
+            plugin_interface.execute_command = nullptr;
+            plugin_interface.read_file = nullptr;
+            plugin_interface.get_system_info = nullptr;
+            plugin_interface.get_directory_info_data = nullptr;
+            plugin_interface.free_directory_info_data = nullptr;
+            plugin_interface.get_file_signature_data = nullptr;
+            plugin_interface.free_file_signature_data = nullptr;
+            plugin_interface.get_root_directory_info = nullptr;
+            plugin_interface.scan_directory = nullptr;
+            plugin_interface.free_scan_result = nullptr;
+            plugin_interface.create_folder_watcher = nullptr;
+            plugin_interface.destroy_folder_watcher = nullptr;
+            plugin_interface.create_file_listener = nullptr;
+            plugin_interface.destroy_file_listener = nullptr;
+            plugin_interface.get_watcher_events = nullptr;
+            plugin_interface.free_watcher_events = nullptr;
             
             initialized = true;
         }
         
-        return &interface;
+        return &plugin_interface;
     }
 }
 
 //  DLL entry point
 #ifdef _WIN32
-BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) noexcept {
+BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID) noexcept {
     switch (ul_reason_for_call) {
         case DLL_PROCESS_ATTACH:
             //  initialization
