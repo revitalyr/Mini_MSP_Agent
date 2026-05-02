@@ -6,6 +6,7 @@ Cargo.lock
 # C++ build artifacts
 build*/
 cmake-build-*/
+src/plugins/build/
 *.o
 *.obj
 *.exe
