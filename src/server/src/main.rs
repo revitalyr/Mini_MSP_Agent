@@ -167,12 +167,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     // Start broker message processing if broker is connected
     if let Some(ref broker) = broker_client {
+        // Spawn heartbeat processor
         let handler = BrokerMessageHandler::new(broker.clone());
         let app_state_clone = app_state.clone();
         let broker_clone = broker.clone();
         
         tokio::spawn(async move {
-            info!("Starting NATS message processor...");
+            info!("Starting NATS heartbeat processor...");
             
             // Subscribe to heartbeats
             let mut heartbeat_sub = match broker_clone.subscribe_heartbeats().await {
@@ -215,11 +216,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             }
         });
         
-        // Start command response processor
+        // Spawn command response processor
+        let handler = BrokerMessageHandler::new(broker.clone());
         let app_state_clone = app_state.clone();
         let broker_clone = broker.clone();
         
         tokio::spawn(async move {
+            info!("Starting NATS response processor...");
+            
             // Subscribe to all agent responses
             let mut response_sub = match broker_clone.subscribe_all_responses().await {
                 Ok(sub) => {
@@ -240,17 +244,59 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         if parts.len() >= 2 {
                             let agent_id = parts[1];
                             let cmd_id = response.command_id.as_deref().unwrap_or("unknown");
+                            let status = response.status.clone();
                             info!("Received response from {}: command_id={} status={}", 
-                                  agent_id, cmd_id, response.status);
+                                  agent_id, cmd_id, status);
                             
-                            // Update agent last_seen timestamp
+                            // Update agent activity tracking before moving response
                             {
                                 let mut agents = app_state_clone.agents.lock().unwrap();
                                 if let Some(_agent) = agents.get_mut(agent_id) {
-                                    // Agent activity tracking - could be extended with command history
                                     info!("Agent {} executed command {} with status {}", 
-                                          agent_id, cmd_id, response.status);
+                                          agent_id, cmd_id, status);
                                 }
+                            }
+                            
+                            // Process response through broker handler
+                            if let Err(e) = handler.handle_response(agent_id, response).await {
+                                warn!("Failed to handle response from {}: {}", agent_id, e);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Spawn plugin event processor
+        let handler = BrokerMessageHandler::new(broker.clone());
+        let broker_clone = broker.clone();
+        
+        tokio::spawn(async move {
+            info!("Starting NATS plugin event processor...");
+            
+            // Subscribe to plugin events
+            let mut event_sub = match broker_clone.subscribe_plugin_events().await {
+                Ok(sub) => {
+                    info!("Subscribed to plugin events");
+                    sub
+                }
+                Err(e) => {
+                    error!("Failed to subscribe to plugin events: {}", e);
+                    return;
+                }
+            };
+            
+            while let Some(msg) = event_sub.next().await {
+                if let Ok(payload) = std::str::from_utf8(&msg.payload) {
+                    if let Ok(data) = serde_json::from_str::<serde_json::Value>(payload) {
+                        let subject = msg.subject.as_str();
+                        let parts: Vec<&str> = subject.split('.').collect();
+                        if parts.len() >= 3 {
+                            let agent_id = parts[1];
+                            let plugin_name = parts[2];
+                            
+                            if let Err(e) = handler.handle_plugin_event(agent_id, plugin_name, data).await {
+                                warn!("Failed to handle plugin event from {}: {}", agent_id, e);
                             }
                         }
                     }
@@ -278,6 +324,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .route("/agents", get(api::agents::list_agents))
         .route("/agents/simple", get(simple_handlers::list_agents))
         .route("/agents/:id/command", post(api::agents::send_command))
+        .route("/agents/:id/command/simple", post(simple_handlers::send_command))
         .route("/heartbeat", post(simple_handlers::handle_heartbeat))
         .route("/system-info", get(api::system::get_system_info))
         

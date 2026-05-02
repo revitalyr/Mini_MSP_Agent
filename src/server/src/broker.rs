@@ -110,11 +110,11 @@ impl BrokerMessageHandler {
         info!("Received heartbeat from agent {}: CPU={}%, RAM={}%, DISK={}%", 
               agent_id, heartbeat.metrics.cpu, heartbeat.metrics.ram, heartbeat.metrics.disk);
         
-        // Use client for additional operations if needed
-        let _client = self.broker.client();
+        // Access broker client through public method
+        let broker = self.broker();
         
         // Acknowledge heartbeat using broker client
-        self.broker.publish_heartbeat_ack(agent_id, &heartbeat).await?;
+        broker.publish_heartbeat_ack(agent_id, &heartbeat).await?;
         
         Ok(())
     }
@@ -149,7 +149,7 @@ impl BrokerMessageHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mini_msp_shared::{Command, Metrics};
+    use mini_msp_shared::Command;
 
     #[tokio::test]
     async fn test_broker_connection() {
