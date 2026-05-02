@@ -129,14 +129,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     
     // Load C++ forensic plugin (SystemPluginV3 + ForensicPlugin)
     let forensic_plugin = Arc::new(Mutex::new(None));
+    info!("Attempting to load forensic plugin...");
     match PluginLoader::load() {
         Ok(loader) => {
-            info!("Loaded forensic plugin: {} v{}", loader.name(), loader.version());
+            info!("✓ Successfully loaded forensic plugin: {} v{}", loader.name(), loader.version());
+            info!("  Plugin path: {:?}", loader.plugin_path());
             *forensic_plugin.lock().unwrap() = Some(loader);
         }
         Err(e) => {
-            warn!("Failed to load forensic plugin: {}", e);
+            warn!("✗ Failed to load forensic plugin: {}", e);
             info!("Continuing without forensic plugin functionality");
+            info!("  Make sure ForensicPlugin.dll exists in ./src/plugins/build/");
         }
     }
     
