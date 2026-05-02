@@ -9,7 +9,7 @@
 use std::path::{Path, PathBuf};
 use anyhow::{anyhow, Result};
 use libloading::{Library, Symbol};
-use tracing::{info, warn, error};
+use tracing::{info, warn};
 
 use crate::ffi::{PluginInterface, SafePluginInterface};
 

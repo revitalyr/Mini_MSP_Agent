@@ -30,7 +30,6 @@ use anyhow::Context;
 use config::Config;
 use broker::BrokerClient;
 use custom_plugin::CustomPluginRegistry;
-use mini_msp_shared::{Heartbeat, Metrics, CommandResponse};
 
 // Unified AppState for all modules
 #[derive(Clone)]

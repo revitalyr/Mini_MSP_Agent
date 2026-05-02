@@ -3,12 +3,12 @@
 //! Provides API for loading and interacting with custom plugins
 //! that implement extensible functionality (custom commands, metrics, etc.)
 
-use std::ffi::{c_char, c_int, CStr, CString};
+use std::ffi::{c_char, CStr, CString};
 use std::path::Path;
 use anyhow::{anyhow, Result};
 use libloading::{Library, Symbol};
 use serde::{Deserialize, Serialize};
-use tracing::{info, warn, error};
+use tracing::{info, warn};
 
 /// Custom command request from client
 #[derive(Debug, Deserialize)]
@@ -28,7 +28,7 @@ pub struct CustomCommandResponse {
 }
 
 /// Custom metrics from plugin
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CustomMetrics {
     pub commands_executed: i32,
     pub errors_encountered: i32,
