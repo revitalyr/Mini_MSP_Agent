@@ -193,17 +193,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     if let Ok(heartbeat) = serde_json::from_str::<Heartbeat>(payload) {
                         // Extract agent_id from heartbeat payload
                         let agent_id = heartbeat.agent_id.clone();
+                        let now = chrono::Utc::now().timestamp() as u64;
                         
-                        // Update agent info
+                        // Update agent info with last_seen
                         {
                             let mut agents = app_state_clone.agents.lock().unwrap();
-                            let _agent = agents.entry(agent_id.clone()).or_insert_with(|| AgentInfo {
+                            let agent = agents.entry(agent_id.clone()).or_insert_with(|| AgentInfo {
                                 id: agent_id.clone(),
                                 hostname: heartbeat.hostname.clone(),
                                 version: "1.0.0".to_string(),
                                 platform: heartbeat.platform.clone(),
+                                last_seen: now,
                             });
-                            info!("Agent registered/updated: {} ({} - {})", agent_id, heartbeat.hostname, heartbeat.platform);
+                            // Update last_seen for existing agents
+                            agent.last_seen = now;
+                            info!("Agent heartbeat: {} ({} - {}) at {}", agent_id, heartbeat.hostname, heartbeat.platform, now);
                         }
                         
                         // Handle heartbeat via broker handler

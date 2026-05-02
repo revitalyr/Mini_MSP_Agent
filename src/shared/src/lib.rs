@@ -85,6 +85,7 @@ pub struct AgentInfo {
     pub hostname: String,
     pub version: String,
     pub platform: String,
+    pub last_seen: Timestamp,
 }
 
 /// Event message structure

@@ -8,21 +8,45 @@ use std::sync::Arc;
 
 use crate::AppState;
 
-/// List all connected agents
+/// Timeout in seconds to consider agent offline (2 minutes)
+const AGENT_TIMEOUT_SECS: i64 = 120;
+
+/// Calculate agent status based on last_seen timestamp
+fn calculate_status(last_seen: u64) -> &'static str {
+    let now = chrono::Utc::now().timestamp() as u64;
+    if (now - last_seen) < AGENT_TIMEOUT_SECS as u64 {
+        "online"
+    } else {
+        "offline"
+    }
+}
+
+/// List all connected agents with online/offline status
 pub async fn list_agents(State(app_state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let agents = app_state.agents.lock().unwrap();
+    let now = chrono::Utc::now().timestamp() as u64;
     
     let agents_list: Vec<_> = agents.iter()
-        .map(|(id, info)| json!({
-            "id": id,
-            "status": info,
-            "last_seen": "now"
-        }))
+        .map(|(id, info)| {
+            let status = calculate_status(info.last_seen);
+            let seconds_ago = now - info.last_seen;
+            json!({
+                "id": id,
+                "hostname": info.hostname,
+                "platform": info.platform,
+                "version": info.version,
+                "status": status,
+                "last_seen": info.last_seen,
+                "seconds_ago": seconds_ago
+            })
+        })
         .collect();
     
     Json(json!({
         "agents": agents_list,
-        "count": agents_list.len()
+        "count": agents_list.len(),
+        "online_count": agents_list.iter().filter(|a| a["status"] == "online").count(),
+        "offline_count": agents_list.iter().filter(|a| a["status"] == "offline").count()
     }))
 }
 

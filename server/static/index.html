@@ -364,6 +364,12 @@
                 <div class="card-header">
                     <div class="card-icon green">🖥️</div>
                     <div class="card-title">Active Agents</div>
+                    <span id="agentStatusSummary" style="margin-left: auto; font-size: 0.8rem; color: #6b7280;">Loading...</span>
+                </div>
+                <div style="padding: 0 20px 10px;">
+                    <select id="agentSelector" style="width: 100%; padding: 8px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.9rem;">
+                        <option value="">All Agents</option>
+                    </select>
                 </div>
                 <div class="agent-list" id="agentList">
                     <div class="agent-item">
@@ -502,6 +508,20 @@
         const refreshIndicator = document.getElementById('refreshIndicator');
         const logContainer = document.getElementById('logContainer');
         const agentList = document.getElementById('agentList');
+        const agentSelector = document.getElementById('agentSelector');
+        const agentStatusSummary = document.getElementById('agentStatusSummary');
+        
+        // Global state
+        let currentAgents = [];
+        let selectedAgentId = localStorage.getItem('selectedAgentId') || '';
+        
+        // Agent selector change handler
+        agentSelector.addEventListener('change', (e) => {
+            selectedAgentId = e.target.value;
+            localStorage.setItem('selectedAgentId', selectedAgentId);
+            addLog(`Selected agent: ${selectedAgentId || 'All'}`, 'info');
+            refreshAgentDisplay();
+        });
         
         // Helper functions
         function updateProgressBar(elementId, value) {
@@ -581,38 +601,75 @@
             }
         }
         
+        // Refresh agent selector and list
+        function refreshAgentDisplay() {
+            // Update selector options
+            agentSelector.innerHTML = '<option value="">All Agents</option>' +
+                currentAgents.map(agent => 
+                    `<option value="${agent.id}" ${agent.id === selectedAgentId ? 'selected' : ''}>
+                        ${agent.hostname || 'Unknown'} (${agent.status})
+                    </option>`
+                ).join('');
+            
+            // Update status summary
+            const onlineCount = currentAgents.filter(a => a.status === 'online').length;
+            const offlineCount = currentAgents.filter(a => a.status === 'offline').length;
+            agentStatusSummary.textContent = `${onlineCount} online, ${offlineCount} offline`;
+            agentStatusSummary.style.color = offlineCount > 0 ? '#ef4444' : '#22c55e';
+            
+            // Filter agents for display
+            const displayAgents = selectedAgentId 
+                ? currentAgents.filter(a => a.id === selectedAgentId)
+                : currentAgents;
+            
+            if (displayAgents.length === 0) {
+                agentList.innerHTML = `
+                    <div class="agent-item">
+                        <div class="agent-status offline"></div>
+                        <div class="agent-info">
+                            <div class="agent-id">${selectedAgentId ? 'Selected agent not found' : 'No agents connected'}</div>
+                            <div class="agent-meta">${selectedAgentId ? 'Agent may be offline' : 'Waiting for agents to register...'}</div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                agentList.innerHTML = displayAgents.map(agent => `
+                    <div class="agent-item" style="cursor: pointer; ${agent.id === selectedAgentId ? 'background: #eef2ff; border: 1px solid #667eea;' : ''}" onclick="selectAgent('${agent.id}')">
+                        <div class="agent-status ${agent.status === 'online' ? 'online' : 'offline'}"></div>
+                        <div class="agent-info">
+                            <div class="agent-id">${agent.id.substring(0, 8)}... ${agent.hostname || 'Unknown'}</div>
+                            <div class="agent-meta">${agent.platform || 'Unknown OS'} • ${agent.status} • ${agent.seconds_ago}s ago</div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            
+            document.getElementById('agentCount').textContent = displayAgents.length + ' Agent' + (displayAgents.length !== 1 ? 's' : '');
+        }
+        
+        // Select agent from click
+        window.selectAgent = function(agentId) {
+            selectedAgentId = agentId;
+            localStorage.setItem('selectedAgentId', agentId);
+            agentSelector.value = agentId;
+            refreshAgentDisplay();
+            addLog(`Selected agent: ${agentId.substring(0, 8)}...`, 'info');
+        };
+        
         // Fetch agents
         async function fetchAgents() {
             try {
-                const response = await fetchWithRetry(`${API_BASE}/agents/simple`);
+                const response = await fetchWithRetry(`${API_BASE}/agents`);
                 const data = await response.json();
                 
-                // Handle both array and object responses
-                const agents = Array.isArray(data) ? data : (data.agents || []);
+                currentAgents = data.agents || [];
                 
-                document.getElementById('agentCount').textContent = agents.length + ' Agent' + (agents.length !== 1 ? 's' : '');
-                
-                if (agents.length === 0) {
-                    agentList.innerHTML = `
-                        <div class="agent-item">
-                            <div class="agent-status offline"></div>
-                            <div class="agent-info">
-                                <div class="agent-id">No agents connected</div>
-                                <div class="agent-meta">Waiting for agents to register...</div>
-                            </div>
-                        </div>
-                    `;
-                } else {
-                    agentList.innerHTML = agents.map(agent => `
-                        <div class="agent-item">
-                            <div class="agent-status online"></div>
-                            <div class="agent-info">
-                                <div class="agent-id">${agent.id || 'Unknown'}</div>
-                                <div class="agent-meta">${agent.hostname || 'Unknown host'} • ${agent.platform || 'Unknown OS'}</div>
-                            </div>
-                        </div>
-                    `).join('');
+                // If selected agent is no longer available, clear selection
+                if (selectedAgentId && !currentAgents.find(a => a.id === selectedAgentId)) {
+                    addLog(`Selected agent ${selectedAgentId.substring(0, 8)}... went offline`, 'warn');
                 }
+                
+                refreshAgentDisplay();
                 
             } catch (error) {
                 console.log('Agents fetch failed:', error.message);
