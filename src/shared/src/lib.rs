@@ -131,10 +131,7 @@ pub enum PluginStatus {
 }
 
 /// Plugin registry
-<<<<<<< HEAD
-=======
-#[derive(Debug, Clone, PartialEq)]
->>>>>>> github/master
+#[derive(Clone, PartialEq)]
 pub struct PluginRegistry {
     pub plugins: HashMap<String, Box<dyn Plugin>>,
 }
@@ -147,11 +144,6 @@ impl std::fmt::Debug for PluginRegistry {
     }
 }
 
-<<<<<<< HEAD
-/// Plugin trait interface
-#[async_trait::async_trait]
-pub trait Plugin: Send + Sync {
-=======
 // Custom serialization for PluginRegistry
 impl serde::Serialize for PluginRegistry {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -209,15 +201,12 @@ impl<'de> serde::Deserialize<'de> for PluginRegistry {
 /// Plugin trait interface
 #[async_trait::async_trait]
 pub trait Plugin: Send + Sync + std::fmt::Debug {
->>>>>>> github/master
     fn name(&self) -> &str;
     fn version(&self) -> &str;
     async fn init(&mut self) -> Result<(), Box<dyn std::error::Error>>;
     async fn shutdown(&mut self) -> Result<(), Box<dyn std::error::Error>>;
     async fn get_metrics(&self) -> Option<SystemMetrics>;
     async fn handle_command(&self, cmd: &Command) -> Result<CommandResponse, Box<dyn std::error::Error>>;
-<<<<<<< HEAD
-=======
     
     // Clone functionality
     fn clone_box(&self) -> Box<dyn Plugin>;
@@ -266,7 +255,6 @@ impl<'de> serde::Deserialize<'de> for Box<dyn Plugin> {
         // In a real implementation, you'd need a plugin registry system
         Err(serde::de::Error::custom("Cannot deserialize Box<dyn Plugin> directly. Use a plugin registry system instead."))
     }
->>>>>>> github/master
 }
 
 /// System metrics structure
