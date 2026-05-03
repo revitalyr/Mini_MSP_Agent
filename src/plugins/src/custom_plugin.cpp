@@ -85,14 +85,14 @@ static bool execute_custom_command(const char* command, CommandResult* result) {
     }
     
     // Store last command
-    strncpy_s(plugin_state.last_command, sizeof(plugin_state.last_command), command, sizeof(plugin_state.last_command) - 1);
+    strncpy(plugin_state.last_command, command, sizeof(plugin_state.last_command) - 1);
     plugin_state.last_command[sizeof(plugin_state.last_command) - 1] = '\0';
     plugin_state.command_count++;
     
     // Parse command
     if (strncmp(command, "echo ", 5) == 0) {
         // Echo command - return the rest of the string
-        strncpy_s(result->output, sizeof(result->output), command + 5, sizeof(result->output) - 1);
+        strncpy(result->output, command + 5, sizeof(result->output) - 1);
         result->output[sizeof(result->output) - 1] = '\0';
         result->success = true;
         result->error[0] = '\0';
@@ -107,13 +107,13 @@ static bool execute_custom_command(const char* command, CommandResult* result) {
         result->error[0] = '\0';
     }
     else if (strcmp(command, "ping") == 0) {
-        strncpy_s(result->output, sizeof(result->output), "pong", sizeof(result->output) - 1);
+        strncpy(result->output, "pong", sizeof(result->output) - 1);
         result->success = true;
         result->error[0] = '\0';
     }
     else if (strncmp(command, "config ", 7) == 0) {
         // Config command placeholder
-        strncpy_s(result->output, sizeof(result->output), "Configuration updated", sizeof(result->output) - 1);
+        strncpy(result->output, "Configuration updated", sizeof(result->output) - 1);
         result->success = true;
         result->error[0] = '\0';
     }
@@ -137,9 +137,10 @@ static bool get_custom_metrics(CustomMetrics* metrics) {
     metrics->commands_executed = plugin_state.command_count;
     metrics->errors_encountered = 0; // Placeholder
     metrics->uptime_seconds = difftime(time(nullptr), plugin_state.start_time);
-    strncpy_s(metrics->status, sizeof(metrics->status), 
+    strncpy(metrics->status, 
             plugin_state.initialized ? "running" : "stopped",
             sizeof(metrics->status) - 1);
+    metrics->status[sizeof(metrics->status) - 1] = '\0';
     
     return true;
 }
@@ -187,10 +188,10 @@ extern "C" {
         bool success = execute_custom_command(command, &result);
         
         if (success) {
-            strncpy_s(output, output_size, result.output, output_size - 1);
+            strncpy(output, result.output, output_size - 1);
             output[output_size - 1] = '\0';
         } else {
-            strncpy_s(output, output_size, result.error, output_size - 1);
+            strncpy(output, result.error, output_size - 1);
             output[output_size - 1] = '\0';
         }
         

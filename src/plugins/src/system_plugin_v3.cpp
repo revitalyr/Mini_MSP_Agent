@@ -276,7 +276,7 @@ struct SystemInfo {
 
 //  plugin interface with concepts
 template<typename T>
-concept SystemPlugin = requires(T plugin) {
+concept SystemPluginConcept = requires(T plugin) {
     { plugin.get_name() } -> std::convertible_to<StringView>;
     { plugin.get_version() } -> std::convertible_to<StringView>;
     { plugin.initialize() } -> std::convertible_to<SystemResult<bool>>;
@@ -918,7 +918,7 @@ private:
 
 // Plugin factory with concepts
 template<typename T>
-requires SystemPlugin<T>
+requires SystemPluginConcept<T>
 auto create_system_plugin() -> std::unique_ptr<T> {
     return std::make_unique<T>();
 }

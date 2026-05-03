@@ -432,6 +432,11 @@ class AgentDashboard {
     updateCommandResponses() {
         const container = document.getElementById('responsesContainer');
         
+        if (!container) {
+            console.warn('responsesContainer element not found');
+            return;
+        }
+        
         if (this.commandResponses.length === 0) {
             container.innerHTML = '<p class="no-responses">No commands executed yet</p>';
             return;
@@ -630,6 +635,6 @@ class AgentDashboard {
 document.addEventListener('DOMContentLoaded', () => {
     // Small delay to ensure DOM is fully ready
     setTimeout(() => {
-        window.dashboard = new AgentDashboard();
+        window.agentDashboard = new AgentDashboard();
     }, 100);
 });

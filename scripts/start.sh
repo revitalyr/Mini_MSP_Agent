@@ -63,27 +63,42 @@ if [ "$BUILD" = true ]; then
     fi
     
     # Сборка C++ плагинов
-    echo "🔧 Сборка C++ плагинов..."
-    if [ -f "plugins/CMakeLists.txt" ]; then
-        mkdir -p plugins/build
-        pushd plugins/build > /dev/null
-        cmake .. -DCMAKE_BUILD_TYPE=Debug
-        if cmake --build .; then
-            mkdir -p ../../agent/plugins
-            find . -name "*.so" -exec cp {} ../../agent/plugins/ \;
-            echo "✅ Плагины собраны и скопированы в agent/plugins"
-        else
-            echo "⚠️ Ошибка сборки плагинов"
+    echo "🔧 Сборка C++ плагинов с preset linux-clang-20-debug..."
+    if [ -f "src/plugins/CMakeLists.txt" ]; then
+        pushd src/plugins > /dev/null
+        cmake --preset linux-clang-20-debug
+        if ! cmake --build --preset linux-clang-20-debug; then
+            echo "❌ Ошибка сборки плагинов"
+            popd > /dev/null
+            exit 1
         fi
+        mkdir -p ../agent/plugins
+        find build/linux-clang-20-debug -name "*.so" -exec cp {} ../agent/plugins/ \;
+        echo "✅ Плагины собраны и скопированы в agent/plugins"
         popd > /dev/null
     else
-        echo "⚠️ CMakeLists.txt не найден, пропускаю сборку плагинов"
+        echo "⚠️ CMakeLists.txt не найден в src/plugins/, пропускаю сборку плагинов"
     fi
 fi
 
 # Пути к бинарникам
 SERVER_PATH="target/debug/server"
-AGENT_PATH="target/debug/agent"
+AGENT_PATH="target/debug/simple_agent"
+
+# Создание директории для логов (ранее, до запуска процессов)
+mkdir -p logs
+
+# Запуск NATS broker
+echo "📡 Запуск NATS broker на порту 4222..."
+if command -v nats-server >/dev/null 2>&1; then
+    nats-server -p 4222 -m 8222 &
+    NATS_PID=$!
+    echo "✅ NATS broker запущен (PID: $NATS_PID)"
+    sleep 2
+else
+    echo "❌ NATS server не найден. Установите с: curl -sf https://binaries.nats.dev/nats-io/nats-server/v2.10.25/nats-server-v2.10.25-linux-amd64.tar.gz | tar xz && sudo mv nats-server-v2.10.25-linux-amd64/nats-server /usr/local/bin/"
+    exit 1
+fi
 
 # Проверка существования бинарников
 if [ ! -f "$SERVER_PATH" ]; then
@@ -97,6 +112,9 @@ if [ ! -f "$AGENT_PATH" ]; then
     echo "💡 Запустите с параметром --build для сборки проекта"
     exit 1
 fi
+
+# Создание директории для логов
+mkdir -p logs
 
 # Проверка конфигурации агента
 if [ ! -f "$AGENT_CONFIG" ]; then
@@ -124,9 +142,6 @@ EOF
     
     echo "✅ Конфигурация создана: $AGENT_CONFIG"
 fi
-
-# Создание директории для логов
-mkdir -p logs
 
 # Запуск сервера в фоновом режиме
 echo "🖥️ Запуск веб-сервера на порту $SERVER_PORT..."
@@ -161,6 +176,7 @@ cleanup() {
     echo "🛑 Остановка сервисов..."
     kill $SERVER_PID 2>/dev/null
     kill $AGENT_PID 2>/dev/null
+    kill $NATS_PID 2>/dev/null
     echo "✅ Сервисы остановлены"
     echo "👋 Работа завершена"
     exit 0

@@ -114,3 +114,39 @@ pub async fn send_command(
             .as_secs()
     })))
 }
+
+// Browse directory handler
+pub async fn browse_directory(
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let path = body.get("path").and_then(|p| p.as_str()).unwrap_or("/home");
+    
+    // List directory contents
+    let mut entries = vec![];
+    if let Ok(dir) = std::fs::read_dir(path) {
+        for entry in dir.flatten() {
+            if let Ok(metadata) = entry.metadata() {
+                let file_type = if metadata.is_dir() {
+                    "directory"
+                } else if metadata.is_file() {
+                    "file"
+                } else {
+                    "other"
+                };
+                
+                entries.push(json!({
+                    "name": entry.file_name().to_string_lossy().to_string(),
+                    "path": entry.path().to_string_lossy().to_string(),
+                    "type": file_type,
+                    "size": metadata.len(),
+                }));
+            }
+        }
+    }
+    
+    Ok(Json(json!({
+        "path": path,
+        "entries": entries,
+        "count": entries.len(),
+    })))
+}

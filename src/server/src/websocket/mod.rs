@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, broadcast};
 use axum::{
     extract::{
         ws::{WebSocket, WebSocketUpgrade, Message},
@@ -20,16 +20,26 @@ use tracing::{info, error, debug};
 
 use crate::AppState;
 
+/// Broadcast channel for agent responses
+pub type ResponseBroadcast = broadcast::Sender<String>;
+
 /// Simple WebSocket manager for agent connections
 pub struct WebSocketManager {
     connections: Arc<Mutex<HashMap<String, String>>>, // Simplified to just track agent IDs
+    response_tx: ResponseBroadcast,
 }
 
 impl WebSocketManager {
     pub fn new() -> Self {
+        let (tx, _rx) = broadcast::channel(100);
         Self {
             connections: Arc::new(Mutex::new(HashMap::new())),
+            response_tx: tx,
         }
+    }
+    
+    pub fn get_response_channel(&self) -> ResponseBroadcast {
+        self.response_tx.clone()
     }
 
     pub async fn add_connection(&self, agent_id: String) {
@@ -45,6 +55,14 @@ impl WebSocketManager {
     pub async fn get_connected_agents(&self) -> Vec<String> {
         let connections = self.connections.lock().await;
         connections.keys().cloned().collect()
+    }
+    
+    pub fn subscribe_responses(&self) -> broadcast::Receiver<String> {
+        self.response_tx.subscribe()
+    }
+    
+    pub async fn broadcast_response(&self, response: String) {
+        let _ = self.response_tx.send(response);
     }
 }
 
@@ -72,16 +90,12 @@ async fn handle_socket(socket: WebSocket, app_state: Arc<AppState>) {
     
     debug!("New WebSocket connection from agent: {}", agent_id);
     
-    // Add connection to manager
-    let ws_manager = WebSocketManager::new();
-    ws_manager.add_connection(agent_id.clone()).await;
+    // Use shared WebSocket manager from app_state
+    let ws_manager = app_state.ws_manager.clone();
     
-    // Log connected agents count
-    let connected_agents = ws_manager.get_connected_agents().await;
-    info!("Connected agents: {:?}", connected_agents);
-    
-    // Note: Agent registration is now handled via NATS heartbeat only
-    // WebSocket is used for real-time commands and data streaming
+    // Note: Agent will be added to connections when it sends agent_register message
+    // For now, just log the connection
+    info!("WebSocket connection established, waiting for agent registration...");
     
     let (mut sender, mut receiver) = socket.split();
     
@@ -99,85 +113,152 @@ async fn handle_socket(socket: WebSocket, app_state: Arc<AppState>) {
         return;
     }
 
-    // Handle messages
-    while let Some(msg) = receiver.next().await {
-        match msg {
-            Ok(Message::Text(text)) => {
-                debug!("Received WebSocket message from {}: {}", agent_id, text);
-                
-                if let Ok(value) = serde_json::from_str::<Value>(&text) {
-                    info!("Received message from {}: {}", agent_id, value);
-                    
-                    // Check if this is a command from web interface
-                    if let Some(_command_type) = value.get("type").and_then(|v| v.as_str()) {
-                        if _command_type == "register" {
-                            // Handle agent registration
-                            info!("Agent registration: {}", value);
-                            
-                            // Extract agent info from registration message
-                            if let Some(agent_id) = value.get("agent_id").and_then(|v| v.as_str()) {
-                                // Note: Agent registration is now handled via NATS heartbeat only
-                                // WebSocket is used for real-time commands and data streaming
-                                info!("Agent {} registered via WebSocket (NATS heartbeat handles registration)", agent_id);
-                            }
-                        } else if let Some(target_agent_id) = value.get("agent_id").and_then(|v| v.as_str()) {
-                            if let Some(command) = value.get("command").and_then(|v| v.as_str()) {
-                                // This is a command from web client - check if we have this agent connected
-                                let connected_agents = ws_manager.get_connected_agents().await;
-                                if connected_agents.contains(&target_agent_id.to_string()) {
-                                    // Forward command to agent
-                                    info!("Forwarding command {} to agent {}", command, target_agent_id);
-                                    
-                                    let command_msg = json!({
-                                        "command": command,
-                                        "command_id": value.get("command_id").and_then(|v| v.as_str()).unwrap_or(&uuid::Uuid::new_v4().to_string()),
-                                        "timestamp": Utc::now().timestamp()
-                                    });
-                                    
-                                    // Send back to the same connection (assuming it's the agent)
-                                    if let Err(e) = sender.send(Message::Text(command_msg.to_string())).await {
-                                        error!("Failed to forward command to agent {}: {}", target_agent_id, e);
-                                    } else {
-                                        info!("Command {} forwarded to agent {}", command, target_agent_id);
+    // Create channel for forwarding agent responses to this WebSocket client
+    let (forward_tx, mut forward_rx) = tokio::sync::mpsc::channel::<String>(100);
+    
+    // Subscribe to agent response broadcasts and forward via channel
+    let mut response_rx = ws_manager.subscribe_responses();
+    tokio::spawn(async move {
+        while let Ok(response) = response_rx.recv().await {
+            if forward_tx.send(response).await.is_err() {
+                break; // Channel closed
+            }
+        }
+    });
+
+    // Handle messages and forwarded responses concurrently
+    loop {
+        tokio::select! {
+            // Handle incoming WebSocket messages
+            msg = receiver.next() => {
+                match msg {
+                    Some(Ok(Message::Text(text))) => {
+                        info!("RAW WebSocket message from connection {}: {}", agent_id, text);
+                        
+                        let parse_result = serde_json::from_str::<Value>(&text);
+                        match parse_result {
+                            Ok(value) => {
+                                info!("Parsed JSON from {}: {:?}", agent_id, value);
+                                
+                                let msg_type = value.get("type").and_then(|v| v.as_str());
+                                info!("Message type: {:?}", msg_type);
+                                
+                                if let Some(_command_type) = msg_type {
+                                    info!("Processing command type: {}", _command_type);
+                                    if _command_type == "register" || _command_type == "agent_register" {
+                                        info!("Agent registration message: {}", value);
+                                        let actual_agent_id = value.get("agent")
+                                            .and_then(|a| a.get("id"))
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or(&agent_id);
+                                        
+                                        info!("Registering agent {} to WebSocket connections", actual_agent_id);
+                                        ws_manager.add_connection(actual_agent_id.to_string()).await;
+                                        info!("Agent {} successfully registered via WebSocket", actual_agent_id);
+                                    } else if let Some(target_agent_id) = value.get("agent_id").and_then(|v| v.as_str()) {
+                                        if let Some(command) = value.get("command").and_then(|v| v.as_str()) {
+                                            let connected_agents = ws_manager.get_connected_agents().await;
+                                            if connected_agents.contains(&target_agent_id.to_string()) {
+                                                info!("Forwarding command {} to agent {}", command, target_agent_id);
+                                                let command_msg = json!({
+                                                    "command": command,
+                                                    "command_id": value.get("command_id").and_then(|v| v.as_str()).unwrap_or(&uuid::Uuid::new_v4().to_string()),
+                                                    "timestamp": Utc::now().timestamp()
+                                                });
+                                                if let Err(e) = sender.send(Message::Text(command_msg.to_string())).await {
+                                                    error!("Failed to forward command to agent {}: {}", target_agent_id, e);
+                                                } else {
+                                                    info!("Command {} forwarded to agent {}", command, target_agent_id);
+                                                }
+                                            } else {
+                                                // Try NATS fallback
+                                                if let Some(ref broker) = app_state.broker_client {
+                                                    info!("Agent {} not connected via WebSocket, trying NATS...", target_agent_id);
+                                                    let command_msg = json!({
+                                                        "command": command,
+                                                        "command_id": value.get("command_id").and_then(|v| v.as_str()).unwrap_or(&uuid::Uuid::new_v4().to_string()),
+                                                        "timestamp": Utc::now().timestamp()
+                                                    });
+                                                    let topic = format!("agent.{}.commands", target_agent_id);
+                                                    match broker.client().publish(topic.clone(), command_msg.to_string().into()).await {
+                                                        Ok(_) => {
+                                                            info!("Command {} sent to agent {} via NATS topic {}", command, target_agent_id, topic);
+                                                            let ok_response = json!({
+                                                                "type": "command_sent",
+                                                                "message": format!("Command sent to agent {} via NATS", target_agent_id),
+                                                                "timestamp": Utc::now().timestamp()
+                                                            });
+                                                            if let Err(e) = sender.send(Message::Text(ok_response.to_string())).await {
+                                                                error!("Failed to send OK response: {}", e);
+                                                            }
+                                                        }
+                                                        Err(e) => {
+                                                            error!("Failed to send command via NATS to {}: {}", target_agent_id, e);
+                                                            let error_response = json!({
+                                                                "type": "error",
+                                                                "message": format!("Agent {} not connected via WebSocket or NATS", target_agent_id),
+                                                                "timestamp": Utc::now().timestamp()
+                                                            });
+                                                            if let Err(e) = sender.send(Message::Text(error_response.to_string())).await {
+                                                                error!("Failed to send error response: {}", e);
+                                                            }
+                                                        }
+                                                    }
+                                                } else {
+                                                    error!("Agent {} not connected and NATS broker unavailable", target_agent_id);
+                                                    let error_response = json!({
+                                                        "type": "error",
+                                                        "message": format!("Agent {} not connected", target_agent_id),
+                                                        "timestamp": Utc::now().timestamp()
+                                                    });
+                                                    if let Err(e) = sender.send(Message::Text(error_response.to_string())).await {
+                                                        error!("Failed to send error response: {}", e);
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 } else {
-                                    error!("Agent {} not connected", target_agent_id);
-                                    let error_response = json!({
-                                        "type": "error",
-                                        "message": format!("Agent {} not connected", target_agent_id),
+                                    debug!("Echoing message from agent: {}", agent_id);
+                                    let response = json!({
+                                        "type": "echo",
+                                        "original": value,
                                         "timestamp": Utc::now().timestamp()
                                     });
-                                    if let Err(e) = sender.send(Message::Text(error_response.to_string())).await {
-                                        error!("Failed to send error response: {}", e);
+                                    if let Err(e) = sender.send(Message::Text(response.to_string())).await {
+                                        error!("Failed to send echo: {}", e);
                                     }
                                 }
                             }
+                            Err(e) => {
+                                error!("Failed to parse JSON from {}: {}. Raw text: {}", agent_id, e, text);
+                            }
                         }
-                    } else {
-                        // Echo back for other messages
-                        debug!("Echoing message from agent: {}", agent_id);
-                        let response = json!({
-                            "type": "echo",
-                            "original": value,
-                            "timestamp": Utc::now().timestamp()
-                        });
-                        
-                        if let Err(e) = sender.send(Message::Text(response.to_string())).await {
-                            error!("Failed to send echo: {}", e);
+                    }
+                    Some(Ok(Message::Close(_))) => {
+                        info!("WebSocket closed for agent: {}", agent_id);
+                        break;
+                    }
+                    Some(Err(e)) => {
+                        error!("WebSocket error for agent {}: {}", agent_id, e);
+                        break;
+                    }
+                    None => break,
+                    _ => {}
+                }
+            }
+            // Forward agent responses to this client
+            response = forward_rx.recv() => {
+                match response {
+                    Some(resp) => {
+                        if let Err(e) = sender.send(Message::Text(resp)).await {
+                            error!("Failed to send agent response to client: {}", e);
                             break;
                         }
                     }
+                    None => break, // Channel closed
                 }
             }
-            Ok(Message::Close(_)) => {
-                info!("WebSocket closed for agent: {}", agent_id);
-                break;
-            }
-            Err(e) => {
-                error!("WebSocket error for agent {}: {}", agent_id, e);
-                break;
-            }
-            _ => {}
         }
     }
 

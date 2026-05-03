@@ -31,6 +31,7 @@ use config::Config;
 use broker::{BrokerClient, BrokerMessageHandler};
 use custom_plugin::CustomPluginRegistry;
 use plugin_loader::PluginLoader;
+use websocket::WebSocketManager;
 use mini_msp_shared::{AgentInfo, CommandResponse, Heartbeat};
 use futures_util::StreamExt;
 
@@ -45,6 +46,8 @@ pub struct AppState {
     pub plugin_registry: Arc<Mutex<CustomPluginRegistry>>,
     /// C++ forensic plugin loader (SystemPluginV3 + ForensicPlugin)
     pub forensic_plugin: Arc<Mutex<Option<PluginLoader>>>,
+    /// WebSocket connection manager for agent commands
+    pub ws_manager: Arc<WebSocketManager>,
 }
 
 #[tokio::main]
@@ -159,16 +162,52 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
     }
     
+    // Create WebSocket manager for agent connections
+    let ws_manager = Arc::new(WebSocketManager::new());
+    info!("WebSocket manager initialized");
+    
     // Create application state
     let app_state = Arc::new(AppState {
         agents: Arc::new(Mutex::new(HashMap::new())),
         broker_client: broker_client.clone(),
         plugin_registry,
         forensic_plugin,
+        ws_manager,
     });
 
     // Start broker message processing if broker is connected
     if let Some(ref broker) = broker_client {
+        // Spawn response subscriber - forwards agent responses to WebSocket clients
+        let broker_responses = broker.clone();
+        let _ws_manager_responses = app_state.ws_manager.clone();
+        
+        let ws_manager_for_responses = app_state.ws_manager.clone();
+        
+        tokio::spawn(async move {
+            info!("Starting NATS response subscriber...");
+            
+            let mut response_sub = match broker_responses.subscribe_all_responses().await {
+                Ok(sub) => {
+                    info!("Subscribed to agent responses");
+                    sub
+                }
+                Err(e) => {
+                    error!("Failed to subscribe to responses: {}", e);
+                    return;
+                }
+            };
+            
+            // Process incoming responses and broadcast to WebSocket clients
+            use futures_util::StreamExt;
+            while let Some(msg) = response_sub.next().await {
+                if let Ok(payload) = std::str::from_utf8(&msg.payload) {
+                    info!("Received agent response via NATS: {}", payload);
+                    // Broadcast to all WebSocket clients
+                    ws_manager_for_responses.broadcast_response(payload.to_string()).await;
+                }
+            }
+        });
+        
         // Spawn heartbeat processor
         let handler = BrokerMessageHandler::new(broker.clone());
         let app_state_clone = app_state.clone();
@@ -317,6 +356,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .allow_headers(Any);
 
     let app = Router::new()
+        // Root redirect to dashboard
+        .route("/", get(|| async { axum::response::Redirect::permanent("/static/plugin_control.html") }))
         // Health checks
         .route("/health", get(api::health_check))
         .route("/health/simple", get(simple_handlers::health_check))
@@ -346,8 +387,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .route("/plugins/:name/health", get(api::plugins::plugin_health))
         .route("/plugins/execute", post(api::plugins::execute_command))
         
+        // File browser API
+        .route("/api/browse/directory", post(crate::simple_handlers::browse_directory))
+        
         // Static files
-        .nest_service("/static", ServeDir::new("server/static"))
+        .nest_service("/static", ServeDir::new("src/server/static"))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(app_state);

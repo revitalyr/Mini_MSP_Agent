@@ -17,9 +17,9 @@ pub const MAX_OS_VERSION_LEN: usize = 64;
 pub const MAX_COMMAND_LEN: usize = 1024;
 #[allow(dead_code)]
 pub const MAX_PATH_LEN: usize = 4096;
-pub const MAX_NAME_LEN: usize = 128;
-pub const MAX_VERSION_LEN: usize = 64;
-pub const MAX_DESCRIPTION_LEN: usize = 512;
+//pub const MAX_NAME_LEN: usize = 128;
+//pub const MAX_VERSION_LEN: usize = 64;
+//pub const MAX_DESCRIPTION_LEN: usize = 512;
 
 /// Percentage type (0-100)
 pub type Percentage = u8;

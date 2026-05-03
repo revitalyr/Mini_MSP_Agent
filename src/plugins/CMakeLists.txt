@@ -68,29 +68,16 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         -march=native
     )
     
-    #  GCC definitions
-    target_compile_definitions(SystemPluginV3 PRIVATE
-        _GNU_SOURCE
-    )
-    
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     #  Clang flags for C++23
     add_compile_options(
         -std=c++23
-        -fmodules
-        -fconcepts-ts
-        -fcoroutines-ts
         -Wall
         -Wextra
         -Wpedantic
         -Werror
         -O3
         -march=native
-    )
-    
-    #  Clang definitions
-    target_compile_definitions(SystemPluginV3 PRIVATE
-        __STDC_LIBC1__
     )
 endif()
 
