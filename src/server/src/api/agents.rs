@@ -6,7 +6,15 @@ use axum::{extract::{State, Path}, response::Json, http::StatusCode};
 use serde_json::{json, Value};
 use std::sync::Arc;
 
-use crate::AppState;
+use crate::{AppState, websocket::send_command_to_agent};
+
+/// Error response helper
+fn error_json(message: &str) -> Json<Value> {
+    Json(json!({
+        "status": "error",
+        "error": message
+    }))
+}
 
 /// Timeout in seconds to consider agent offline (2 minutes)
 const AGENT_TIMEOUT_SECS: i64 = 120;
@@ -76,4 +84,72 @@ pub async fn send_command(
         "error": "Commands should be sent via WebSocket connection",
         "websocket_endpoint": "/ws"
     })))
+}
+
+/// Get list of available objects from plugin on agent
+pub async fn get_plugin_objects(
+    Path((agent_id, plugin_name)): Path<(String, String)>,
+    State(app_state): State<Arc<AppState>>,
+) -> Result<Json<Value>, StatusCode> {
+    // Send command to agent to get available objects from plugin
+    let command = json!({
+        "type": "command",
+        "command": "get_available_objects",
+        "params": {
+            "plugin": plugin_name
+        },
+        "agent_id": agent_id
+    });
+
+    match send_command_to_agent(&agent_id, &app_state, command).await {
+        Some(response) => {
+            if response.get("success").and_then(|v| v.as_bool()).unwrap_or(false) {
+                let data = response.get("data").cloned().unwrap_or(json!({}));
+                Ok(Json(json!({
+                    "status": "ok",
+                    "plugin": plugin_name,
+                    "objects": data.get("objects").cloned().unwrap_or(json!([])),
+                    "object_type": data.get("object_type").and_then(|v| v.as_str()).unwrap_or("item")
+                })))
+            } else {
+                Ok(error_json(&format!(
+                    "Agent returned error: {}",
+                    response.get("error").and_then(|v| v.as_str()).unwrap_or("unknown")
+                )))
+            }
+        }
+        None => Ok(error_json("Agent not connected or did not respond")),
+    }
+}
+
+/// Get data for specific object from plugin on agent
+pub async fn get_plugin_object_data(
+    Path((agent_id, plugin_name, object_id)): Path<(String, String, String)>,
+    State(app_state): State<Arc<AppState>>,
+) -> Result<Json<Value>, StatusCode> {
+    // Send command to agent to get object data from plugin
+    let command = json!({
+        "type": "command",
+        "command": "get_object_data",
+        "params": {
+            "plugin": plugin_name,
+            "object_id": object_id
+        },
+        "agent_id": agent_id
+    });
+
+    match send_command_to_agent(&agent_id, &app_state, command).await {
+        Some(response) => {
+            if response.get("success").and_then(|v| v.as_bool()).unwrap_or(false) {
+                let data = response.get("data").cloned().unwrap_or(json!({}));
+                Ok(Json(data))
+            } else {
+                Ok(error_json(&format!(
+                    "Agent returned error: {}",
+                    response.get("error").and_then(|v| v.as_str()).unwrap_or("unknown")
+                )))
+            }
+        }
+        None => Ok(error_json("Agent not connected or did not respond")),
+    }
 }

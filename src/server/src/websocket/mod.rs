@@ -16,7 +16,7 @@ use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
 use uuid::Uuid;
 use chrono::Utc;
-use tracing::{info, error, debug};
+use tracing::{info, error, debug, warn};
 
 use crate::AppState;
 
@@ -270,4 +270,64 @@ async fn handle_socket(socket: WebSocket, app_state: Arc<AppState>) {
     }
     
     info!("WebSocket connection cleaned up for agent: {}", agent_id);
+}
+
+/// Send command to agent and wait for response
+/// Uses NATS broker if available, otherwise returns None
+pub async fn send_command_to_agent(
+    agent_id: &str,
+    app_state: &crate::AppState,
+    command: Value,
+) -> Option<Value> {
+    use tokio::time::{timeout, Duration};
+    
+    // Get broker client
+    let broker = match app_state.broker_client {
+        Some(ref b) => b,
+        None => {
+            error!("No NATS broker available to send command to agent {}", agent_id);
+            return None;
+        }
+    };
+    
+    // Subscribe to agent responses BEFORE sending command
+    let response_topic = format!("agent.{}.responses", agent_id);
+    let mut response_sub = match broker.client().subscribe(response_topic.clone()).await {
+        Ok(sub) => sub,
+        Err(e) => {
+            error!("Failed to subscribe to responses for agent {}: {}", agent_id, e);
+            return None;
+        }
+    };
+    
+    // Send command via NATS
+    let command_topic = format!("agent.{}.commands", agent_id);
+    let command_str = command.to_string();
+    
+    if let Err(e) = broker.client().publish(command_topic.clone(), command_str.into()).await {
+        error!("Failed to send command to agent {}: {}", agent_id, e);
+        return None;
+    }
+    
+    info!("Command sent to agent {} via NATS topic {}", agent_id, command_topic);
+    
+    // Wait for response (with timeout)
+    let wait_result = timeout(Duration::from_secs(10), async {
+        while let Some(msg) = response_sub.next().await {
+            if let Ok(payload) = std::str::from_utf8(&msg.payload) {
+                if let Ok(response) = serde_json::from_str::<Value>(payload) {
+                    return Some(response);
+                }
+            }
+        }
+        None
+    }).await;
+    
+    match wait_result {
+        Ok(response) => response,
+        Err(_) => {
+            warn!("Timeout waiting for response from agent {}", agent_id);
+            None
+        }
+    }
 }

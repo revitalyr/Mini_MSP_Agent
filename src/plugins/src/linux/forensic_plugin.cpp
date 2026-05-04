@@ -280,14 +280,13 @@ static bool CollectProcesses(std::vector<process_info_t>& processes) {
 }
 
 // Plugin interface implementations
-static plugin_info_t plugin_info = {
-    PLUGIN_NAME,
-    PLUGIN_VERSION,
-    PLUGIN_DESCRIPTION
-};
+// Plugin info buffer for string format
+static char plugin_info_buffer[256];
 
-static plugin_info_t* get_plugin_info_impl() {
-    return &plugin_info;
+static const char* get_plugin_info_impl() {
+    snprintf(plugin_info_buffer, sizeof(plugin_info_buffer), 
+             "%s:%s:%s", PLUGIN_NAME, PLUGIN_VERSION, PLUGIN_DESCRIPTION);
+    return plugin_info_buffer;
 }
 
 static bool init_impl() {
@@ -385,34 +384,33 @@ static void free_memory_impl(void* ptr) {
 
 // Forensic data implementation
 static forensic_data_t* get_forensic_data_impl() {
-    static std::vector<forensic_finding_t> cached_findings;
-    static forensic_data_t cached_data;
-    
-    cached_findings.clear();
+    std::vector<forensic_finding_t> findings;
     
     // Collect all forensic artifacts
-    CollectKernelModules(cached_findings);
-    CollectSystemdUnits(cached_findings);
-    CollectCrontab(cached_findings);
+    CollectKernelModules(findings);
+    CollectSystemdUnits(findings);
+    CollectCrontab(findings);
     
-    // Allocate and populate findings array
-    if (!cached_findings.empty()) {
-        size_t findings_size = sizeof(forensic_finding_t) * cached_findings.size();
-        cached_data.findings = (forensic_finding_t*)malloc(findings_size);
-        if (cached_data.findings) {
-            memcpy(cached_data.findings, cached_findings.data(), findings_size);
-            cached_data.count = cached_findings.size();
+    forensic_data_t* data = (forensic_data_t*)malloc(sizeof(forensic_data_t));
+    if (!data) return nullptr;
+
+    data->collection_time = static_cast<Timestamp>(time(nullptr));
+    
+    if (!findings.empty()) {
+        size_t findings_size = sizeof(forensic_finding_t) * findings.size();
+        data->findings = (forensic_finding_t*)malloc(findings_size);
+        if (data->findings) {
+            memcpy(data->findings, findings.data(), findings_size);
+            data->count = findings.size();
         } else {
-            cached_data.count = 0;
+            data->count = 0;
         }
     } else {
-        cached_data.findings = nullptr;
-        cached_data.count = 0;
+        data->findings = nullptr;
+        data->count = 0;
     }
     
-    cached_data.collection_time = static_cast<Timestamp>(time(nullptr));
-    
-    return &cached_data;
+    return data;
 }
 
 // Plugin interface
@@ -434,7 +432,8 @@ static plugin_interface_t plugin_interface = {
     nullptr,  // get_processing_results
     nullptr,  // get_video_frame
     get_forensic_data_impl,
-    free_memory_impl
+    free_memory_impl,
+    nullptr  // execute_json - not implemented yet
 };
 
 extern "C" {

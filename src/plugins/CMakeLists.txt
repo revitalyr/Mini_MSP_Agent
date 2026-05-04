@@ -54,16 +54,11 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     #  GCC flags for C++23
     add_compile_options(
         -std=c++23
-        -fmodules-ts
-        -fconcepts-ts
-        -fcoroutines-ts
+        -fcoroutines
         -Wall
         -Wextra
         -Wpedantic
-        -Werror
         -fno-rtti
-        -fanalyzer
-        -fno-exceptions
         -O3
         -march=native
     )

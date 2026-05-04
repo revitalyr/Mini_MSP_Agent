@@ -97,6 +97,8 @@ type GetProcessesFn = unsafe extern "C" fn(processes: *mut *mut ProcessInfo, cou
 type GetSystemInfoFn = unsafe extern "C" fn(info: *mut SystemInfo) -> bool;
 type GetForensicDataFn = unsafe extern "C" fn() -> *mut ForensicData;
 type FreeMemoryFn = unsafe extern "C" fn(ptr: *mut c_void);
+/// Execute JSON command - returns JSON string that server forwards directly to web
+type ExecuteJsonFn = unsafe extern "C" fn(json_request: *const c_char) -> *mut c_char;
 
 /// C plugin interface structure
 #[repr(C)]
@@ -120,6 +122,7 @@ pub struct PluginInterface {
     pub get_video_frame: *const c_void,  // Placeholder
     pub get_forensic_data: *const c_void,  // Get forensic findings
     pub free_memory: FreeMemoryFn,
+    pub execute_json: *const c_void,  // Direct JSON exchange - server forwards response as-is
 }
 
 impl PluginInterface {
@@ -216,6 +219,30 @@ impl PluginInterface {
         
         Ok(Some(data))
     }
+    
+    /// Execute JSON command and return JSON response
+    /// Server forwards this response directly to web without processing
+    pub unsafe fn execute_json(&self, json_request: &str) -> Result<Option<String>> {
+        if self.execute_json.is_null() {
+            return Ok(None); // Not implemented by plugin
+        }
+        
+        let fn_ptr: ExecuteJsonFn = std::mem::transmute(self.execute_json);
+        let c_request = std::ffi::CString::new(json_request)?;
+        let response_ptr = fn_ptr(c_request.as_ptr());
+        
+        if response_ptr.is_null() {
+            return Ok(None);
+        }
+        
+        // Convert C string to Rust String
+        let response = CStr::from_ptr(response_ptr).to_string_lossy().to_string();
+        
+        // Free memory allocated by plugin
+        (self.free_memory)(response_ptr as *mut c_void);
+        
+        Ok(Some(response))
+    }
 }
 
 /// Safe wrapper for plugin info
@@ -263,6 +290,13 @@ impl SafePluginInterface {
     /// Get forensic findings
     pub fn get_forensic_data(&self) -> Result<Option<ForensicData>> {
         unsafe { self.interface.get_forensic_data() }
+    }
+    
+    /// Execute JSON command - returns JSON string for direct forwarding to web
+    /// Request format: {"cmd":"get_forensic","format":"json","params":{}}
+    /// Response forwarded as-is without server processing
+    pub fn execute_json(&self, json_request: &str) -> Result<Option<String>> {
+        unsafe { self.interface.execute_json(json_request) }
     }
 }
 

@@ -50,12 +50,25 @@ struct CommandResult {
 
 // Plugin interface structure (simplified)
 struct PluginInterface {
-    const char* (*get_plugin_info)();
-    bool (*init)();
-    void (*cleanup)();
-    bool (*execute_custom_command)(const char* command, CommandResult* result);
-    bool (*get_custom_metrics)(CustomMetrics* metrics);
-    bool (*set_config)(const char* key, const char* value);
+    const char* (*get_plugin_info_ptr)();
+    bool (*init_ptr)();
+    void (*cleanup_ptr)();
+    void* get_system_metrics;
+    void* get_processes;
+    void* execute_command;
+    void* read_file;
+    void* get_system_info;
+    void* get_directory_info_data;
+    void* get_event_data;
+    void* get_watchers_data;
+    void* get_file_reader_data;
+    void* get_sensor_data;
+    void* get_camera_data;
+    void* get_processing_results;
+    void* get_video_frame;
+    void* get_forensic_data;
+    void (*free_memory)(void*);
+    char* (*execute_json)(const char*);
 };
 
 // Initialize plugin
@@ -145,15 +158,6 @@ static bool get_custom_metrics(CustomMetrics* metrics) {
     return true;
 }
 
-// Set configuration
-static bool set_config(const char* key, const char* value) {
-    // Placeholder for configuration storage
-    // In production, store in file or registry
-    (void)key;
-    (void)value;
-    return true;
-}
-
 // Exported functions
 extern "C" {
     PLUGIN_EXPORT const char* get_plugin_name() {
@@ -214,21 +218,94 @@ extern "C" {
         return true;
     }
     
+    /**
+     * Execute JSON command - direct JSON exchange with server
+     * Server forwards response to web without processing
+     * 
+     * Request format: {"cmd":"get_status","params":{}}
+     * Response format: {"status":"ok","data":{...}}
+     */
+    PLUGIN_EXPORT char* execute_json(const char* json_request) {
+        // Parse simple command from request (simplified - no full JSON parser)
+        const char* cmd = strstr(json_request, "\"cmd\"");
+        
+        // Allocate response buffer (caller must free via free_memory)
+        char* response = (char*)malloc(4096);
+        if (!response) return nullptr;
+        
+        if (cmd && strstr(cmd, "get_status")) {
+            // Return plugin status as JSON
+            snprintf(response, 4096,
+                "{"
+                "\"status\":\"ok\","
+                "\"source\":\"custom_plugin\","
+                "\"data\":{"
+                "\"initialized\":%s,"
+                "\"command_count\":%d,"
+                "\"last_command\":\"%s\","
+                "\"plugin_name\":\"%s\","
+                "\"plugin_version\":\"%s\""
+                "}"
+                "}",
+                plugin_state.initialized ? "true" : "false",
+                plugin_state.command_count,
+                plugin_state.last_command,
+                PLUGIN_NAME,
+                PLUGIN_VERSION
+            );
+        } else if (cmd && strstr(cmd, "get_metrics")) {
+            // Return metrics as JSON
+            CustomMetrics metrics;
+            get_custom_metrics(&metrics);
+            snprintf(response, 4096,
+                "{"
+                "\"status\":\"ok\","
+                "\"data\":{"
+                "\"commands_executed\":%d,"
+                "\"errors_encountered\":%d,"
+                "\"uptime_seconds\":%.0f,"
+                "\"status\":\"%s\""
+                "}"
+                "}",
+                metrics.commands_executed,
+                metrics.errors_encountered,
+                metrics.uptime_seconds,
+                metrics.status
+            );
+        } else {
+            // Unknown command
+            snprintf(response, 4096,
+                "{"
+                "\"status\":\"error\","
+                "\"error\":\"Unknown command\","
+                "\"supported_commands\":[\"get_status\",\"get_metrics\"]"
+                "}"
+            );
+        }
+        
+        return response;
+    }
+    
     // Full interface getter for advanced usage
     PLUGIN_EXPORT PluginInterface* get_custom_plugin_interface() {
         static PluginInterface iface;
         static bool initialized = false;
         
         if (!initialized) {
-            iface.get_plugin_info = get_plugin_info;
-            iface.init = custom_init;
-            iface.cleanup = custom_cleanup;
-            iface.execute_custom_command = execute_custom_command;
-            iface.get_custom_metrics = get_custom_metrics;
-            iface.set_config = set_config;
+            memset(&iface, 0, sizeof(iface));
+            iface.get_plugin_info_ptr = get_plugin_info;
+            iface.init_ptr = plugin_initialize;
+            iface.cleanup_ptr = plugin_cleanup;
+            iface.execute_json = execute_json;
+            iface.free_memory = [](void* ptr) { free(ptr); };
             initialized = true;
         }
         
         return &iface;
+    }
+    
+    // Standard interface getter required by agent
+    PLUGIN_EXPORT PluginInterface* get_plugin_interface() {
+        return get_custom_plugin_interface();
     }
 }

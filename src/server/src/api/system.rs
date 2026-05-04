@@ -156,6 +156,66 @@ pub async fn get_forensic_data(
     })))
 }
 
+/// Execute JSON command on plugin and forward response directly to web
+/// No server-side processing - plugin controls response format
+pub async fn execute_plugin_json(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<Value>,
+) -> Result<Json<Value>, StatusCode> {
+    let forensic = state.forensic_plugin.lock().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    if let Some(ref loader) = *forensic {
+        let interface = loader.interface();
+        
+        // Serialize request to JSON string
+        let json_request = match serde_json::to_string(&request) {
+            Ok(s) => s,
+            Err(e) => return Ok(Json(json!({
+                "status": "error",
+                "error": format!("Failed to serialize request: {}", e)
+            }))),
+        };
+        
+        match interface.execute_json(&json_request) {
+            Ok(Some(response_json)) => {
+                // Parse plugin response and return as-is (server just forwards)
+                match serde_json::from_str::<Value>(&response_json) {
+                    Ok(parsed) => {
+                        info!("Plugin JSON response forwarded (no server processing)");
+                        Ok(Json(parsed))
+                    }
+                    Err(_) => {
+                        // If not valid JSON, wrap as string
+                        Ok(Json(json!({
+                            "status": "ok",
+                            "raw_response": response_json
+                        })))
+                    }
+                }
+            }
+            Ok(None) => {
+                // Plugin doesn't implement execute_json, fall back to legacy
+                Ok(Json(json!({
+                    "status": "not_implemented",
+                    "message": "Plugin doesn't support direct JSON exchange"
+                })))
+            }
+            Err(e) => {
+                warn!("Plugin execute_json failed: {}", e);
+                Ok(Json(json!({
+                    "status": "error",
+                    "error": e.to_string()
+                })))
+            }
+        }
+    } else {
+        Ok(Json(json!({
+            "status": "not_loaded",
+            "message": "Forensic plugin is not loaded"
+        })))
+    }
+}
+
 struct OSInfo {
     platform: String,
     name: String,

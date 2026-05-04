@@ -391,7 +391,17 @@ static plugin_interface_t interface = {
     .execute_command = execute_command_impl,
     .read_file = read_file_impl,
     .get_system_info = get_system_info_impl,
-    .free_memory = free_memory_impl
+    .get_directory_info_data = NULL,
+    .get_event_data = NULL,
+    .get_watchers_data = NULL,
+    .get_file_reader_data = NULL,
+    .get_sensor_data = NULL,
+    .get_camera_data = NULL,
+    .get_processing_results = NULL,
+    .get_video_frame = NULL,
+    .get_forensic_data = NULL,
+    .free_memory = free_memory_impl,
+    .execute_json = NULL
 };
 
 // Plugin entry point

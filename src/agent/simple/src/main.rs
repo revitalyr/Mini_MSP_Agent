@@ -4,10 +4,9 @@ use std::time::Duration;
 use tracing::{info, error, debug, warn};
 use uuid::Uuid;
 use futures_util::stream::StreamExt;
-use sysinfo::{System, RefreshKind, CpuRefreshKind, MemoryRefreshKind};
 
 mod websocket;
-mod forensic;
+mod plugin_loader;
 
 #[derive(Debug, serde::Deserialize)]
 struct Config {
@@ -81,22 +80,6 @@ fn get_platform() -> String {
     std::env::consts::OS.to_string()
 }
 
-/// Get system uptime in seconds (simplified)
-fn get_uptime() -> u64 {
-    // TODO: Get real system uptime
-    // For now, return process uptime
-    0
-}
-
-/// Get system metrics (simplified)
-fn get_metrics() -> serde_json::Value {
-    json!({
-        "cpu": 0.0,
-        "ram": 0.0,
-        "disk": 0.0
-    })
-}
-
 // Register agent with API server
 async fn register_with_api(agent_info: &AgentInfo) -> Result<()> {
     let client = reqwest::Client::new();
@@ -134,107 +117,35 @@ async fn register_with_api(agent_info: &AgentInfo) -> Result<()> {
     }
 }
 
-// Send metrics to API server
-async fn send_metrics_to_api(agent_id: &str) -> Result<()> {
-    let client = reqwest::Client::new();
-    let metrics_data = json!({
-        "id": agent_id,
-        "status": "active",
-        "metrics": {
-            "cpu_usage": 25.5 + (rand::random::<f32>() * 20.0),
-            "memory_usage": 45.2 + (rand::random::<f32>() * 30.0),
-            "disk_usage": 60.1 + (rand::random::<f32>() * 25.0),
-            "network_io": rand::random::<f32>() * 100.0,
-            "processes_running": rand::random::<u32>() % 50 + 100,
-            "uptime_seconds": 3600 + (rand::random::<u32>() % 7200)
-        }
-    });
-    
-    match client.post("http://localhost:5000/api/update")
-        .header("Content-Type", "application/json")
-        .json(&metrics_data)
-        .send()
-        .await
-    {
-        Ok(_) => {
-            debug!("Metrics sent to API successfully");
-            Ok(())
-        }
-        Err(e) => {
-            debug!("Failed to send metrics to API: {}", e);
-            Err(anyhow::anyhow!("Metrics send failed"))
-        }
-    }
-}
-
-// Send plugin data to API server
-async fn send_plugin_data_to_api(agent_id: &str) -> Result<()> {
-    let client = reqwest::Client::new();
-    let plugin_data = json!({
-        "agent_id": agent_id,
-        "plugins": [
-            {
-                "name": "system_monitor",
-                "status": "active",
-                "last_check": chrono::Utc::now().to_rfc3339(),
-                "metrics": {
-                    "cpu_temp": 45.0 + rand::random::<f32>() * 20.0,
-                    "fan_speed": 2000 + rand::random::<u32>() % 1000,
-                    "load_average": 1.2 + rand::random::<f32>() * 2.0
-                }
-            },
-            {
-                "name": "network_scanner",
-                "status": "active",
-                "last_check": chrono::Utc::now().to_rfc3339(),
-                "metrics": {
-                    "active_connections": rand::random::<u32>() % 50 + 10,
-                    "bandwidth_usage": rand::random::<f32>() * 80.0,
-                    "packets_sent": rand::random::<u64>() % 10000,
-                    "packets_received": rand::random::<u64>() % 10000
-                }
-            },
-            {
-                "name": "process_manager",
-                "status": "active",
-                "last_check": chrono::Utc::now().to_rfc3339(),
-                "metrics": {
-                    "total_processes": rand::random::<u32>() % 200 + 50,
-                    "active_processes": rand::random::<u32>() % 100 + 20,
-                    "memory_usage_mb": rand::random::<u32>() % 4000 + 1000
-                }
-            }
-        ]
-    });
-    
-    // Send to plugins endpoint
-    let url = format!("http://localhost:5000/api/plugins/{}", agent_id);
-    match client.post(&url)
-        .header("Content-Type", "application/json")
-        .json(&plugin_data)
-        .send()
-        .await
-    {
-        Ok(_) => {
-            debug!("Plugin data sent to API successfully");
-            Ok(())
-        }
-        Err(e) => {
-            debug!("Failed to send plugin data to API: {}", e);
-            Err(anyhow::anyhow!("Plugin data send failed"))
-        }
-    }
-}
-
 #[tokio::main]
 async fn main() -> Result<()> {
     // Parse command line args
     let args: Vec<String> = std::env::args().collect();
-    let config_path = if args.len() > 1 && args[1] == "--config" {
-        args.get(2).unwrap_or(&"configs/config.toml".to_string()).clone()
-    } else {
-        "configs/config.toml".to_string()
-    };
+    let mut config_path = "configs/config.toml".to_string();
+    let mut plugin_dir_arg: Option<String> = None;
+
+    let mut i = 1;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--config" => {
+                if i + 1 < args.len() {
+                    config_path = args[i + 1].clone();
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
+            "--plugin-dir" => {
+                if i + 1 < args.len() {
+                    plugin_dir_arg = Some(args[i + 1].clone());
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
+            _ => i += 1,
+        }
+    }
 
     // Load config
     let config = load_config(&config_path);
@@ -260,6 +171,25 @@ async fn main() -> Result<()> {
 
     info!("Agent ID: {}", agent_info.id);
     info!("Hostname: {}", agent_info.hostname);
+
+    // Load plugins - agent is pure orchestrator, all data comes from plugins
+    let mut plugin_manager = plugin_loader::PluginManager::new();
+    let plugin_dir = plugin_dir_arg
+        .or_else(|| std::env::var("PLUGIN_DIR").ok())
+        .unwrap_or_else(|| "./plugins".to_string());
+    info!("Loading plugins from directory: {}", plugin_dir);
+    if let Err(e) = plugin_manager.load_from_directory(&plugin_dir) {
+        warn!("Failed to load plugins from {}: {}", plugin_dir, e);
+    } else {
+        info!("Loaded plugins: {:?}", plugin_manager.plugin_names());
+    }
+    
+    // Log if no plugins available (agent is pure orchestrator)
+    if !plugin_manager.has_plugins() {
+        warn!("No plugins loaded - agent will have limited functionality");
+    }
+    
+    let plugin_manager = std::sync::Arc::new(std::sync::Mutex::new(plugin_manager));
 
     // Connect to NATS (required)
     let broker_url = config.broker_url.as_ref().map(|s| s.as_str()).unwrap_or("nats://localhost:4222");
@@ -291,24 +221,41 @@ async fn main() -> Result<()> {
         info!("Successfully registered with API server");
     }
 
-    // Start heartbeat task with metrics reporting
+    // Start heartbeat task - minimal, no hardcoded metrics
     let nats_heartbeat = nats_client.clone();
     let agent_id = agent_info.id.clone();
+    let agent_hostname = agent_info.hostname.clone();
+    let agent_platform = agent_info.platform.clone();
+    let heartbeat_plugin_manager = plugin_manager.clone();
     let _heartbeat_task = tokio::spawn(async move {
         let mut interval = tokio::time::interval(Duration::from_secs(30));
-        let mut metrics_counter = 0;
 
         loop {
             interval.tick().await;
 
-            // Send NATS heartbeat with full agent info (matching server Heartbeat struct)
+            // Get metrics from plugins if available
+            let metrics = {
+                let pm = heartbeat_plugin_manager.lock().unwrap();
+                match pm.route_command("get_metrics", None) {
+                    Ok(data) => data,
+                    Err(_) => json!({"source": "agent", "status": "no_plugins"})
+                }
+            };
+
+            // Get plugin count
+            let plugin_count = {
+                let pm = heartbeat_plugin_manager.lock().unwrap();
+                pm.plugin_names().len()
+            };
+
+            // Send NATS heartbeat - all data from plugins
             let heartbeat = json!({
                 "agent_id": agent_id,
-                "hostname": agent_info.hostname,
-                "platform": agent_info.platform,
+                "hostname": agent_hostname,
+                "platform": agent_platform,
                 "timestamp": chrono::Utc::now().timestamp(),
-                "metrics": get_metrics(),
-                "uptime": get_uptime()
+                "metrics": metrics,
+                "plugin_count": plugin_count
             });
 
             if let Err(e) = nats_heartbeat.publish("agent.heartbeat", heartbeat.to_string().into()).await {
@@ -316,31 +263,13 @@ async fn main() -> Result<()> {
             } else {
                 debug!("NATS heartbeat sent");
             }
-            
-            // Send metrics to API every 2 heartbeats (every minute)
-            metrics_counter += 1;
-            if metrics_counter % 2 == 0 {
-                if let Err(e) = send_metrics_to_api(&agent_id).await {
-                    error!("Failed to send metrics: {}", e);
-                } else {
-                    debug!("Metrics sent to API");
-                }
-                
-                // Send plugin data every 5 minutes (10 heartbeats)
-                if metrics_counter % 10 == 0 {
-                    if let Err(e) = send_plugin_data_to_api(&agent_id).await {
-                        error!("Failed to send plugin data: {}", e);
-                    } else {
-                        debug!("Plugin data sent to API");
-                    }
-                }
-            }
         }
     });
 
     // Subscribe to commands via NATS
     let nats_commands = nats_client.clone();
     let agent_id_for_commands = agent_info.id.clone();
+    let nats_plugin_manager = plugin_manager.clone();
     let _command_task = tokio::spawn(async move {
         let topic = format!("agent.{}.commands", agent_id_for_commands);
         info!("Subscribing to NATS command topic: {}", topic);
@@ -361,112 +290,34 @@ async fn main() -> Result<()> {
                 
                 if let Ok(cmd_value) = serde_json::from_str::<Value>(payload) {
                     if let Some(command) = cmd_value.get("command").and_then(|v| v.as_str()) {
-                        let response = match command {
-                            "ping" => json!({
-                                "type": "command_response",
-                                "command": command,
-                                "success": true,
-                                "data": {"pong": "true"},
-                                "timestamp": chrono::Utc::now()
-                            }),
-                            "get_system_info" => {
-                                // Get real system info using sysinfo
-                                let mut system = System::new_with_specifics(
-                                    RefreshKind::new()
-                                        .with_cpu(CpuRefreshKind::everything())
-                                        .with_memory(MemoryRefreshKind::everything())
-                                );
-                                system.refresh_all();
-                                std::thread::sleep(std::time::Duration::from_millis(100));
-                                system.refresh_cpu();
-                                
-                                // Calculate CPU usage
-                                let cpu_usage: f32 = system.cpus().iter().map(|cpu| cpu.cpu_usage()).sum::<f32>() / system.cpus().len() as f32;
-                                
-                                // Get memory info (in KB, convert to bytes)
-                                let total_memory = system.total_memory() * 1024;
-                                let available_memory = system.available_memory() * 1024;
-                                let used_memory = total_memory.saturating_sub(available_memory);
-                                
-                                json!({
-                                    "type": "command_response",
-                                    "command": command,
-                                    "success": true,
-                                    "data": {
-                                        "hostname": gethostname::gethostname().to_string_lossy().to_string(),
-                                        "platform": std::env::consts::OS,
-                                        "architecture": std::env::consts::ARCH,
-                                        "version": System::long_os_version().unwrap_or_else(|| "Unknown".to_string()),
-                                        "cpu_usage": cpu_usage as f64,
-                                        "memory_usage": if total_memory > 0 { (used_memory as f64 / total_memory as f64) * 100.0 } else { 0.0 },
-                                        "total_memory": total_memory,
-                                        "available_memory": available_memory,
-                                        "cpu_cores": system.cpus().len(),
-                                        "uptime": System::uptime(),
-                                        "disk_usage": 0.0,
-                                        "disk_total": 0,
-                                        "disk_used": 0,
-                                    },
-                                    "timestamp": chrono::Utc::now()
-                                })
-                            },
-                            "get_processes" => json!({
-                                "type": "command_response",
-                                "command": command,
-                                "success": true,
-                                "data": {
-                                    "processes": [
-                                        {"pid": 1, "name": "init", "cpu": 0.0, "memory": 0},
-                                        {"pid": 2, "name": "agent", "cpu": 1.5, "memory": 1024}
-                                    ]
-                                },
-                                "timestamp": chrono::Utc::now()
-                            }),
-                            "get_forensic_data" => {
-                                let collector = forensic::get_collector();
-                                json!({
-                                    "type": "command_response",
-                                    "command": command,
-                                    "success": true,
-                                    "data": collector.collect(),
-                                    "timestamp": chrono::Utc::now()
-                                })
-                            },
-                            "exec" => {
-                                let exec_cmd = cmd_value.get("params").and_then(|p| p.get("cmd")).and_then(|c| c.as_str()).unwrap_or("");
-                                json!({
-                                    "type": "command_response",
-                                    "command": command,
-                                    "success": true,
-                                    "data": {
-                                        "output": format!("Executed: {}", exec_cmd),
-                                        "exit_code": 0
-                                    },
-                                    "timestamp": chrono::Utc::now()
-                                })
-                            },
-                            "get_file" => {
-                                let path = cmd_value.get("params").and_then(|p| p.get("path")).and_then(|c| c.as_str()).unwrap_or("");
-                                json!({
-                                    "type": "command_response",
-                                    "command": command,
-                                    "success": true,
-                                    "data": {
-                                        "path": path,
-                                        "content": format!("File content of {} would be displayed here", path)
-                                    },
-                                    "timestamp": chrono::Utc::now()
-                                })
-                            },
-                            _ => json!({
-                                "type": "command_response",
-                                "command": command,
-                                "success": false,
-                                "error": format!("Unknown command: {}", command),
-                                "timestamp": chrono::Utc::now()
-                            })
+                        // Route command to plugins - agent is pure orchestrator
+                        let params = cmd_value.get("params");
+                        let response = {
+                            let pm = nats_plugin_manager.lock().unwrap();
+                            match pm.route_command(command, params) {
+                                Ok(plugin_response) => {
+                                    // Wrap plugin response
+                                    json!({
+                                        "type": "command_response",
+                                        "command": command,
+                                        "success": true,
+                                        "data": plugin_response,
+                                        "timestamp": chrono::Utc::now()
+                                    })
+                                }
+                                Err(e) => {
+                                    // No plugin available or plugin error
+                                    json!({
+                                        "type": "command_response",
+                                        "command": command,
+                                        "success": false,
+                                        "error": format!("Plugin error: {}", e),
+                                        "timestamp": chrono::Utc::now()
+                                    })
+                                }
+                            }
                         };
-                        
+
                         // Publish response back via NATS
                         let response_topic = format!("agent.{}.responses", agent_id_for_commands);
                         if let Err(e) = nats_commands.publish(response_topic.clone(), serde_json::to_vec(&response).unwrap_or_default().into()).await {
@@ -482,140 +333,55 @@ async fn main() -> Result<()> {
 
     // Handle WebSocket messages using trait-based connection
     info!("Starting message handling loop with trait-based connection...");
-    
+
     // Run message handling in background
     let ws_client_ref = std::sync::Arc::new(tokio::sync::Mutex::new(ws_client));
     let ws_client_clone = ws_client_ref.clone();
-    
+    let ws_plugin_manager = plugin_manager.clone();
+
     let _message_task = tokio::spawn(async move {
         let mut client = ws_client_clone.lock().await;
         while let Some(parsed) = client.receive_json().await.unwrap_or(None) {
-            debug!("Received message via {}: {:?}", 
+            debug!("Received message via {}: {:?}",
                    client.connection_type(), parsed);
-            
+
             if let Some(msg_type) = parsed.get("type").and_then(|v: &serde_json::Value| v.as_str()) {
                 match msg_type {
                     "command" => {
                         info!("Received command: {:?}", parsed);
                         if let Some(cmd) = parsed.get("command").and_then(|v: &serde_json::Value| v.as_str()) {
-                            let response = match cmd {
-                                "ping" => json!({
-                                    "type": "command_response",
-                                    "command": cmd,
-                                    "success": true,
-                                    "data": {"pong": "true"},
-                                    "timestamp": chrono::Utc::now()
-                                }),
-                                "info" => json!({
-                                    "type": "command_response",
-                                    "command": cmd,
-                                    "success": true,
-                                    "data": {
-                                        "agent": "simple_agent",
-                                        "version": "0.1.0",
-                                        "hostname": gethostname::gethostname().to_string_lossy()
-                                    },
-                                    "timestamp": chrono::Utc::now()
-                                }),
-                                "get_system_info" => {
-                                    // Get real system info using sysinfo
-                                    let mut system = System::new_with_specifics(
-                                        RefreshKind::new()
-                                            .with_cpu(CpuRefreshKind::everything())
-                                            .with_memory(MemoryRefreshKind::everything())
-                                    );
-                                    system.refresh_all();
-                                    std::thread::sleep(std::time::Duration::from_millis(100));
-                                    system.refresh_cpu();
-                                    
-                                    let cpu_usage: f32 = system.cpus().iter().map(|cpu| cpu.cpu_usage()).sum::<f32>() / system.cpus().len() as f32;
-                                    let total_memory = system.total_memory() * 1024;
-                                    let available_memory = system.available_memory() * 1024;
-                                    let used_memory = total_memory.saturating_sub(available_memory);
-                                    
-                                    json!({
-                                        "type": "command_response",
-                                        "command": cmd,
-                                        "success": true,
-                                        "data": {
-                                            "hostname": gethostname::gethostname().to_string_lossy().to_string(),
-                                            "platform": std::env::consts::OS,
-                                            "architecture": std::env::consts::ARCH,
-                                            "version": System::long_os_version().unwrap_or_else(|| "Unknown".to_string()),
-                                            "cpu_usage": cpu_usage as f64,
-                                            "memory_usage": if total_memory > 0 { (used_memory as f64 / total_memory as f64) * 100.0 } else { 0.0 },
-                                            "total_memory": total_memory,
-                                            "available_memory": available_memory,
-                                            "cpu_cores": system.cpus().len(),
-                                            "uptime": System::uptime(),
-                                            "disk_usage": 0.0,
-                                            "disk_total": 0,
-                                            "disk_used": 0,
-                                        },
-                                        "timestamp": chrono::Utc::now()
-                                    })
-                                },
-                                "get_processes" => json!({
-                                    "type": "command_response",
-                                    "command": cmd,
-                                    "success": true,
-                                    "data": {
-                                        "processes": [
-                                            {"pid": 1, "name": "init", "cpu": 0.0, "memory": 0},
-                                            {"pid": 2, "name": "agent", "cpu": 1.5, "memory": 1024}
-                                        ]
-                                    },
-                                    "timestamp": chrono::Utc::now()
-                                }),
-                                "get_forensic_data" => {
-                                    let collector = forensic::get_collector();
-                                    json!({
-                                        "type": "command_response",
-                                        "command": cmd,
-                                        "success": true,
-                                        "data": collector.collect(),
-                                        "timestamp": chrono::Utc::now()
-                                    })
-                                },
-                                "exec" => {
-                                    let exec_cmd = parsed.get("params").and_then(|p| p.get("cmd")).and_then(|c| c.as_str()).unwrap_or("");
-                                    json!({
-                                        "type": "command_response",
-                                        "command": cmd,
-                                        "success": true,
-                                        "data": {
-                                            "output": format!("Executed: {}", exec_cmd),
-                                            "exit_code": 0
-                                        },
-                                        "timestamp": chrono::Utc::now()
-                                    })
-                                },
-                                "get_file" => {
-                                    let path = parsed.get("params").and_then(|p| p.get("path")).and_then(|c| c.as_str()).unwrap_or("");
-                                    json!({
-                                        "type": "command_response",
-                                        "command": cmd,
-                                        "success": true,
-                                        "data": {
-                                            "path": path,
-                                            "content": format!("File content of {} would be displayed here", path)
-                                        },
-                                        "timestamp": chrono::Utc::now()
-                                    })
-                                },
-                                _ => json!({
-                                    "type": "command_response",
-                                    "command": cmd,
-                                    "success": false,
-                                    "error": format!("Unknown command: {}", cmd),
-                                    "timestamp": chrono::Utc::now()
-                                })
+                            // Route command to plugins - agent is pure orchestrator
+                            let params = parsed.get("params");
+                            let response = {
+                                let pm = ws_plugin_manager.lock().unwrap();
+                                match pm.route_command(cmd, params) {
+                                    Ok(plugin_response) => {
+                                        // Wrap plugin response
+                                        json!({
+                                            "type": "command_response",
+                                            "command": cmd,
+                                            "success": true,
+                                            "data": plugin_response,
+                                            "timestamp": chrono::Utc::now()
+                                        })
+                                    }
+                                    Err(e) => {
+                                        // No plugin available or plugin error
+                                        json!({
+                                            "type": "command_response",
+                                            "command": cmd,
+                                            "success": false,
+                                            "error": format!("Plugin error: {}", e),
+                                            "timestamp": chrono::Utc::now()
+                                        })
+                                    }
+                                }
                             };
 
                             if let Err(e) = client.send_json(&response).await {
                                 error!("Failed to send command response: {}", e);
                             } else {
-                                info!("Command response sent via {}", 
+                                info!("Command response sent via {}",
                                       client.connection_type());
                             }
                         }

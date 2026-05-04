@@ -56,10 +56,21 @@ extern "C" {
         init_impl,
         cleanup_impl,
         nullptr,  // get_system_metrics
-        nullptr,  // handle_command
-        nullptr,  // get_file_info
-        nullptr,  // watch_directory
-        nullptr   // get_directory_info
+        nullptr,  // get_processes
+        nullptr,  // execute_command
+        nullptr,  // read_file
+        nullptr,  // get_system_info
+        nullptr,  // get_directory_info_data
+        nullptr,  // get_event_data
+        nullptr,  // get_watchers_data
+        nullptr,  // get_file_reader_data
+        nullptr,  // get_sensor_data
+        nullptr,  // get_camera_data
+        nullptr,  // get_processing_results
+        nullptr,  // get_video_frame
+        nullptr,  // get_forensic_data
+        nullptr,  // free_memory
+        nullptr   // execute_json
     };
     
     EXPORT plugin_interface_t* get_plugin_interface() {

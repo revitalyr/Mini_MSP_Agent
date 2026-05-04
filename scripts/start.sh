@@ -163,7 +163,7 @@ fi
 
 # Запуск агента
 echo "🤖 Запуск агента с конфигурацией: $AGENT_CONFIG"
-"$AGENT_PATH" --config "$AGENT_CONFIG" --plugin-dir agent/plugins &
+"$AGENT_PATH" --config "$AGENT_CONFIG" --plugin-dir src/agent/plugins &
 AGENT_PID=$!
 
 echo "✅ Сервер и агент запущены!"

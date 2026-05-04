@@ -371,10 +371,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .route("/agents/simple", get(simple_handlers::list_agents))
         .route("/agents/:id/command", post(api::agents::send_command))
         .route("/agents/:id/command/simple", post(simple_handlers::send_command))
+        .route("/agents/:id/plugin/:plugin/objects", get(api::agents::get_plugin_objects))
+        .route("/agents/:id/plugin/:plugin/object/:object_id", get(api::agents::get_plugin_object_data))
         .route("/heartbeat", post(simple_handlers::handle_heartbeat))
         .route("/system-info", get(api::system::get_system_info))
         .route("/forensic/metrics", get(api::system::get_forensic_metrics))
         .route("/forensic/data", get(api::system::get_forensic_data))
+        .route("/plugin/execute-json", post(api::system::execute_plugin_json))
         
         // WebSocket
         .route("/ws", get(websocket::handle_websocket))

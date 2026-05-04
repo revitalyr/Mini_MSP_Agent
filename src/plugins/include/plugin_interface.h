@@ -200,7 +200,7 @@ typedef struct {
 } forensic_data_t;
 
 // Plugin function types
-typedef plugin_info_t* (PLUGIN_CALL *get_plugin_info_fn_t)(void);
+typedef const char* (PLUGIN_CALL *get_plugin_info_fn_t)(void);
 typedef bool (PLUGIN_CALL *plugin_init_fn_t)(void);
 typedef void (PLUGIN_CALL *plugin_cleanup_fn_t)(void);
 typedef bool (PLUGIN_CALL *get_system_metrics_fn_t)(system_metrics_t* metrics);
@@ -218,6 +218,21 @@ typedef processing_results_t* (PLUGIN_CALL *get_processing_results_fn_t)(void);
 typedef video_frame_t* (PLUGIN_CALL *get_video_frame_fn_t)(void);
 typedef void (PLUGIN_CALL *free_memory_fn_t)(void* ptr);
 typedef forensic_data_t* (PLUGIN_CALL *get_forensic_data_fn_t)(void);
+
+/**
+ * @brief Execute command with JSON request/response
+ *
+ * Allows direct JSON communication between server and plugin.
+ * Plugin receives JSON request and returns JSON response as string.
+ * Server will forward response directly to web without processing.
+ *
+ * @param json_request - JSON string with command and parameters
+ * @return JSON response string (must be freed by caller via free_memory)
+ *
+ * Example request: {"cmd":"get_forensic","format":"json","params":{}}
+ * Example response: {"status":"ok","data":{"findings":[]}}
+ */
+typedef char* (PLUGIN_CALL *execute_json_fn_t)(const char* json_request);
 
 // Plugin interface structure
 typedef struct {
@@ -239,6 +254,7 @@ typedef struct {
     get_video_frame_fn_t get_video_frame;
     get_forensic_data_fn_t get_forensic_data;
     free_memory_fn_t free_memory;
+    execute_json_fn_t execute_json;  // Direct JSON exchange - server forwards response as-is
 } plugin_interface_t;
 
 // Plugin entry point

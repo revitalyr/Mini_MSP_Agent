@@ -510,7 +510,8 @@ static plugin_interface_t plugin_interface = {
     nullptr,  // get_processing_results
     nullptr,  // get_video_frame
     get_forensic_data_impl,
-    free_memory_impl
+    free_memory_impl,
+    nullptr  // execute_json - not implemented yet
 };
 
 extern "C" {
