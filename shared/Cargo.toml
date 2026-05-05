@@ -3,14 +3,6 @@ name = "mini_msp_shared"
 version = "0.1.0"
 edition = "2021"
 
-[[bin]]
-name = "system_info_app"
-path = "../system_info_app.rs"
-
-[[bin]]
-name = "forensic_app"
-path = "../forensic_app.rs"
-
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
