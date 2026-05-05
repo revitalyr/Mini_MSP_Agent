@@ -6,8 +6,7 @@
 //! All types use semantic aliases from the semantic_types module
 //! for domain-driven design and FFI safety.
 
-use std::ffi::{c_char, c_ulonglong, c_void, CStr};
-use std::os::raw::c_int;
+use std::ffi::{c_char, c_void, CStr};
 use std::mem::MaybeUninit;
 use anyhow::{anyhow, Result};
 

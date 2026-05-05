@@ -10,7 +10,7 @@ use libloading::{Library, Symbol};
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
-use crate::semantic_types::{CallCount, ErrorCount, Uptime, FilePath, Status};
+use crate::semantic_types::{CallCount, ErrorCount, Uptime};
 
 /// Custom command request from client
 #[derive(Debug, Deserialize)]

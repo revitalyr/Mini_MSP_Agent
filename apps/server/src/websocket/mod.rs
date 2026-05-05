@@ -19,7 +19,6 @@ use chrono::Utc;
 use tracing::{info, error, debug, warn};
 
 use crate::AppState;
-use crate::semantic_types::{ErrorCode, Timestamp};
 
 /// Broadcast channel capacity for agent responses
 const BROADCAST_CHANNEL_CAPACITY: usize = 100;
