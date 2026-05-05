@@ -412,7 +412,7 @@ async fn main() -> Result<()> {
     loop {
         tokio::select! {
             _ = tokio::time::sleep(Duration::from_secs(10)) => {
-                let is_connected = ws_client_ref.lock().await.is_connected();
+                let is_connected = ws_client_ref.lock().await.is_connected().await;
                 if is_connected {
                     info!("Agent heartbeat - still running via {}", 
                           ws_client_ref.lock().await.connection_type());

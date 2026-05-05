@@ -21,9 +21,31 @@ pub struct ConnectResult {
     pub msg_rx: mpsc::Receiver<WsMessage>,
 }
 
+/// Message receiver for WebSocket
+pub struct WsReceiver {
+    rx: mpsc::Receiver<WsMessage>,
+}
+
+impl WsReceiver {
+    pub async fn receive(&mut self) -> Result<Option<WsMessage>> {
+        Ok(self.rx.recv().await)
+    }
+
+    pub async fn receive_json(&mut self) -> Result<Option<Value>> {
+        match self.rx.recv().await {
+            Some(msg) => {
+                let parsed: Value = serde_json::from_str(&msg.content)?;
+                Ok(Some(parsed))
+            }
+            None => Ok(None),
+        }
+    }
+}
+
 /// Real WebSocket client
 pub struct WebSocketClient {
     sender: mpsc::Sender<String>,
+    msg_rx: mpsc::Receiver<WsMessage>,
     connected: Arc<Mutex<bool>>,
 }
 
@@ -79,10 +101,11 @@ impl WebSocketClient {
 
         let client = WebSocketClient {
             sender: tx,
+            msg_rx,
             connected,
         };
 
-        Ok(ConnectResult { client, msg_rx })
+        Ok(ConnectResult { client, msg_rx: mpsc::channel(1).1 })  // dummy receiver, using client's instead
     }
 
     /// Send a message
@@ -102,5 +125,37 @@ impl WebSocketClient {
     /// Check if connection is still active
     pub async fn is_connected(&self) -> bool {
         *self.connected.lock().await
+    }
+
+    /// Get connection type
+    pub fn connection_type(&self) -> &'static str {
+        "WebSocket"
+    }
+
+    /// Receive a message
+    pub async fn receive(&mut self) -> Result<Option<WsMessage>> {
+        match self.msg_rx.recv().await {
+            Some(msg) => Ok(Some(msg)),
+            None => Ok(None),
+        }
+    }
+
+    /// Receive and parse JSON message
+    pub async fn receive_json(&mut self) -> Result<Option<Value>> {
+        match self.msg_rx.recv().await {
+            Some(msg) => {
+                let parsed: Value = serde_json::from_str(&msg.content)?;
+                Ok(Some(parsed))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Close the connection
+    pub async fn close(&mut self) -> Result<()> {
+        let mut conn = self.connected.lock().await;
+        *conn = false;
+        info!("WebSocket connection closed");
+        Ok(())
     }
 }
