@@ -7,6 +7,7 @@ mod api;
 mod websocket;
 mod config;
 mod broker;
+mod semantic_types;
 mod ffi;
 mod plugin_loader;
 mod custom_plugin;

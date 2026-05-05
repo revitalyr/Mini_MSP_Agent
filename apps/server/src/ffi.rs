@@ -1,61 +1,51 @@
-//! Foreign Function Interface for C++ plugins
+//! Foreign Function Interface for C++ Plugins
 //!
-//! Defines the Rust-side types and interfaces for interacting with
+//! Defines Rust-side types and interfaces for interacting with
 //! platform-specific C++ forensic plugins.
+//!
+//! All types use semantic aliases from the semantic_types module
+//! for domain-driven design and FFI safety.
 
 use std::ffi::{c_char, c_ulonglong, c_void, CStr};
-#[allow(unused_imports)]
 use std::os::raw::c_int;
 use std::mem::MaybeUninit;
 use anyhow::{anyhow, Result};
 
-/// Maximum sizes matching plugin_interface.h
-/// These constants are used by C++ plugins via FFI.
-/// Some are unused in Rust code but kept for API compatibility.
-pub const MAX_HOSTNAME_LEN: usize = 256;
-pub const MAX_OS_TYPE_LEN: usize = 64;
-pub const MAX_OS_VERSION_LEN: usize = 128;
-#[allow(dead_code)]
-pub const MAX_COMMAND_LEN: usize = 1024;
-#[allow(dead_code)]
-pub const MAX_PATH_LEN: usize = 4096;
-//pub const MAX_NAME_LEN: usize = 128;
-//pub const MAX_VERSION_LEN: usize = 64;
-//pub const MAX_DESCRIPTION_LEN: usize = 512;
+// Import semantic types for consistent FFI boundaries
+pub use crate::semantic_types::*;
 
-
-/// Process information structure
+/// Process information structure (FFI-compatible with C)
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct ProcessInfo {
-    pub pid: u32,
-    pub _reserved1: u32, // Padding
+    pub pid: ProcessId,
+    pub _reserved1: u32, // Padding to 8-byte boundary
     pub name: [c_char; MAX_HOSTNAME_LEN],
-    pub cpu_usage: f32,
+    pub cpu_usage: CpuUsage,
     pub _reserved2: u32, // Padding after f32
-    pub memory_usage: c_ulonglong,
-    pub start_time: c_ulonglong,
+    pub memory_usage: MemorySize,
+    pub start_time: Timestamp,
 }
 
-/// System metrics structure
+/// System metrics structure (FFI-compatible with C)
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct SystemMetrics {
-    pub uptime: c_ulonglong,
-    pub cpu_usage: f32,
-    pub ram_usage: f32,
-    pub disk_usage: f32,
+    pub uptime: Uptime,
+    pub cpu_usage: CpuUsage,
+    pub ram_usage: RamUsage,
+    pub disk_usage: DiskUsage,
     pub _reserved: u32, // Padding to 8-byte boundary
     pub hostname: [c_char; MAX_HOSTNAME_LEN],
 }
 
-/// System information structure
+/// System information structure (FFI-compatible with C)
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct SystemInfo {
-    pub uptime: c_ulonglong,
-    pub total_memory: c_ulonglong,
-    pub available_memory: c_ulonglong,
+    pub uptime: Uptime,
+    pub total_memory: MemorySize,
+    pub available_memory: MemorySize,
     pub os_type: [c_char; MAX_OS_TYPE_LEN],
     pub os_version: [c_char; MAX_OS_VERSION_LEN],
     pub hostname: [c_char; MAX_HOSTNAME_LEN],
@@ -63,25 +53,25 @@ pub struct SystemInfo {
     pub _reserved: u32, // Padding for 8-byte alignment
 }
 
-/// Forensic finding structure
+/// Forensic finding structure (FFI-compatible with C)
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct ForensicFinding {
-    pub category: [c_char; 64],
-    pub artifact_type: [c_char; 64],
-    pub path: [c_char; 512],
-    pub value: [c_char; 512],
+    pub category: [c_char; MAX_CATEGORY_LEN],
+    pub artifact_type: [c_char; MAX_ARTIFACT_TYPE_LEN],
+    pub path: [c_char; MAX_PATH_LEN],
+    pub value: [c_char; MAX_PATH_LEN],
     pub suspicious: u32, // Using uint32_t for stable FFI size (was bool)
-    pub details: [c_char; 1024],
+    pub details: [c_char; MAX_DETAILS_LEN],
 }
 
-/// Forensic data structure
+/// Forensic data structure (FFI-compatible with C)
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct ForensicData {
     pub findings: *mut ForensicFinding,
-    pub count: usize,
-    pub collection_time: c_ulonglong,
+    pub count: ObjectCount,
+    pub collection_time: Timestamp,
 }
 
 /// Plugin information structure
