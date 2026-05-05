@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use crate::AppState;
 use mini_msp_shared::AgentInfo;
-use crate::semantic_types::{Timestamp, Duration, format_timestamp};
+use crate::semantic_types::{Timestamp, format_timestamp};
 
 /// Simple health check with semantic timestamp
 pub async fn health_check() -> Json<serde_json::Value> {

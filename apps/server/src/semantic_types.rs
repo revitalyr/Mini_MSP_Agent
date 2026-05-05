@@ -6,6 +6,7 @@
 //!
 //! These types mirror the C type_aliases.h header for consistent FFI boundaries.
 
+#![allow(unused_types)]
 use std::ffi::{c_char, c_ulonglong, c_void, CStr};
 
 // =============================================================================

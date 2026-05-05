@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 
 use crate::{AppState, websocket::send_command_to_agent};
-use crate::semantic_types::{Duration, Timestamp, DEFAULT_HEARTBEAT_SEC};
+use crate::semantic_types::{Duration, Timestamp};
 
 /// Error response helper
 fn error_json(message: &str) -> Json<Value> {
