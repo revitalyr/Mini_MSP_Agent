@@ -1,6 +1,6 @@
-//! System information endpoints
+//! System Information Endpoints
 //! 
-//! Предоставление информации о системе
+//! Provides system information and forensic metrics from plugins.
 
 use axum::{response::Json, http::StatusCode, extract::State};
 use serde_json::{json, Value};
@@ -8,6 +8,7 @@ use std::process::Command;
 use std::sync::Arc;
 use crate::AppState;
 use tracing::{info, warn};
+use crate::semantic_types::{Timestamp, format_timestamp};
 
 /// Get forensic metrics from C++ plugin
 pub async fn get_forensic_metrics(
@@ -29,6 +30,11 @@ pub async fn get_forensic_metrics(
                         .to_string()
                 };
                 
+                let timestamp: Timestamp = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis() as Timestamp;
+                
                 return Ok(Json(json!({
                     "source": "forensic_plugin",
                     "plugin_name": loader.name(),
@@ -39,10 +45,8 @@ pub async fn get_forensic_metrics(
                         "cpu_usage": metrics.cpu_usage,
                         "uptime": metrics.uptime
                     },
-                    "timestamp": std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs()
+                    "timestamp": timestamp,
+                    "timestamp_formatted": format_timestamp(timestamp)
                 })));
             }
             Err(e) => {

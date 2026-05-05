@@ -10,6 +10,8 @@ use libloading::{Library, Symbol};
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
+use crate::semantic_types::{CallCount, ErrorCount, Uptime, FilePath, Status};
+
 /// Custom command request from client
 #[derive(Debug, Deserialize)]
 pub struct CustomCommandRequest {
@@ -24,15 +26,15 @@ pub struct CustomCommandResponse {
     pub success: bool,
     pub output: String,
     pub error: Option<String>,
-    pub execution_time_ms: u64,
+    pub execution_time_ms: Uptime,
 }
 
 /// Custom metrics from plugin
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CustomMetrics {
-    pub commands_executed: i32,
-    pub errors_encountered: i32,
-    pub uptime_seconds: f64,
+    pub commands_executed: CallCount,
+    pub errors_encountered: ErrorCount,
+    pub uptime_seconds: Uptime,
     pub status: String,
 }
 

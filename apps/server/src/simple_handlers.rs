@@ -1,6 +1,6 @@
-//! Simple handlers for Mini MSP Server
+//! Simple Handlers for Mini MSP Server
 //! 
-//! Optimized for fast compilation
+//! Optimized for fast compilation with semantic type safety.
 
 use axum::{
     extract::State,
@@ -12,15 +12,19 @@ use std::sync::Arc;
 
 use crate::AppState;
 use mini_msp_shared::AgentInfo;
+use crate::semantic_types::{Timestamp, Duration, format_timestamp};
 
-// Simple health check
+/// Simple health check with semantic timestamp
 pub async fn health_check() -> Json<serde_json::Value> {
+    let timestamp: Timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as Timestamp;
+    
     Json(json!({
         "status": "ok",
-        "timestamp": std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs()
+        "timestamp": timestamp,
+        "timestamp_formatted": format_timestamp(timestamp)
     }))
 }
 
@@ -75,7 +79,7 @@ pub async fn handle_heartbeat(
             hostname: hostname.to_string(),
             version: version.to_string(),
             platform: platform.to_string(),
-            last_seen: chrono::Utc::now().timestamp() as u64,
+            last_seen: chrono::Utc::now().timestamp() as Timestamp,
         };
         agents.insert(agent_id.to_string(), agent);
     }

@@ -1,12 +1,13 @@
-//! Agent management endpoints
+//! Agent Management Endpoints
 //! 
-//! Управление подключенными агентами
+//! Manages connected agents and their status.
 
 use axum::{extract::{State, Path}, response::Json, http::StatusCode};
 use serde_json::{json, Value};
 use std::sync::Arc;
 
 use crate::{AppState, websocket::send_command_to_agent};
+use crate::semantic_types::{Duration, Timestamp, DEFAULT_HEARTBEAT_SEC};
 
 /// Error response helper
 fn error_json(message: &str) -> Json<Value> {
@@ -16,13 +17,13 @@ fn error_json(message: &str) -> Json<Value> {
     }))
 }
 
-/// Timeout in seconds to consider agent offline (2 minutes)
-const AGENT_TIMEOUT_SECS: i64 = 120;
+/// Timeout duration to consider agent offline (2 minutes)
+const AGENT_TIMEOUT_SECS: Duration = 120;
 
 /// Calculate agent status based on last_seen timestamp
-fn calculate_status(last_seen: u64) -> &'static str {
-    let now = chrono::Utc::now().timestamp() as u64;
-    if (now - last_seen) < AGENT_TIMEOUT_SECS as u64 {
+fn calculate_status(last_seen: Timestamp) -> &'static str {
+    let now = chrono::Utc::now().timestamp() as Timestamp;
+    if (now - last_seen) < AGENT_TIMEOUT_SECS {
         "online"
     } else {
         "offline"
@@ -32,12 +33,12 @@ fn calculate_status(last_seen: u64) -> &'static str {
 /// List all connected agents with online/offline status
 pub async fn list_agents(State(app_state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let agents = app_state.agents.lock().unwrap();
-    let now = chrono::Utc::now().timestamp() as u64;
+    let now: Timestamp = chrono::Utc::now().timestamp() as Timestamp;
     
     let agents_list: Vec<_> = agents.iter()
         .map(|(id, info)| {
             let status = calculate_status(info.last_seen);
-            let seconds_ago = now - info.last_seen;
+            let seconds_ago: Duration = now - info.last_seen;
             json!({
                 "id": id,
                 "hostname": info.hostname,

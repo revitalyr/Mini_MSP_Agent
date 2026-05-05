@@ -1,6 +1,10 @@
-﻿// server/src/browse.rs
+﻿//! Directory and File Browser
+//!
+//! Provides native file dialog functionality for selecting directories and files.
+
 use axum::response::Json;
 use serde_json::{json, Value};
+use crate::semantic_types::{FilePath, c_str_to_string};
 
 #[cfg(target_os = "windows")]
 use windows::{
@@ -10,8 +14,9 @@ use windows::{
     }
 };
 
+/// Browse for a directory using native file dialog
 pub async fn browse_directory() -> Json<Value> {
-    let path = tokio::task::spawn_blocking(|| {
+    let path: Option<String> = tokio::task::spawn_blocking(|| {
         bring_to_front();
         rfd::FileDialog::new()
             .set_title("Select Directory")
@@ -24,8 +29,9 @@ pub async fn browse_directory() -> Json<Value> {
     Json(json!({ "path": path }))
 }
 
+/// Browse for a file using native file dialog
 pub async fn browse_file() -> Json<Value> {
-    let path = tokio::task::spawn_blocking(|| {
+    let path: Option<String> = tokio::task::spawn_blocking(|| {
         bring_to_front();
         rfd::FileDialog::new()
             .set_title("Select File")

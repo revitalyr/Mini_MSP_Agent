@@ -1,6 +1,6 @@
-//! WebSocket модуль - управление WebSocket соединениями
+//! WebSocket Module - WebSocket Connection Management
 //! 
-//! Обработка WebSocket подключений от агентов
+//! Handles WebSocket connections from agents with semantic type safety.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -19,19 +19,26 @@ use chrono::Utc;
 use tracing::{info, error, debug, warn};
 
 use crate::AppState;
+use crate::semantic_types::{ErrorCode, Timestamp};
+
+/// Broadcast channel capacity for agent responses
+const BROADCAST_CHANNEL_CAPACITY: usize = 100;
 
 /// Broadcast channel for agent responses
 pub type ResponseBroadcast = broadcast::Sender<String>;
 
 /// Simple WebSocket manager for agent connections
 pub struct WebSocketManager {
-    connections: Arc<Mutex<HashMap<String, String>>>, // Simplified to just track agent IDs
+    /// Agent ID to status mapping
+    connections: Arc<Mutex<HashMap<String, String>>>,
+    /// Response broadcast transmitter
     response_tx: ResponseBroadcast,
 }
 
 impl WebSocketManager {
+    /// Create a new WebSocket manager with configured broadcast capacity
     pub fn new() -> Self {
-        let (tx, _rx) = broadcast::channel(100);
+        let (tx, _rx) = broadcast::channel(BROADCAST_CHANNEL_CAPACITY);
         Self {
             connections: Arc::new(Mutex::new(HashMap::new())),
             response_tx: tx,
