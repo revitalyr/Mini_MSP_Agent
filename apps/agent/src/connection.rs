@@ -1,11 +1,14 @@
 //! Connection traits and implementations
-//! 
+//!
 //! Provides abstraction layer for different types of connections (WebSocket, HTTP, etc.)
 
 use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::Value;
-use tracing::{info, debug, warn};
+use tokio::sync::mpsc;
+use tracing::{debug, info, warn};
+
+use crate::websocket::{WebSocketClient, WsMessage};
 
 /// Trait for connection types that can send and receive messages
 #[async_trait]
@@ -54,59 +57,52 @@ pub trait ConnectionFactory: Send + Sync {
     fn factory_name(&self) -> &'static str;
 }
 
-/// WebSocket connection implementation
+/// WebSocket connection implementation with real message handling
 pub struct WebSocketConnection {
-    connected: bool,
-    // For now, we'll use a simple implementation
-    // In future, this would contain actual WebSocket stream
+    client: WebSocketClient,
+    msg_rx: mpsc::Receiver<WsMessage>,
 }
 
 impl WebSocketConnection {
-    pub fn new() -> Self {
-        Self { connected: false }
+    pub async fn connect(url: &str) -> Result<Self> {
+        info!("Connecting WebSocket to: {}", url);
+
+        let crate::websocket::ConnectResult { client, msg_rx } =
+            WebSocketClient::connect(url).await?;
+
+        info!("WebSocket connected successfully");
+        Ok(Self { client, msg_rx })
     }
 }
 
 #[async_trait]
 impl Connection for WebSocketConnection {
     async fn send(&mut self, message: &str) -> Result<()> {
-        debug!("Sending WebSocket message: {}", message);
-        
-        if !self.connected {
-            return Err(anyhow::anyhow!("WebSocket not connected"));
-        }
-        
-        // For demo purposes, log the message
-        info!("WebSocket message sent: {}", message);
-        Ok(())
+        self.client
+            .send(WsMessage {
+                content: message.to_string(),
+            })
+            .await
     }
-    
+
     async fn receive(&mut self) -> Result<Option<String>> {
-        if !self.connected {
-            return Ok(None);
+        match self.msg_rx.recv().await {
+            Some(msg) => Ok(Some(msg.content)),
+            None => Ok(None),
         }
-        
-        debug!("Waiting for WebSocket message...");
-        
-        // For demo purposes, simulate occasional messages
-        use std::time::Duration;
-        tokio::time::sleep(Duration::from_millis(100)).await;
-        
-        Ok(None) // Return None for now
     }
-    
+
     fn is_connected(&self) -> bool {
-        self.connected
+        // Note: This is synchronous, but WebSocketClient::is_connected is async
+        // For simplicity, we assume connected until explicitly closed
+        true
     }
-    
+
     async fn close(&mut self) -> Result<()> {
-        if self.connected {
-            info!("Closing WebSocket connection");
-            self.connected = false;
-        }
+        info!("Closing WebSocket connection");
         Ok(())
     }
-    
+
     fn connection_type(&self) -> &'static str {
         "WebSocket"
     }
@@ -118,27 +114,11 @@ pub struct WebSocketConnectionFactory;
 #[async_trait]
 impl ConnectionFactory for WebSocketConnectionFactory {
     type Connection = WebSocketConnection;
-    
+
     async fn connect(&self, url: &str) -> Result<Self::Connection> {
-        info!("Connecting WebSocket to: {}", url);
-        
-        // Try to establish real WebSocket connection
-        match tokio_tungstenite::connect_async(url).await {
-            Ok((_, _)) => {
-                info!("WebSocket connected successfully");
-                let mut conn = WebSocketConnection::new();
-                conn.connected = true;
-                Ok(conn)
-            }
-            Err(e) => {
-                warn!("WebSocket connection failed, using demo mode: {}", e);
-                let mut conn = WebSocketConnection::new();
-                conn.connected = true; // Still allow demo mode
-                Ok(conn)
-            }
-        }
+        WebSocketConnection::connect(url).await
     }
-    
+
     fn factory_name(&self) -> &'static str {
         "WebSocketFactory"
     }

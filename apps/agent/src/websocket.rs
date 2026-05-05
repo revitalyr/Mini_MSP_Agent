@@ -1,118 +1,106 @@
-//! Simple WebSocket wrapper module with trait-based design
-//! 
-//! Provides a clean interface for WebSocket operations while keeping
-//! implementation details encapsulated.
+//! WebSocket Client with Real Message Handling
+//!
+//! Provides actual WebSocket send/receive functionality
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
+use futures_util::{SinkExt, StreamExt};
 use serde_json::Value;
-use tracing::{info, debug, warn};
+use std::sync::Arc;
+use tokio::sync::{mpsc, Mutex};
+use tracing::{debug, error, info, warn};
 
-/// Our clean message type
+/// WebSocket message type
 #[derive(Debug, Clone)]
 pub struct WsMessage {
     pub content: String,
 }
 
-/// Our clean connection result
-#[derive(Debug)]
+/// Connection result with sender channel
 pub struct ConnectResult {
     pub client: WebSocketClient,
+    pub msg_rx: mpsc::Receiver<WsMessage>,
 }
 
-/// Simple WebSocket client wrapper with trait-based design
-#[derive(Debug)]
+/// Real WebSocket client
 pub struct WebSocketClient {
-    // Simple connection state
-    connected: bool,
-    connection_type: &'static str,
+    sender: mpsc::Sender<String>,
+    connected: Arc<Mutex<bool>>,
 }
 
 impl WebSocketClient {
     /// Connect to WebSocket server
     pub async fn connect(url: &str) -> Result<ConnectResult> {
         info!("Connecting to WebSocket at: {}", url);
-        
-        // Try to establish real WebSocket connection
-        match tokio_tungstenite::connect_async(url).await {
-            Ok((_, _)) => {
-                info!("WebSocket connected successfully");
-                let client = WebSocketClient { 
-                    connected: true,
-                    connection_type: "WebSocket"
-                };
-                Ok(ConnectResult { client })
+
+        let (ws_stream, _) = tokio_tungstenite::connect_async(url).await.map_err(|e| {
+            anyhow!("WebSocket connection failed: {}", e)
+        })?;
+
+        info!("WebSocket connected successfully");
+
+        let (mut write, mut read) = ws_stream.split();
+        let (tx, mut rx) = mpsc::channel::<String>(100);
+        let (msg_tx, msg_rx) = mpsc::channel::<WsMessage>(100);
+        let connected = Arc::new(Mutex::new(true));
+        let connected_clone = connected.clone();
+
+        // Spawn task for sending messages
+        tokio::spawn(async move {
+            while let Some(msg) = rx.recv().await {
+                if let Err(e) = write.send(tokio_tungstenite::tungstenite::Message::Text(msg)).await {
+                    error!("WebSocket send error: {}", e);
+                    break;
+                }
             }
-            Err(e) => {
-                warn!("WebSocket connection failed, using demo mode: {}", e);
-                let client = WebSocketClient { 
-                    connected: true,
-                    connection_type: "WebSocket-Demo"
-                };
-                Ok(ConnectResult { client })
+            let mut conn = connected_clone.lock().await;
+            *conn = false;
+        });
+
+        // Spawn task for receiving messages
+        tokio::spawn(async move {
+            while let Some(msg) = read.next().await {
+                match msg {
+                    Ok(tokio_tungstenite::tungstenite::Message::Text(text)) => {
+                        debug!("Received WebSocket message: {}", text);
+                        let _ = msg_tx.send(WsMessage { content: text }).await;
+                    }
+                    Ok(tokio_tungstenite::tungstenite::Message::Close(_)) => {
+                        info!("WebSocket closed by server");
+                        break;
+                    }
+                    Err(e) => {
+                        error!("WebSocket receive error: {}", e);
+                        break;
+                    }
+                    _ => {}
+                }
             }
-        }
+        });
+
+        let client = WebSocketClient {
+            sender: tx,
+            connected,
+        };
+
+        Ok(ConnectResult { client, msg_rx })
     }
-    
+
     /// Send a message
     pub async fn send(&mut self, message: WsMessage) -> Result<()> {
-        debug!("Sending WebSocket message: {}", message.content);
-        
-        if !self.connected {
-            return Err(anyhow::anyhow!("WebSocket not connected"));
-        }
-        
-        // For demo purposes, log the message
-        info!("Message sent via {}: {}", self.connection_type, message.content);
-        Ok(())
+        self.sender
+            .send(message.content)
+            .await
+            .map_err(|e| anyhow!("Failed to send message: {}", e))
     }
-    
+
     /// Send JSON message
     pub async fn send_json(&mut self, value: &Value) -> Result<()> {
         let json_str = serde_json::to_string(value)?;
         self.send(WsMessage { content: json_str }).await
     }
-    
-    /// Receive next message
-    pub async fn receive(&mut self) -> Result<Option<WsMessage>> {
-        if !self.connected {
-            return Ok(None);
-        }
-        
-        debug!("Waiting for WebSocket message...");
-        
-        // For demo purposes, simulate occasional messages
-        use std::time::Duration;
-        tokio::time::sleep(Duration::from_millis(100)).await;
-        
-        Ok(None) // Return None for now
-    }
-    
-    /// Receive and parse JSON message
-    pub async fn receive_json(&mut self) -> Result<Option<Value>> {
-        if let Some(msg) = self.receive().await? {
-            let parsed: Value = serde_json::from_str(&msg.content)?;
-            Ok(Some(parsed))
-        } else {
-            Ok(None)
-        }
-    }
-    
+
     /// Check if connection is still active
-    pub fn is_connected(&self) -> bool {
-        self.connected
-    }
-    
-    /// Close the connection
-    pub async fn close(&mut self) -> Result<()> {
-        if self.connected {
-            info!("Closing {} connection", self.connection_type);
-            self.connected = false;
-        }
-        Ok(())
-    }
-    
-    /// Get connection type
-    pub fn connection_type(&self) -> &'static str {
-        self.connection_type
+    pub async fn is_connected(&self) -> bool {
+        *self.connected.lock().await
     }
 }
