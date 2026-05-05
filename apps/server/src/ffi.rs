@@ -3,7 +3,9 @@
 //! Defines the Rust-side types and interfaces for interacting with
 //! platform-specific C++ forensic plugins.
 
-use std::ffi::{c_char, c_int, c_ulonglong, c_void, CStr};
+use std::ffi::{c_char, c_ulonglong, c_void, CStr};
+#[allow(unused_imports)]
+use std::os::raw::c_int;
 use std::mem::MaybeUninit;
 use anyhow::{anyhow, Result};
 
@@ -21,8 +23,6 @@ pub const MAX_PATH_LEN: usize = 4096;
 //pub const MAX_VERSION_LEN: usize = 64;
 //pub const MAX_DESCRIPTION_LEN: usize = 512;
 
-/// Percentage type (0-100)
-pub type Percentage = u8;
 
 /// Process information structure
 #[repr(C)]
