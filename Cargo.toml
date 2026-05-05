@@ -1,9 +1,9 @@
 [workspace]
 members = [
-    "src/agent/simple",
-    # "src/agent/standalone", # TODO: Fix struct mismatches before re-enabling
-    "src/server", 
-    "src/shared"
+    "apps/agent",
+    # "apps/agent_standalone", # TODO: Fix struct mismatches before re-enabling
+    "apps/server", 
+    "shared"
 ]
 exclude = [
     "tests",

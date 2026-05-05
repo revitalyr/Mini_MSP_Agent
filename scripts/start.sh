@@ -64,20 +64,20 @@ if [ "$BUILD" = true ]; then
     
     # Сборка C++ плагинов
     echo "🔧 Сборка C++ плагинов с preset linux-clang-20-debug..."
-    if [ -f "src/plugins/CMakeLists.txt" ]; then
-        pushd src/plugins > /dev/null
+    if [ -f "plugins/cpp/CMakeLists.txt" ]; then
+        pushd plugins/cpp > /dev/null
         cmake --preset linux-clang-20-debug
         if ! cmake --build --preset linux-clang-20-debug; then
             echo "❌ Ошибка сборки плагинов"
             popd > /dev/null
             exit 1
         fi
-        mkdir -p ../agent/plugins
-        find build/linux-clang-20-debug -name "*.so" -exec cp {} ../agent/plugins/ \;
-        echo "✅ Плагины собраны и скопированы в agent/plugins"
+        mkdir -p apps/agent/plugins
+        find build/linux-clang-20-debug -name "*.so" -exec cp {} apps/agent/plugins/ \;
+        echo "✅ Плагины собраны"
         popd > /dev/null
     else
-        echo "⚠️ CMakeLists.txt не найден в src/plugins/, пропускаю сборку плагинов"
+        echo "⚠️ CMakeLists.txt не найден в plugins/cpp/, пропускаю сборку плагинов"
     fi
 fi
 
@@ -170,7 +170,7 @@ fi
 
 # Запуск агента
 echo "🤖 Запуск агента с конфигурацией: $AGENT_CONFIG"
-"$AGENT_PATH" --config "$AGENT_CONFIG" --plugin-dir src/agent/plugins &
+"$AGENT_PATH" --config "$AGENT_CONFIG" --plugin-dir apps/agent/plugins &
 AGENT_PID=$!
 
 echo "✅ Сервер и агент запущены!"
