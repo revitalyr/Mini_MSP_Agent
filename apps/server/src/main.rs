@@ -420,7 +420,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .route("/api/browse/directory", post(crate::simple_handlers::browse_directory))
         
         // Static files
-        .nest_service("/static", ServeDir::new("src/server/static"))
+        .nest_service("/static", ServeDir::new("static"))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(app_state);

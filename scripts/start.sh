@@ -55,8 +55,8 @@ fi
 
 # Сборка проекта если нужно
 if [ "$BUILD" = true ]; then
-    echo "📦 Сборка проекта..."
-    cargo build
+    echo "📦 Сборка проекта (release)..."
+    cargo build --release
     if [ $? -ne 0 ]; then
         echo "❌ Ошибка сборки проекта"
         exit 1
@@ -72,8 +72,8 @@ if [ "$BUILD" = true ]; then
             popd > /dev/null
             exit 1
         fi
-        mkdir -p apps/agent/plugins
-        find build/linux-clang-20-debug -name "*.so" -exec cp {} apps/agent/plugins/ \;
+        mkdir -p ../../apps/agent/plugins
+        find build -name "*.so" -exec cp {} ../../apps/agent/plugins/ \;
         echo "✅ Плагины собраны"
         popd > /dev/null
     else
@@ -82,8 +82,8 @@ if [ "$BUILD" = true ]; then
 fi
 
 # Пути к бинарникам
-SERVER_PATH="target/debug/server"
-AGENT_PATH="target/debug/simple_agent"
+SERVER_PATH="target/release/server"
+AGENT_PATH="target/release/simple_agent"
 
 # Создание директории для логов (ранее, до запуска процессов)
 mkdir -p logs
