@@ -152,8 +152,9 @@ fi
 
 # Запуск сервера в фоновом режиме
 echo "🖥️ Запуск веб-сервера на порту $SERVER_PORT..."
-"$SERVER_PATH" --port "$SERVER_PORT" &
+"$SERVER_PATH" --port "$SERVER_PORT" > logs/server.log 2>&1 &
 SERVER_PID=$!
+echo "📄 Логи сервера: logs/server.log"
 
 # Ожидание запуска сервера
 echo "⏳ Ожидание запуска сервера..."

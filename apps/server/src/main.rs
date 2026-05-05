@@ -374,6 +374,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
 
     // Determine static files path
+    let cwd = std::env::current_dir().unwrap_or_default();
+    println!("[DEBUG] Server CWD: {:?}", cwd);
+    
     let static_path = if std::path::Path::new("static").exists() {
         PathBuf::from("static")
     } else if std::path::Path::new("../../static").exists() {
@@ -381,6 +384,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     } else {
         PathBuf::from("static")
     };
+    println!("[DEBUG] Static path resolved to: {:?}", static_path);
+    println!("[DEBUG] Static path exists: {}", static_path.exists());
     info!("Serving static files from: {:?}", static_path);
 
     // Build router with CORS
