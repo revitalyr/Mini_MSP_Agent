@@ -89,12 +89,19 @@ AGENT_PATH="target/debug/simple_agent"
 mkdir -p logs
 
 # Запуск NATS broker
-echo "📡 Запуск NATS broker на порту 4222..."
-if command -v nats-server >/dev/null 2>&1; then
-    nats-server -p 4222 -m 8222 &
+echo "📡 Проверка NATS broker на порту 4222..."
+if lsof -Pi :4222 -sTCP:LISTEN -t >/dev/null 2>&1; then
+    echo "✅ NATS broker уже запущен на порту 4222"
+    NATS_PID=$(lsof -Pi :4222 -sTCP:LISTEN -t)
+elif command -v nats-server >/dev/null 2>&1; then
+    nats-server -p 4222 -m 8222 > logs/nats.log 2>&1 &
     NATS_PID=$!
-    echo "✅ NATS broker запущен (PID: $NATS_PID)"
     sleep 2
+    if ! ps -p $NATS_PID > /dev/null; then
+        echo "❌ Ошибка запуска NATS server. Проверьте logs/nats.log"
+        exit 1
+    fi
+    echo "✅ NATS broker запущен (PID: $NATS_PID)"
 else
     echo "❌ NATS server не найден. Установите с: curl -sf https://binaries.nats.dev/nats-io/nats-server/v2.10.25/nats-server-v2.10.25-linux-amd64.tar.gz | tar xz && sudo mv nats-server-v2.10.25-linux-amd64/nats-server /usr/local/bin/"
     exit 1

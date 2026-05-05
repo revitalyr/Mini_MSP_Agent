@@ -29,6 +29,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <type_traits>
 #include "semantic_types.h"
 
 #ifdef _WIN32
@@ -68,11 +69,12 @@ typedef struct {
  * @var hostname - System hostname (null-terminated, max 255 chars)
  */
 typedef struct {
-    Percentage cpu_usage;
-    Percentage ram_usage;
-    Percentage disk_usage;
-    Uptime uptime;
-    char m_hostname[kMaxHostnameLen];
+    uint64_t uptime;
+    float cpu_usage;
+    float ram_usage;
+    float disk_usage;
+    uint32_t _reserved; // Padding to 8-byte boundary
+    char hostname[256];
 } system_metrics_t;
 
 /**
@@ -88,11 +90,11 @@ typedef struct {
  * @var start_time - Process start time (Unix timestamp)
  */
 typedef struct {
-    ProcessId pid;
-    char m_name[kMaxHostnameLen];
-    Percentage cpu_usage;
-    MemorySize memory_usage;
-    Timestamp start_time;
+    uint32_t pid;
+    char name[256];
+    float cpu_usage;
+    uint64_t memory_usage;
+    uint64_t start_time;
 } process_info_t;
 
 /**
@@ -107,10 +109,10 @@ typedef struct {
  * @var error - Error message if success is false (null-terminated)
  */
 typedef struct {
-    char* content;
-    BufferSize size;
     bool success;
-    char m_error[kMaxErrorMsgLen];
+    char* content;
+    size_t size;
+    char error[256];
 } file_content_t;
 
 /**
@@ -135,11 +137,11 @@ typedef struct {
 #endif
 
 typedef struct {
+    bool success;
+    int exit_code;
     char* stdout;
     char* stderr;
-    ExitCode exit_code;
-    bool success;
-    char m_error[kMaxErrorMsgLen];
+    char error[256];
 } command_result_t;
 
 // Restore stdout/stderr macros
@@ -163,13 +165,14 @@ typedef struct {
  * @var available_memory - Available memory in bytes
  */
 typedef struct {
-    char m_os_type[kMaxOsTypeLen];
-    char m_os_version[kMaxOsVersionLen];
-    char m_hostname[kMaxHostnameLen];
-    Uptime uptime;
+    uint64_t uptime;
+    uint64_t total_memory;
+    uint64_t available_memory;
+    char os_type[64];
+    char os_version[128];
+    char hostname[256];
     uint32_t cpu_cores;
-    MemorySize total_memory;
-    MemorySize available_memory;
+    uint32_t _reserved; // Padding for 8-byte alignment
 } system_info_t;
 
 /**
@@ -183,7 +186,7 @@ typedef struct {
     char artifact_type[64];
     char path[512];
     char value[512];
-    bool suspicious;
+    uint32_t suspicious; // Using uint32_t for stable FFI size
     char details[1024];
 } forensic_finding_t;
 
@@ -198,6 +201,30 @@ typedef struct {
     size_t count;
     Timestamp collection_time;
 } forensic_data_t;
+
+// =============================================================================
+// STATIC ALIGNMENT CHECKS (FFI SAFETY)
+// =============================================================================
+#ifdef __cplusplus
+// Проверка размеров (Size checks)
+static_assert(sizeof(system_metrics_t) == 280, "system_metrics_t size must be 280");
+static_assert(sizeof(system_info_t) == 480, "system_info_t size must be 480");
+static_assert(sizeof(forensic_finding_t) == 2180, "forensic_finding_t size must be 2180");
+static_assert(sizeof(process_info_t) == 280, "process_info_t size must be 280");
+
+// Проверка критических смещений (Offset checks)
+static_assert(offsetof(system_metrics_t, uptime) == 0);
+static_assert(offsetof(system_metrics_t, hostname) == 24);
+
+static_assert(offsetof(system_info_t, total_memory) == 8);
+static_assert(offsetof(system_info_t, hostname) == 216);
+
+static_assert(offsetof(forensic_finding_t, suspicious) == 1152);
+static_assert(offsetof(forensic_finding_t, details) == 1156);
+
+static_assert(offsetof(process_info_t, cpu_usage) == 260);
+static_assert(offsetof(process_info_t, memory_usage) == 264); // Учитывая 4-байтовый padding после cpu_usage
+#endif
 
 // Plugin function types
 typedef const char* (PLUGIN_CALL *get_plugin_info_fn_t)(void);

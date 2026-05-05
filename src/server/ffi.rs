@@ -15,10 +15,11 @@ pub struct PluginInfo {
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct SystemMetrics {
-    pub cpu_usage: Percentage,
-    pub ram_usage: Percentage,
-    pub disk_usage: Percentage,
-    pub uptime: Timestamp,
+    pub uptime: u64,
+    pub cpu_usage: f32,
+    pub ram_usage: f32,
+    pub disk_usage: f32,
+    pub _reserved: u32,
     pub hostname: [c_char; 256],
 }
 
@@ -27,7 +28,7 @@ pub struct SystemMetrics {
 pub struct ProcessInfo {
     pub pid: u32,
     pub name: [c_char; 256],
-    pub cpu_usage: Percentage,
+    pub cpu_usage: f32,
     pub memory_usage: FileSize,
     pub start_time: Timestamp,
 }
@@ -53,13 +54,14 @@ pub struct CommandResult {
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct SystemInfo {
+    pub uptime: u64,
+    pub total_memory: u64,
+    pub available_memory: u64,
     pub os_type: [c_char; 64],
     pub os_version: [c_char; 128],
     pub hostname: [c_char; 256],
-    pub uptime: u64,
     pub cpu_cores: u32,
-    pub total_memory: u64,
-    pub available_memory: u64,
+    pub _reserved: u32,
 }
 
 #[repr(C)]
@@ -172,10 +174,11 @@ pub struct PluginInterface {
 impl Default for SystemMetrics {
     fn default() -> Self {
         Self {
-            cpu_usage: 0u8,
-            ram_usage: 0u8,
-            disk_usage: 0u8,
             uptime: 0,
+            cpu_usage: 0.0,
+            ram_usage: 0.0,
+            disk_usage: 0.0,
+            _reserved: 0,
             hostname: [0; 256],
         }
     }
@@ -186,7 +189,7 @@ impl Default for ProcessInfo {
         Self {
             pid: 0,
             name: [0; 256],
-            cpu_usage: 0u8,
+            cpu_usage: 0.0,
             memory_usage: 0,
             start_time: 0,
         }
@@ -218,13 +221,14 @@ impl Default for CommandResult {
 impl Default for SystemInfo {
     fn default() -> Self {
         Self {
+            uptime: 0,
+            total_memory: 0,
+            available_memory: 0,
             os_type: [0; 64],
             os_version: [0; 128],
             hostname: [0; 256],
-            uptime: 0,
             cpu_cores: 0,
-            total_memory: 0,
-            available_memory: 0,
+            _reserved: 0,
         }
     }
 }
@@ -694,9 +698,9 @@ pub struct SystemMetricsData {
 impl SystemMetricsData {
     unsafe fn from_c_struct(metrics: SystemMetrics) -> Self {
         Self {
-            cpu_usage: metrics.cpu_usage as f32,
-            ram_usage: metrics.ram_usage as f32,
-            disk_usage: metrics.disk_usage as f32,
+            cpu_usage: metrics.cpu_usage,
+            ram_usage: metrics.ram_usage,
+            disk_usage: metrics.disk_usage,
             uptime: metrics.uptime,
             hostname: c_string_to_string_lossy(metrics.hostname.as_ptr()),
         }
@@ -717,7 +721,7 @@ impl ProcessInfoData {
         Self {
             pid: process.pid,
             name: c_string_to_string_lossy(process.name.as_ptr()),
-            cpu_usage: process.cpu_usage as f32,
+            cpu_usage: process.cpu_usage,
             memory_usage: process.memory_usage,
             start_time: process.start_time,
         }
@@ -798,5 +802,42 @@ impl SystemInfoData {
 impl Drop for SafePluginInterface {
     fn drop(&mut self) {
         self.cleanup();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::mem::{size_of, offset_of};
+
+    #[test]
+    fn test_ffi_layout_consistency() {
+        // Эти тесты должны соответствовать static_assert в plugin_interface.h
+        
+        // SystemMetrics
+        assert_eq!(size_of::<SystemMetrics>(), 280);
+        assert_eq!(offset_of!(SystemMetrics, uptime), 0);
+        assert_eq!(offset_of!(SystemMetrics, hostname), 24);
+
+        // SystemInfo
+        assert_eq!(size_of::<SystemInfo>(), 480);
+        assert_eq!(offset_of!(SystemInfo, total_memory), 8);
+        assert_eq!(offset_of!(SystemInfo, hostname), 216);
+
+        // ProcessInfo
+        assert_eq!(size_of::<ProcessInfo>(), 280);
+        assert_eq!(offset_of!(ProcessInfo, cpu_usage), 260);
+        assert_eq!(offset_of!(ProcessInfo, memory_usage), 264);
+
+        // ForensicFinding
+        assert_eq!(size_of::<ForensicFinding>(), 2180);
+        assert_eq!(offset_of!(ForensicFinding, suspicious), 1152);
+        assert_eq!(offset_of!(ForensicFinding, details), 1156);
+    }
+    
+    #[test]
+    fn test_forensic_data_layout() {
+        // Проверка структуры ForensicData, которая передает указатель
+        assert_eq!(size_of::<ForensicData>(), 24); // 8 (ptr) + 8 (usize) + 8 (u64)
     }
 }

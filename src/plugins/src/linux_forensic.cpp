@@ -422,13 +422,11 @@ public:
 
 // Plugin implementation
 extern "C" {
-    PluginInfo get_plugin_info() {
-        return {
-            "linux_forensic",
-            "1.0.0",
-            "Linux",
-            "Linux-specific forensic data collection plugin"
-        };
+    const char* get_plugin_info() {
+        snprintf(plugin_info_buffer, sizeof(plugin_info_buffer),
+                 "%s:%s:%s:%s", "linux_forensic", "1.0.0", "Linux",
+                 "Linux-specific forensic data collection plugin");
+        return plugin_info_buffer;
     }
     
     bool plugin_initialize() {

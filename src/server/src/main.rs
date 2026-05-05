@@ -140,11 +140,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
         Err(e) => {
             warn!("✗ Failed to load forensic plugin: {}", e);
-            info!("Continuing without forensic plugin functionality");
-            info!("  Make sure ForensicPlugin.dll exists in ./src/plugins/build/");
         }
     }
+    error!("Make sure ForensicPlugin.dll exists in ./src/plugins/build/");
     
+    // Пример функции для пакетной отправки (Batching)
+    // Это помогает избежать проблем с MTU и лимитами брокеров
+    /*
+    fn broadcast_forensic_batches(ws: Arc<WebSocketManager>, data: &[ForensicFinding]) {
+        const BATCH_SIZE: usize = 50; // Отправляем по 50 артефактов за раз
+        
+        for (i, chunk) in data.chunks(BATCH_SIZE).enumerate() {
+            let batch_json = serde_json::json!({
+                "type": "forensic_batch",
+                "batch_index": i,
+                "is_last": i == (data.len() / BATCH_SIZE),
+                "total_items": data.len(),
+                "items": chunk
+            });
+            
+            if let Ok(msg) = serde_json::to_string(&batch_json) {
+                // В реальном коде тут будет await ws.broadcast(msg)
+                info!("Sending forensic batch {} (size: {})", i, chunk.len());
+            }
+        }
+    }
+    */
+
     // Initialize NATS broker client if broker URL is configured
     let mut broker_client: Option<Arc<BrokerClient>> = None;
     if let Some(ref broker_url) = config.broker_url {
@@ -373,6 +395,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .route("/agents/:id/command/simple", post(simple_handlers::send_command))
         .route("/agents/:id/plugin/:plugin/objects", get(api::agents::get_plugin_objects))
         .route("/agents/:id/plugin/:plugin/object/:object_id", get(api::agents::get_plugin_object_data))
+        // API prefixed routes for UI compatibility
+        .route("/api/agents/:id/plugin/:plugin/objects", get(api::agents::get_plugin_objects))
+        .route("/api/agents/:id/plugin/:plugin/object/:object_id", get(api::agents::get_plugin_object_data))
         .route("/heartbeat", post(simple_handlers::handle_heartbeat))
         .route("/system-info", get(api::system::get_system_info))
         .route("/forensic/metrics", get(api::system::get_forensic_metrics))

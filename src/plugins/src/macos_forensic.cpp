@@ -18,13 +18,10 @@
 #include <uuid/uuid.h>
 
 // Plugin interface structures
-struct PluginInfo {
-    std::string name;
-    std::string version;
-    std::string platform;
-    std::string description;
-};
+// Plugin info buffer for string format
+static char plugin_info_buffer[256];
 
+// Forensic data structure
 struct ForensicData {
     std::string category;
     std::map<std::string, std::string> data;
@@ -308,13 +305,11 @@ public:
 
 // Plugin implementation
 extern "C" {
-    PluginInfo get_plugin_info() {
-        return {
-            "macos_forensic",
-            "1.0.0",
-            "macOS",
-            "macOS-specific forensic data collection plugin"
-        };
+    const char* get_plugin_info() {
+        snprintf(plugin_info_buffer, sizeof(plugin_info_buffer),
+                 "%s:%s:%s:%s", "macos_forensic", "1.0.0", "macOS",
+                 "macOS-specific forensic data collection plugin");
+        return plugin_info_buffer;
     }
     
     bool plugin_initialize() {

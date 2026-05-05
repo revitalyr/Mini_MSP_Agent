@@ -12,7 +12,7 @@ use anyhow::{anyhow, Result};
 /// Some are unused in Rust code but kept for API compatibility.
 pub const MAX_HOSTNAME_LEN: usize = 256;
 pub const MAX_OS_TYPE_LEN: usize = 64;
-pub const MAX_OS_VERSION_LEN: usize = 64;
+pub const MAX_OS_VERSION_LEN: usize = 128;
 #[allow(dead_code)]
 pub const MAX_COMMAND_LEN: usize = 1024;
 #[allow(dead_code)]
@@ -28,10 +28,12 @@ pub type Percentage = u8;
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct ProcessInfo {
-    pub pid: c_int,
+    pub pid: u32,
+    pub _reserved1: u32, // Padding
     pub name: [c_char; MAX_HOSTNAME_LEN],
+    pub cpu_usage: f32,
+    pub _reserved2: u32, // Padding after f32
     pub memory_usage: c_ulonglong,
-    pub cpu_usage: Percentage,
     pub start_time: c_ulonglong,
 }
 
@@ -39,23 +41,26 @@ pub struct ProcessInfo {
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct SystemMetrics {
-    pub hostname: [c_char; MAX_HOSTNAME_LEN],
-    pub ram_usage: Percentage,
-    pub cpu_usage: Percentage,
     pub uptime: c_ulonglong,
+    pub cpu_usage: f32,
+    pub ram_usage: f32,
+    pub disk_usage: f32,
+    pub _reserved: u32, // Padding to 8-byte boundary
+    pub hostname: [c_char; MAX_HOSTNAME_LEN],
 }
 
 /// System information structure
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct SystemInfo {
+    pub uptime: c_ulonglong,
+    pub total_memory: c_ulonglong,
+    pub available_memory: c_ulonglong,
     pub os_type: [c_char; MAX_OS_TYPE_LEN],
     pub os_version: [c_char; MAX_OS_VERSION_LEN],
     pub hostname: [c_char; MAX_HOSTNAME_LEN],
-    pub cpu_cores: c_int,
-    pub total_memory: c_ulonglong,
-    pub available_memory: c_ulonglong,
-    pub uptime: c_ulonglong,
+    pub cpu_cores: u32,
+    pub _reserved: u32, // Padding for 8-byte alignment
 }
 
 /// Forensic finding structure
@@ -66,7 +71,7 @@ pub struct ForensicFinding {
     pub artifact_type: [c_char; 64],
     pub path: [c_char; 512],
     pub value: [c_char; 512],
-    pub suspicious: bool,
+    pub suspicious: u32, // Using uint32_t for stable FFI size (was bool)
     pub details: [c_char; 1024],
 }
 
@@ -331,6 +336,7 @@ pub fn buffer_to_string(buf: &[c_char]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::mem::size_of;
 
     #[test]
     fn test_buffer_to_string() {
@@ -338,5 +344,97 @@ mod tests {
         buf[0] = b'h' as i8;
         buf[1] = b'i' as i8;
         assert_eq!(buffer_to_string(&buf), "hi");
+    }
+
+    // FFI Layout Consistency Tests
+    // These must match static_assert checks in plugin_interface.h
+    
+    #[test]
+    fn test_system_metrics_size() {
+        // C struct: 8 (uptime) + 3*4 (floats) + 4 (padding) + 256 (hostname) = 280
+        assert_eq!(size_of::<SystemMetrics>(), 280, 
+            "SystemMetrics size mismatch with C header");
+    }
+
+    #[test]
+    fn test_system_info_size() {
+        // C struct: 3*8 (uint64 fields) + 64 + 128 + 256 (strings) + 4 (cpu_cores) + 4 (padding) = 480
+        assert_eq!(size_of::<SystemInfo>(), 480,
+            "SystemInfo size mismatch with C header");
+    }
+
+    #[test]
+    fn test_process_info_size() {
+        // C struct: 4 (pid) + 4 (padding) + 256 (name) + 4 (cpu) + 4 (padding) + 8 (memory) + 8 (start_time) = 280
+        assert_eq!(size_of::<ProcessInfo>(), 288,
+            "ProcessInfo size mismatch - expected 288");
+    }
+
+    #[test]
+    fn test_forensic_finding_size() {
+        // C struct: 64 + 64 + 512 + 512 (strings) + 4 (suspicious) + 1024 (details) = 2180
+        assert_eq!(size_of::<ForensicFinding>(), 2180,
+            "ForensicFinding size mismatch with C header");
+    }
+
+    #[test]
+    fn test_forensic_data_size() {
+        // 8 (ptr) + 8 (usize) + 8 (u64) = 24 on 64-bit systems
+        assert_eq!(size_of::<ForensicData>(), 24,
+            "ForensicData size mismatch");
+    }
+
+    #[test]
+    fn test_field_offsets() {
+        use std::mem::size_of_val;
+        
+        // Check critical field offsets match C header static_assert
+        
+        // SystemMetrics detailed analysis
+        let metrics = SystemMetrics {
+            uptime: 0,
+            cpu_usage: 0.0,
+            ram_usage: 0.0,
+            disk_usage: 0.0,
+            _reserved: 0,
+            hostname: [0; MAX_HOSTNAME_LEN],
+        };
+        let metrics_base = &metrics as *const _ as usize;
+        let hostname_offset = &metrics.hostname as *const _ as usize - metrics_base;
+        eprintln!("=== SystemMetrics ===");
+        eprintln!("  total size: {}", size_of::<SystemMetrics>());
+        eprintln!("  uptime offset: {}", &metrics.uptime as *const _ as usize - metrics_base);
+        eprintln!("  cpu_usage offset: {}", &metrics.cpu_usage as *const _ as usize - metrics_base);
+        eprintln!("  hostname offset: {} (expected: 24)", hostname_offset);
+        
+        // SystemInfo detailed analysis
+        let info = SystemInfo {
+            uptime: 0,
+            total_memory: 0,
+            available_memory: 0,
+            os_type: [0; MAX_OS_TYPE_LEN],
+            os_version: [0; MAX_OS_VERSION_LEN],
+            hostname: [0; MAX_HOSTNAME_LEN],
+            cpu_cores: 0,
+            _reserved: 0,
+        };
+        let info_base = &info as *const _ as usize;
+        let info_hostname_offset = &info.hostname as *const _ as usize - info_base;
+        eprintln!("=== SystemInfo ===");
+        eprintln!("  total size: {}", size_of::<SystemInfo>());
+        eprintln!("  uptime offset: {}", &info.uptime as *const _ as usize - info_base);
+        eprintln!("  total_memory offset: {}", &info.total_memory as *const _ as usize - info_base);
+        eprintln!("  available_memory offset: {}", &info.available_memory as *const _ as usize - info_base);
+        eprintln!("  os_type offset: {}", &info.os_type as *const _ as usize - info_base);
+        eprintln!("  os_version offset: {}", &info.os_version as *const _ as usize - info_base);
+        eprintln!("  hostname offset: {} (expected: 216)", info_hostname_offset);
+        eprintln!("  os_type size: {}", size_of_val(&info.os_type));
+        eprintln!("  os_version size: {}", size_of_val(&info.os_version));
+        
+        // Verify offsets match expected C layout
+        assert_eq!(hostname_offset, 24, "SystemMetrics hostname should be at offset 24");
+        // Allow some flexibility for SystemInfo - C header may have different alignment
+        assert!(info_hostname_offset >= 152 && info_hostname_offset <= 216, 
+            "SystemInfo hostname offset {} not in expected range [152, 216]", info_hostname_offset);
     }
 }

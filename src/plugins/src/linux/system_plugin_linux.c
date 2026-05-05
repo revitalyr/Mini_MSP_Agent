@@ -22,6 +22,9 @@ static const char* PLUGIN_NAME = "linux_system_plugin";
 static const char* PLUGIN_VERSION = "1.0.0";
 static const char* PLUGIN_DESCRIPTION = "Linux-specific system metrics plugin";
 
+// Plugin info buffer for string format matching Rust expectations
+static char plugin_info_buffer[512];
+
 // Get accurate CPU usage from /proc/stat
 static float get_cpu_usage(void) {
     FILE* fp = fopen("/proc/stat", "r");
@@ -150,12 +153,10 @@ static void get_memory_info(uint64_t* total, uint64_t* available) {
 }
 
 // Plugin function implementations
-static plugin_info_t* get_plugin_info_impl(void) {
-    static plugin_info_t info;
-    info.name = PLUGIN_NAME;
-    info.version = PLUGIN_VERSION;
-    info.description = PLUGIN_DESCRIPTION;
-    return &info;
+static const char* get_plugin_info_impl(void) {
+    snprintf(plugin_info_buffer, sizeof(plugin_info_buffer),
+             "%s:%s:%s", PLUGIN_NAME, PLUGIN_VERSION, PLUGIN_DESCRIPTION);
+    return plugin_info_buffer;
 }
 
 static bool plugin_init_impl(void) {
