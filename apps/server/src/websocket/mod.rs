@@ -19,6 +19,7 @@ use chrono::Utc;
 use tracing::{info, error, debug, warn};
 
 use crate::AppState;
+use mini_msp_shared::AgentInfo;
 
 /// Broadcast channel capacity for agent responses
 const BROADCAST_CHANNEL_CAPACITY: usize = 100;
@@ -133,13 +134,15 @@ async fn handle_socket(socket: WebSocket, app_state: Arc<AppState>) {
     });
 
     // Handle messages and forwarded responses concurrently
+    info!("Starting WebSocket message loop for agent: {}", agent_id);
     loop {
         tokio::select! {
             // Handle incoming WebSocket messages
             msg = receiver.next() => {
+                info!("WebSocket receiver got message for {}: {:?}", agent_id, msg);
                 match msg {
                     Some(Ok(Message::Text(text))) => {
-                        info!("RAW WebSocket message from connection {}: {}", agent_id, text);
+                        info!("RAW WebSocket TEXT message from connection {}: {}", agent_id, text);
                         
                         let parse_result = serde_json::from_str::<Value>(&text);
                         match parse_result {
@@ -158,8 +161,38 @@ async fn handle_socket(socket: WebSocket, app_state: Arc<AppState>) {
                                             .and_then(|v| v.as_str())
                                             .unwrap_or(&agent_id);
                                         
-                                        info!("Registering agent {} to WebSocket connections", actual_agent_id);
+                                        let hostname = value.get("agent")
+                                            .and_then(|a| a.get("hostname"))
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("unknown");
+                                        
+                                        let platform = value.get("agent")
+                                            .and_then(|a| a.get("platform"))
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("unknown");
+                                        
+                                        let version = value.get("agent")
+                                            .and_then(|a| a.get("version"))
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("1.0.0");
+                                        
+                                        info!("Registering agent {} ({}:{}) to WebSocket connections", actual_agent_id, hostname, platform);
                                         ws_manager.add_connection(actual_agent_id.to_string()).await;
+                                        
+                                        // Also add to AppState.agents for list_agents endpoint
+                                        {
+                                            let mut agents = app_state.agents.lock().unwrap();
+                                            let agent_info = AgentInfo {
+                                                id: actual_agent_id.to_string(),
+                                                hostname: hostname.to_string(),
+                                                platform: platform.to_string(),
+                                                version: version.to_string(),
+                                                last_seen: chrono::Utc::now().timestamp() as u64,
+                                            };
+                                            agents.insert(actual_agent_id.to_string(), agent_info);
+                                            info!("Agent {} added to AppState.agents, total agents: {}", actual_agent_id, agents.len());
+                                        }
+                                        
                                         info!("Agent {} successfully registered via WebSocket", actual_agent_id);
                                     } else if let Some(target_agent_id) = value.get("agent_id").and_then(|v| v.as_str()) {
                                         if let Some(command) = value.get("command").and_then(|v| v.as_str()) {
@@ -241,16 +274,30 @@ async fn handle_socket(socket: WebSocket, app_state: Arc<AppState>) {
                             }
                         }
                     }
-                    Some(Ok(Message::Close(_))) => {
-                        info!("WebSocket closed for agent: {}", agent_id);
+                    Some(Ok(Message::Close(close))) => {
+                        info!("WebSocket closed for agent {}: {:?}", agent_id, close);
                         break;
+                    }
+                    Some(Ok(Message::Ping(ping))) => {
+                        debug!("WebSocket ping from agent {}: {:?}", agent_id, ping);
+                    }
+                    Some(Ok(Message::Pong(pong))) => {
+                        debug!("WebSocket pong from agent {}: {:?}", agent_id, pong);
+                    }
+                    Some(Ok(Message::Binary(bin))) => {
+                        warn!("WebSocket binary message from agent {}: {} bytes", agent_id, bin.len());
                     }
                     Some(Err(e)) => {
                         error!("WebSocket error for agent {}: {}", agent_id, e);
                         break;
                     }
-                    None => break,
-                    _ => {}
+                    None => {
+                        info!("WebSocket receiver ended for agent {}", agent_id);
+                        break;
+                    }
+                    _ => {
+                        debug!("Other WebSocket message type from agent {}", agent_id);
+                    }
                 }
             }
             // Forward agent responses to this client
