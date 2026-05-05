@@ -27,6 +27,7 @@ use tower_http::{
 };
 use tracing::{info, error, warn, Level};
 use anyhow::Context;
+use std::path::PathBuf;
 
 use config::Config;
 use broker::{BrokerClient, BrokerMessageHandler};
@@ -372,6 +373,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         });
     }
 
+    // Determine static files path
+    let static_path = if std::path::Path::new("static").exists() {
+        PathBuf::from("static")
+    } else if std::path::Path::new("../../static").exists() {
+        PathBuf::from("../../static")
+    } else {
+        PathBuf::from("static")
+    };
+    info!("Serving static files from: {:?}", static_path);
+
     // Build router with CORS
     let cors = CorsLayer::new()
         .allow_origin(Any)
@@ -420,7 +431,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .route("/api/browse/directory", post(crate::simple_handlers::browse_directory))
         
         // Static files
-        .nest_service("/static", ServeDir::new("static"))
+        .nest_service("/static", ServeDir::new(static_path))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(app_state);
