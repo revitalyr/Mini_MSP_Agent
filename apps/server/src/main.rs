@@ -430,8 +430,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // File browser API
         .route("/api/browse/directory", post(crate::simple_handlers::browse_directory))
         
-        // Static files
-        .nest_service("/static", ServeDir::new(static_path))
+        // Static files with logging
+        .nest_service("/static", {
+            let serve_dir = ServeDir::new(&static_path);
+            info!("Static files configured at path: {:?}", static_path);
+            info!("Static path exists: {}", std::path::Path::new(&static_path).exists());
+            if let Ok(entries) = std::fs::read_dir(&static_path) {
+                let files: Vec<_> = entries.filter_map(|e| e.ok()).map(|e| e.file_name()).collect();
+                info!("Static directory contents: {:?}", files);
+            } else {
+                warn!("Cannot read static directory: {:?}", static_path);
+            }
+            serve_dir
+        })
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(app_state);
