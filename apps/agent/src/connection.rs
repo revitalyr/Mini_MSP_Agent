@@ -5,7 +5,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::Value;
-use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 
 use crate::websocket::{WebSocketClient, WsMessage};
@@ -86,8 +85,8 @@ impl Connection for WebSocketConnection {
     }
 
     async fn receive(&mut self) -> Result<Option<String>> {
-        match self.msg_rx.recv().await {
-            Some(msg) => Ok(Some(msg.content)),
+        match self.client.receive_json().await? {
+            Some(value) => Ok(Some(value.to_string())),
             None => Ok(None),
         }
     }

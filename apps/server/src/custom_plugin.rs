@@ -13,7 +13,7 @@ use tracing::{info, warn};
 use crate::semantic_types::{CallCount, ErrorCount, Uptime};
 
 /// Custom command request from client
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct CustomCommandRequest {
     pub plugin_name: String,
     pub command: String,
@@ -21,7 +21,7 @@ pub struct CustomCommandRequest {
 }
 
 /// Custom command response to client
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct CustomCommandResponse {
     pub success: bool,
     pub output: String,
@@ -30,7 +30,7 @@ pub struct CustomCommandResponse {
 }
 
 /// Custom metrics from plugin
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct CustomMetrics {
     pub commands_executed: CallCount,
     pub errors_encountered: ErrorCount,
@@ -39,7 +39,7 @@ pub struct CustomMetrics {
 }
 
 /// Plugin information
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct PluginInfo {
     pub name: String,
     pub version: String,

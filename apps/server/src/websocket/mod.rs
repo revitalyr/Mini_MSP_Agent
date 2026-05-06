@@ -295,9 +295,6 @@ async fn handle_socket(socket: WebSocket, app_state: Arc<AppState>) {
                         info!("WebSocket receiver ended for agent {}", agent_id);
                         break;
                     }
-                    _ => {
-                        debug!("Other WebSocket message type from agent {}", agent_id);
-                    }
                 }
             }
             // Forward agent responses to this client

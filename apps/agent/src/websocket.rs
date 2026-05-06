@@ -7,7 +7,7 @@ use futures_util::{SinkExt, StreamExt};
 use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 /// WebSocket message type
 #[derive(Debug, Clone)]
@@ -18,28 +18,6 @@ pub struct WsMessage {
 /// Connection result with sender channel
 pub struct ConnectResult {
     pub client: WebSocketClient,
-    pub msg_rx: mpsc::Receiver<WsMessage>,
-}
-
-/// Message receiver for WebSocket
-pub struct WsReceiver {
-    rx: mpsc::Receiver<WsMessage>,
-}
-
-impl WsReceiver {
-    pub async fn receive(&mut self) -> Result<Option<WsMessage>> {
-        Ok(self.rx.recv().await)
-    }
-
-    pub async fn receive_json(&mut self) -> Result<Option<Value>> {
-        match self.rx.recv().await {
-            Some(msg) => {
-                let parsed: Value = serde_json::from_str(&msg.content)?;
-                Ok(Some(parsed))
-            }
-            None => Ok(None),
-        }
-    }
 }
 
 /// Real WebSocket client
@@ -105,7 +83,7 @@ impl WebSocketClient {
             connected,
         };
 
-        Ok(ConnectResult { client, msg_rx: mpsc::channel(1).1 })  // dummy receiver, using client's instead
+        Ok(ConnectResult { client })
     }
 
     /// Send a message
@@ -130,14 +108,6 @@ impl WebSocketClient {
     /// Get connection type
     pub fn connection_type(&self) -> &'static str {
         "WebSocket"
-    }
-
-    /// Receive a message
-    pub async fn receive(&mut self) -> Result<Option<WsMessage>> {
-        match self.msg_rx.recv().await {
-            Some(msg) => Ok(Some(msg)),
-            None => Ok(None),
-        }
     }
 
     /// Receive and parse JSON message

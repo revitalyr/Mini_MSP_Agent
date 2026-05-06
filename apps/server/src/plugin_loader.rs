@@ -9,7 +9,7 @@
 use std::path::{Path, PathBuf};
 use anyhow::{anyhow, Result};
 use libloading::{Library, Symbol};
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::ffi::{PluginInterface, SafePluginInterface};
 
@@ -118,7 +118,7 @@ impl PluginLoader {
 
             // Initialize the plugin
             if let Err(e) = safe_interface.init() {
-                warn!("Plugin initialization warning: {}", e);
+                return Err(anyhow!("Plugin initialization failed: {}", e));
             }
 
             Ok(Self {

@@ -11,6 +11,7 @@ mod semantic_types;
 mod ffi;
 mod plugin_loader;
 mod custom_plugin;
+mod boost_plugin;
 
 use axum::{
     routing::{get, post},
@@ -34,8 +35,10 @@ use broker::{BrokerClient, BrokerMessageHandler};
 use custom_plugin::CustomPluginRegistry;
 use plugin_loader::PluginLoader;
 use websocket::WebSocketManager;
+use boost_plugin::BoostPluginRegistry;
 use mini_msp_shared::{AgentInfo, CommandResponse, Heartbeat};
 use futures_util::StreamExt;
+use serde_json::Value;
 
 /// Complete application state with all integrated components
 #[derive(Clone)]
@@ -48,6 +51,8 @@ pub struct AppState {
     pub plugin_registry: Arc<Mutex<CustomPluginRegistry>>,
     /// C++ forensic plugin loader (SystemPluginV3 + ForensicPlugin)
     pub forensic_plugin: Arc<Mutex<Option<PluginLoader>>>,
+    /// Boost.DLL plugin registry (modern C++23 plugin system)
+    pub boost_plugin_registry: Arc<Mutex<Option<BoostPluginRegistry>>>,
     /// WebSocket connection manager for agent commands
     pub ws_manager: Arc<WebSocketManager>,
 }
@@ -146,6 +151,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
     error!("Make sure ForensicPlugin.dll exists in ./src/plugins/build/");
     
+    // Initialize Boost.DLL plugin system (modern C++23 plugins)
+    let boost_plugin_registry = Arc::new(Mutex::new(None));
+    info!("Initializing Boost.DLL plugin system...");
+    match boost_plugin::init_boost_plugins() {
+        Ok(registry) => {
+            let count = registry.list_plugins()
+                .map(|plugins: Vec<Value>| plugins.len())
+                .unwrap_or(0);
+            info!("✓ Successfully initialized Boost.DLL plugins: {} plugins loaded", count);
+            *boost_plugin_registry.lock().unwrap() = Some(registry);
+        }
+        Err(e) => {
+            warn!("✗ Failed to initialize Boost.DLL plugins: {}", e);
+            info!("    (This is optional - legacy plugins will still work)");
+        }
+    }
+    
     // Пример функции для пакетной отправки (Batching)
     // Это помогает избежать проблем с MTU и лимитами брокеров
     /*
@@ -196,6 +218,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         broker_client: broker_client.clone(),
         plugin_registry,
         forensic_plugin,
+        boost_plugin_registry,
         ws_manager,
     });
 
@@ -434,6 +457,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         
         // File browser API
         .route("/api/browse/directory", post(crate::simple_handlers::browse_directory))
+        
+        // API Documentation (OpenAPI/Swagger)
+        .merge(api::docs::swagger_routes())
         
         // Static files with logging
         .nest_service("/static", {

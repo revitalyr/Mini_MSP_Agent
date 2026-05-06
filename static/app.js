@@ -72,6 +72,10 @@ class AgentDashboard {
                 case 'processes':
                     this.handleProcessesResponse(data);
                     break;
+                case 'welcome':
+                    // Welcome message from server - connection established
+                    console.log('WebSocket welcome:', data);
+                    break;
                 default:
                     console.log('Unknown message type:', data.type);
             }
@@ -200,7 +204,7 @@ class AgentDashboard {
         const statusText = document.getElementById('connectionText');
         
         if (!statusDot || !statusText) {
-            console.error('Connection status elements not found');
+            // Connection status elements not found - fail silently
             return;
         }
         
@@ -216,7 +220,7 @@ class AgentDashboard {
     updateAgentSelector() {
         const selector = document.getElementById('agentSelect');
         if (!selector) {
-            console.error('Agent selector not found');
+            // Agent selector not found - fail silently
             return;
         }
         
@@ -516,7 +520,7 @@ class AgentDashboard {
         const systemStatusElement = document.getElementById('systemStatus');
         
         if (!totalAgentsElement || !activeAgentsElement || !systemStatusElement) {
-            console.error('Stats elements not found');
+            // Stats elements not found - fail silently
             return;
         }
         

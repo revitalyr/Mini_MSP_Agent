@@ -1,0 +1,146 @@
+# CMakeLists.txt for Boost.DLL-based Plugin System
+# Modern C++23 plugin architecture for Mini MSP Agent
+
+cmake_minimum_required(VERSION 3.25)
+project(MiniMSP_BoostPlugins 
+    VERSION 2.0.0
+    DESCRIPTION "Modern C++23 plugin system using Boost.DLL"
+    LANGUAGES CXX
+)
+
+# =============================================================================
+# C++23 Standard
+# =============================================================================
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# =============================================================================
+# Find Packages
+# =============================================================================
+find_package(Boost 1.82 REQUIRED COMPONENTS filesystem dll)
+find_package(Threads REQUIRED)
+
+# nlohmann/json (header-only)
+include(FetchContent)
+FetchContent_Declare(
+    json
+    URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.hpp
+    DOWNLOAD_NO_EXTRACT TRUE
+)
+FetchContent_MakeAvailable(json)
+# Create interface library for json
+add_library(nlohmann_json INTERFACE)
+target_include_directories(nlohmann_json INTERFACE ${json_SOURCE_DIR})
+
+# =============================================================================
+# Platform Detection
+# =============================================================================
+if(WIN32)
+    set(PLATFORM_NAME "windows")
+    add_definitions(-D_WIN32_WINNT=0x0A00)  # Windows 10
+elseif(APPLE)
+    set(PLATFORM_NAME "macos")
+elseif(UNIX)
+    set(PLATFORM_NAME "linux")
+else()
+    message(FATAL_ERROR "Unsupported platform")
+endif()
+
+# =============================================================================
+# Common Plugin Library (header-only interface)
+# =============================================================================
+add_library(boost_plugin_api INTERFACE)
+target_include_directories(boost_plugin_api INTERFACE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${Boost_INCLUDE_DIRS}
+)
+target_link_libraries(boost_plugin_api INTERFACE
+    Boost::filesystem
+    Boost::dll
+    Threads::Threads
+)
+
+# Platform-specific libraries
+target_link_libraries(boost_plugin_api INTERFACE
+    ${CMAKE_DL_LIBS}
+)
+
+# =============================================================================
+# SystemInfoPlugin
+# =============================================================================
+add_library(SystemInfoPlugin SHARED
+    src/system_info_plugin.cpp
+)
+
+target_link_libraries(SystemInfoPlugin PRIVATE
+    boost_plugin_api
+)
+
+# Set plugin properties
+set_target_properties(SystemInfoPlugin PROPERTIES
+    PREFIX ""  # No lib prefix on Unix
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/plugins
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/plugins
+)
+
+# Export symbols
+if(WIN32)
+    target_compile_definitions(SystemInfoPlugin PRIVATE
+        MSP_PLUGIN_EXPORT=__declspec(dllexport)
+    )
+else()
+    target_compile_definitions(SystemInfoPlugin PRIVATE
+        MSP_PLUGIN_EXPORT=__attribute__((visibility("default")))
+    )
+endif()
+
+# =============================================================================
+# Plugin Manager (shared library for Rust FFI)
+# =============================================================================
+add_library(BoostPluginManager SHARED
+    src/plugin_manager.cpp
+    src/c_api_wrapper.cpp
+)
+
+target_link_libraries(BoostPluginManager PRIVATE
+    boost_plugin_api
+    nlohmann_json
+)
+
+set_target_properties(BoostPluginManager PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+# =============================================================================
+# Install
+# =============================================================================
+install(TARGETS SystemInfoPlugin BoostPluginManager
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
+    ARCHIVE DESTINATION lib
+)
+
+install(FILES include/boost_plugin_api.hpp
+    DESTINATION include
+)
+
+# =============================================================================
+# Testing
+# =============================================================================
+if(BUILD_TESTING)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
+
+# =============================================================================
+# Print Configuration
+# =============================================================================
+message(STATUS "")
+message(STATUS "Boost.DLL Plugin System Configuration:")
+message(STATUS "  Platform: ${PLATFORM_NAME}")
+message(STATUS "  C++ Standard: ${CMAKE_CXX_STANDARD}")
+message(STATUS "  Boost Version: ${Boost_VERSION}")
+message(STATUS "  Install prefix: ${CMAKE_INSTALL_PREFIX}")
+message(STATUS "")

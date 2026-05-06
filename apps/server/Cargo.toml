@@ -7,6 +7,15 @@ edition = "2021"
 name = "server"
 path = "src/main.rs"
 
+[features]
+default = []
+# Enable Boost.DLL C++ plugin support (requires C++ libraries to be built)
+boost_dll = []
+
+[lints.rust]
+# Allow the boost_dll cfg condition that is set by build.rs
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("boost_dll"))'] }
+
 [dependencies]
 mini_msp_shared = { path = "../../shared" }
 
@@ -29,6 +38,11 @@ jsonwebtoken = "10.3.0"
 chrono = "0.4"
 toml = { workspace = true }
 libloading = "0.8"
+parking_lot = "0.12"
+
+# OpenAPI generation
+utoipa = { version = "5.0", features = ["axum_extras"] }
+utoipa-swagger-ui = { version = "8.0", features = ["axum"] }
 
 [target.'cfg(windows)'.dependencies]
 rfd = "0.15"   # native file dialog, кроссплатформенный

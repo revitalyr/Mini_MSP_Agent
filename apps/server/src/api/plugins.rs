@@ -17,8 +17,18 @@ use tracing::{info, warn, error};
 
 use crate::AppState;
 use crate::custom_plugin::{CustomCommandRequest, CustomCommandResponse, CustomMetrics, PluginInfo};
+use crate::api::docs::ErrorResponse;
 
 /// List all loaded custom plugins
+#[utoipa::path(
+    get,
+    path = "/plugins",
+    tag = "plugins",
+    responses(
+        (status = 200, description = "List of plugins", body = [PluginInfo]),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
 pub async fn list_plugins(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Vec<PluginInfo>>, StatusCode> {
@@ -30,18 +40,29 @@ pub async fn list_plugins(
 }
 
 /// Load a plugin from file path
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct LoadPluginRequest {
     pub path: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct LoadPluginResponse {
     pub success: bool,
     pub plugin: Option<PluginInfo>,
     pub error: Option<String>,
 }
 
+#[utoipa::path(
+    post,
+    path = "/plugins/load",
+    tag = "plugins",
+    request_body = LoadPluginRequest,
+    responses(
+        (status = 200, description = "Plugin loaded", body = LoadPluginResponse),
+        (status = 400, description = "Invalid request", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
 pub async fn load_plugin(
     State(state): State<Arc<AppState>>,
     Json(request): Json<LoadPluginRequest>,
@@ -70,12 +91,24 @@ pub async fn load_plugin(
 }
 
 /// Unload a plugin by name
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct UnloadPluginResponse {
     pub success: bool,
     pub error: Option<String>,
 }
 
+#[utoipa::path(
+    post,
+    path = "/plugins/{name}/unload",
+    tag = "plugins",
+    params(
+        ("name" = String, Path, description = "Plugin name")
+    ),
+    responses(
+        (status = 200, description = "Plugin unloaded", body = UnloadPluginResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
 pub async fn unload_plugin(
     State(state): State<Arc<AppState>>,
     Path(name): Path<String>,
@@ -102,6 +135,17 @@ pub async fn unload_plugin(
 }
 
 /// Execute command on a plugin
+#[utoipa::path(
+    post,
+    path = "/plugins/execute",
+    tag = "commands",
+    request_body = CustomCommandRequest,
+    responses(
+        (status = 200, description = "Command executed", body = CustomCommandResponse),
+        (status = 400, description = "Invalid request", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
 pub async fn execute_command(
     State(state): State<Arc<AppState>>,
     Json(request): Json<CustomCommandRequest>,
@@ -133,6 +177,19 @@ pub async fn execute_command(
 }
 
 /// Get metrics from a plugin
+#[utoipa::path(
+    get,
+    path = "/plugins/{name}/metrics",
+    tag = "plugins",
+    params(
+        ("name" = String, Path, description = "Plugin name")
+    ),
+    responses(
+        (status = 200, description = "Plugin metrics", body = CustomMetrics),
+        (status = 404, description = "Plugin not found", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
 pub async fn get_plugin_metrics(
     State(state): State<Arc<AppState>>,
     Path(name): Path<String>,
@@ -150,13 +207,27 @@ pub async fn get_plugin_metrics(
 }
 
 /// Plugin health check
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct PluginHealth {
     pub name: String,
     pub loaded: bool,
     pub status: String,
 }
 
+/// Check plugin health
+#[utoipa::path(
+    get,
+    path = "/plugins/{name}/health",
+    tag = "plugins",
+    params(
+        ("name" = String, Path, description = "Plugin name")
+    ),
+    responses(
+        (status = 200, description = "Plugin health status", body = PluginHealth),
+        (status = 404, description = "Plugin not found", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
 pub async fn plugin_health(
     State(state): State<Arc<AppState>>,
     Path(name): Path<String>,

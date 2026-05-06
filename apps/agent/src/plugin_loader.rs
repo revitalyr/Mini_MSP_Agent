@@ -438,9 +438,17 @@ impl PluginManager {
         // Find plugin by name or use first available
         let plugin = match plugin_name {
             Some(name) => {
-                self.plugins.iter()
-                    .find(|p| p.name() == name)
-                    .ok_or_else(|| anyhow!("Plugin '{}' not found", name))?
+                // Try exact match first
+                if let Some(plugin) = self.plugins.iter().find(|p| p.name() == name) {
+                    plugin
+                } else {
+                    // Fallback: if requested plugin not found, try system plugin
+                    // This allows modules like 'directory_info' to be handled by '_system_plugin_v3'
+                    tracing::debug!("Plugin '{}' not found by exact name, trying fallback to system plugin", name);
+                    self.plugins.iter()
+                        .find(|p| p.name().starts_with("_system") || p.name().starts_with("System"))
+                        .ok_or_else(|| anyhow!("Plugin '{}' not found", name))?
+                }
             }
             None => self.plugins.iter()
                 .next()
