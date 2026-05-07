@@ -35,6 +35,19 @@ impl BrokerClient {
         Ok(())
     }
 
+    /// Get NATS client for advanced operations
+    pub fn client(&self) -> &Client {
+        &self.nats
+    }
+
+    /// Send a NATS request and await a response
+    pub async fn request(&self, subject: &str, payload: Vec<u8>) -> Result<async_nats::Message> {
+        let response = self.nats.request(subject, payload.into()).await
+            .map_err(|e| anyhow::anyhow!("NATS request to {} failed: {}", subject, e))?;
+        
+        Ok(response)
+    }
+
     /// Subscribe to heartbeats from all agents
     pub async fn subscribe_heartbeats(&self) -> Result<async_nats::Subscriber> {
         let subscriber = self.nats.subscribe("agent.heartbeat").await

@@ -29,9 +29,6 @@ use crate::api::plugins::{LoadPluginRequest, LoadPluginResponse, UnloadPluginRes
     ),
     components(
         schemas(
-            Agent,
-            AgentList,
-            AgentStatus,
             CommandRequest,
             CommandResponse,
             PluginInfo,

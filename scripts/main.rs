@@ -4,13 +4,12 @@
 
 mod simple_handlers;
 mod api;
+mod websocket;
 mod config;
 mod broker;
-mod semantic_types;
 mod ffi;
 mod plugin_loader;
 mod custom_plugin;
-mod boost_plugin;
 
 use axum::{
     routing::{get, post},
@@ -25,18 +24,16 @@ use tower_http::{
     services::ServeDir,
     trace::TraceLayer,
 };
-use tracing::{info, error, warn, debug, Level, instrument};
+use tracing::{info, error, warn, Level};
 use anyhow::Context;
-use std::path::PathBuf;
 
 use config::Config;
 use broker::{BrokerClient, BrokerMessageHandler};
 use custom_plugin::CustomPluginRegistry;
 use plugin_loader::PluginLoader;
-use boost_plugin::BoostPluginRegistry;
+use websocket::WebSocketManager;
 use mini_msp_shared::{AgentInfo, CommandResponse, Heartbeat};
 use futures_util::StreamExt;
-use serde_json::Value;
 
 /// Complete application state with all integrated components
 #[derive(Clone)]
@@ -49,8 +46,8 @@ pub struct AppState {
     pub plugin_registry: Arc<Mutex<CustomPluginRegistry>>,
     /// C++ forensic plugin loader (SystemPluginV3 + ForensicPlugin)
     pub forensic_plugin: Arc<Mutex<Option<PluginLoader>>>,
-    /// Boost.DLL plugin registry (modern C++23 plugin system)
-    pub boost_plugin_registry: Arc<Mutex<Option<BoostPluginRegistry>>>,
+    /// WebSocket connection manager for agent commands
+    pub ws_manager: Arc<WebSocketManager>,
 }
 
 #[tokio::main]
@@ -147,27 +144,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
     
     if forensic_plugin.lock().unwrap().is_none() {
-        // This warning is now more relevant as forensic_plugin is a core component for agent commands
-        warn!("Forensic plugin was not loaded. System-level forensic commands may be unavailable.");
+        warn!("Forensic plugin was not loaded. Some dashboard features may be unavailable.");
     }
-    
-    // Initialize Boost.DLL plugin system (modern C++23 plugins)
-    let boost_plugin_registry = Arc::new(Mutex::new(None));
-    debug!("Initializing Boost.DLL plugin system...");
-    match boost_plugin::init_boost_plugins() {
-        Ok(registry) => {
-            let count = registry.list_plugins()
-                .map(|plugins: Vec<Value>| plugins.len())
-                .unwrap_or(0);
-            info!("✓ Successfully initialized Boost.DLL plugins: {} plugins loaded", count);
-            *boost_plugin_registry.lock().unwrap() = Some(registry);
-        }
-        Err(e) => {
-            warn!("✗ Failed to initialize Boost.DLL plugins: {}", e);
-            info!("    (This is optional - legacy plugins will still work)");
-        }
-    }
-    
+
     // Пример функции для пакетной отправки (Batching)
     // Это помогает избежать проблем с MTU и лимитами брокеров
     /*
@@ -208,17 +187,52 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
     }
     
+    // Create WebSocket manager for agent connections
+    let ws_manager = Arc::new(WebSocketManager::new());
+    info!("WebSocket manager initialized");
+    
     // Create application state
     let app_state = Arc::new(AppState {
         agents: Arc::new(Mutex::new(HashMap::new())),
         broker_client: broker_client.clone(),
         plugin_registry,
         forensic_plugin,
-        boost_plugin_registry,
+        ws_manager,
     });
 
     // Start broker message processing if broker is connected
     if let Some(ref broker) = broker_client {
+        // Spawn response subscriber - forwards agent responses to WebSocket clients
+        let broker_responses = broker.clone();
+        let _ws_manager_responses = app_state.ws_manager.clone();
+        
+        let ws_manager_for_responses = app_state.ws_manager.clone();
+        
+        tokio::spawn(async move {
+            info!("Starting NATS response subscriber...");
+            
+            let mut response_sub = match broker_responses.subscribe_all_responses().await {
+                Ok(sub) => {
+                    info!("Subscribed to agent responses");
+                    sub
+                }
+                Err(e) => {
+                    error!("Failed to subscribe to responses: {}", e);
+                    return;
+                }
+            };
+            
+            // Process incoming responses and broadcast to WebSocket clients
+            use futures_util::StreamExt;
+            while let Some(msg) = response_sub.next().await {
+                if let Ok(payload) = std::str::from_utf8(&msg.payload) {
+                    info!("Received agent response via NATS: {}", payload);
+                    // Broadcast to all WebSocket clients
+                    ws_manager_for_responses.broadcast_response(payload.to_string()).await;
+                }
+            }
+        });
+        
         // Spawn heartbeat processor
         let handler = BrokerMessageHandler::new(broker.clone());
         let app_state_clone = app_state.clone();
@@ -360,21 +374,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         });
     }
 
-    // Determine static files path
-    let cwd = std::env::current_dir().unwrap_or_default();
-    println!("[DEBUG] Server CWD: {:?}", cwd);
-    
-    let static_path = if std::path::Path::new("static").exists() {
-        PathBuf::from("static")
-    } else if std::path::Path::new("../../static").exists() {
-        PathBuf::from("../../static")
-    } else {
-        PathBuf::from("static")
-    };
-    println!("[DEBUG] Static path resolved to: {:?}", static_path);
-    println!("[DEBUG] Static path exists: {}", static_path.exists());
-    info!("Serving static files from: {:?}", static_path);
-
     // Build router with CORS
     let cors = CorsLayer::new()
         .allow_origin(Any)
@@ -407,7 +406,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .route("/forensic/metrics", get(api::system::get_forensic_metrics))
         .route("/forensic/data", get(api::system::get_forensic_data))
         .route("/plugin/execute-json", post(api::system::execute_plugin_json))
-        .route("/api/agent/:agent_id/command", post(api::agents::send_agent_command_nats)) // New NATS-based command endpoint
+        
+        // WebSocket
+        .route("/ws", get(websocket::handle_websocket))
         
         // Plugin management
         .route("/plugins", get(api::plugins::list_plugins))
@@ -420,22 +421,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // File browser API
         .route("/api/browse/directory", post(crate::simple_handlers::browse_directory))
         
-        // API Documentation (OpenAPI/Swagger)
-        .merge(api::docs::swagger_routes())
-        
-        // Static files with logging
-        .nest_service("/static", {
-            let serve_dir = ServeDir::new(&static_path);
-            info!("Static files configured at path: {:?}", static_path);
-            info!("Static path exists: {}", std::path::Path::new(&static_path).exists());
-            if let Ok(entries) = std::fs::read_dir(&static_path) {
-                let files: Vec<_> = entries.filter_map(|e| e.ok()).map(|e| e.file_name()).collect();
-                info!("Static directory contents: {:?}", files);
-            } else {
-                warn!("Cannot read static directory: {:?}", static_path);
-            }
-            serve_dir
-        })
+        // Static files
+        .nest_service("/static", ServeDir::new("src/server/static"))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(app_state);
@@ -455,7 +442,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     
     info!("Starting axum server on {}", addr);
     info!("Available routes:");
-    info!("  Dashboard: http://localhost:{}/static/plugin_control.html", port);
     info!("  GET  /health - Health check");
     info!("  GET  /health/simple - Simple health check");
     info!("  POST /login - Authentication");

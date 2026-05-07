@@ -66,6 +66,14 @@ if [ "$BUILD" = true ]; then
     echo "🔧 Сборка C++ плагинов с preset linux-clang-20-debug..."
     if [ -f "plugins/cpp/CMakeLists.txt" ]; then
         pushd plugins/cpp > /dev/null
+        
+        # Check for Boost dependencies if they are used by the project
+        if ! dpkg -l libboost-filesystem-dev >/dev/null 2>&1; then
+            echo "🔍 Checking Boost dependencies..."
+            echo "⚠️  Warning: Boost filesystem development headers appear to be missing."
+            echo "💡 Try: sudo apt install libboost-filesystem-dev"
+        fi
+
         cmake --preset linux-clang-20-debug
         if ! cmake --build --preset linux-clang-20-debug; then
             echo "❌ Ошибка сборки плагинов"

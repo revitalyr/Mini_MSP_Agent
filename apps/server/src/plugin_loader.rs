@@ -9,6 +9,8 @@
 use std::path::{Path, PathBuf};
 use anyhow::{anyhow, Result};
 use libloading::{Library, Symbol};
+use std::ffi::{c_char, c_void, CStr, CString};
+use std::mem::MaybeUninit;
 use tracing::info;
 
 use crate::ffi::{PluginInterface, SafePluginInterface};
@@ -42,6 +44,13 @@ const PLUGIN_NAMES: &[&str] = &[
     "ModernSystemPlugin",
     "SystemPlugin",
 ];
+
+/// Helper to convert C string pointer to Rust String
+fn cstr_to_string_from_ptr(ptr: *const c_char) -> Result<String> {
+    if ptr.is_null() { return Ok(String::from("unknown")); }
+    let cstr = unsafe { CStr::from_ptr(ptr) };
+    Ok(cstr.to_string_lossy().to_string())
+}
 
 /// Platform-specific plugin loader
 pub struct PluginLoader {
@@ -105,7 +114,7 @@ impl PluginLoader {
             let interface = (*interface_ptr).clone();
             
             // Create safe wrapper
-            let safe_interface = SafePluginInterface::new(interface);
+            let safe_interface = SafePluginInterface::new(interface); // Assuming SafePluginInterface is in ffi.rs
 
             // Get plugin info
             let plugin_info = safe_interface.get_plugin_info()
@@ -258,5 +267,15 @@ mod tests {
         let filename = expected_plugin_filename();
         assert!(filename.ends_with(PLUGIN_EXT));
         assert!(filename.contains("ForensicPlugin"));
+    }
+
+    #[test]
+    fn test_debug_plugin_paths() {
+        let paths = debug_plugin_paths();
+        assert!(!paths.is_empty());
+        // Check if some expected paths are present
+        let platform = detect_platform();
+        let expected_path_part = format!("ForensicPlugin.{}.{}", platform, PLUGIN_EXT);
+        assert!(paths.iter().any(|p| p.to_string_lossy().contains(&expected_path_part)));
     }
 }

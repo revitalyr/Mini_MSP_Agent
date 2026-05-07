@@ -6,6 +6,7 @@
 use std::ffi::{c_char, c_float, c_int, c_void, CStr, CString};
 use std::path::Path;
 use anyhow::{anyhow, Result};
+use libloading::{Library, Symbol}; // Added libloading imports
 use serde_json::{json, Value};
 use tracing::{debug, info};
 

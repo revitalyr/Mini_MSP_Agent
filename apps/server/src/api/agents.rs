@@ -1,13 +1,15 @@
 //! Agent Management Endpoints
 //! 
-//! Manages connected agents and their status.
+//! Manages connected agents and their status, and routes commands.
 
 use axum::{extract::{State, Path}, response::Json, http::StatusCode};
-use serde_json::{json, Value};
 use std::sync::Arc;
-use tracing::info;
 
-use crate::{AppState, websocket::send_command_to_agent};
+use tracing::{info, debug, instrument};
+
+use crate::api::agents::calculate_status; // Import calculate_status
+use crate::broker::BrokerClient; // Import BrokerClient
+use crate::{AppState};
 use crate::semantic_types::{Duration, Timestamp};
 use crate::api::docs::{AgentList, CommandRequest, CommandResponse, ErrorResponse};
 
@@ -16,6 +18,7 @@ fn error_json(message: &str) -> Json<Value> {
     Json(json!({
         "status": "error",
         "error": message
+        // No need for supported_commands here, as this is a generic error
     }))
 }
 
@@ -102,7 +105,7 @@ pub async fn send_command(
         }
     } // lock released here
     
-    // Extract command type
+    // Extract command type from payload
     let command_type = payload.get("type")
         .and_then(|v| v.as_str())
         .unwrap_or("unknown");
@@ -142,42 +145,89 @@ pub async fn send_command(
         }
     }
     
-    // Fallback: Forward command to agent via broker or WebSocket
-    let command = json!({
-        "type": "command",
-        "agent_id": &agent_id,
+    // All agent commands are now routed via NATS Request-Reply
+    #[allow(clippy::redundant_clone)] // Payload might be used elsewhere
+    let nats_payload = json!({
         "command": command_type,
         "params": payload.get("data").cloned().unwrap_or(json!({})),
-        "payload": payload
     });
-    
-    match send_command_to_agent(&agent_id, &app_state, command).await {
-        Some(response) => {
-            if response.get("success").and_then(|v| v.as_bool()).unwrap_or(false) {
-                Ok(Json(json!({
-                    "success": true,
-                    "agent_id": agent_id,
-                    "source": "agent",
-                    "status": "completed",
-                    "data": response.get("data").cloned().unwrap_or(json!({})),
-                    "command": command_type,
-                })))
-            } else {
-                Ok(Json(json!({
-                    "success": false,
-                    "agent_id": agent_id,
-                    "source": "agent",
-                    "error": response.get("error").and_then(|v| v.as_str()).unwrap_or("Command failed"),
-                    "command": command_type,
-                })))
+
+    send_agent_command_nats(Path(agent_id), State(app_state), Json(nats_payload)).await
+}
+
+#[instrument(skip(app_state, payload))]
+/// Send command to specific agent via NATS Request-Reply
+/// This is the preferred method for agent communication.
+#[utoipa::path(
+    post,
+    path = "/api/agent/{agent_id}/command", // New endpoint for NATS-based commands
+    tag = "commands",
+    params(
+        ("agent_id" = String, Path, description = "Agent UUID")
+    ),
+    request_body = CommandRequest,
+    responses(
+        (status = 200, description = "Command executed", body = CommandResponse),
+        (status = 404, description = "Agent not found", body = ErrorResponse),
+        (status = 400, description = "Invalid request", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
+pub async fn send_agent_command_nats(
+    Path(agent_id): Path<String>,
+    State(app_state): State<Arc<AppState>>,
+    Json(payload): Json<Value>
+) -> Result<Json<Value>, StatusCode> {
+    let broker_client = app_state.broker_client.clone();
+    let Some(broker) = broker_client else {
+        return Ok(error_json("NATS broker not connected"));
+    };
+
+    // Check if agent exists and is online
+    {
+        let agents = app_state.agents.lock().unwrap();
+        if let Some(agent_info) = agents.get(&agent_id) {
+            if calculate_status(agent_info.last_seen) != "online" {
+                return Ok(error_json("Agent is offline"));
             }
+        } else {
+            return Ok(error_json("Agent not found"));
         }
-        None => Ok(Json(json!({
-            "success": false,
-            "agent_id": agent_id,
-            "error": "Agent not connected or did not respond",
-            "command": command_type,
-        })))
+    }
+
+    let command_name = payload.get("command")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown_command");
+
+    let command_request = json!({
+        "command": command_name,
+        "params": payload.get("params").cloned().unwrap_or(json!({})),
+    });
+
+    let subject = format!("forensic.cmd.{}", agent_id);
+    info!("Sending NATS request to subject: {}", subject);
+
+    match broker.request(&subject, command_request.to_string().into_bytes()).await {
+        Ok(response_msg) => { // response_msg is async_nats::Message
+            let data = if let Some(encoding) = response_msg.headers.as_ref().and_then(|h| h.get("Content-Encoding")) {
+                if encoding.to_string() == "zstd" {
+                    zstd::decode_all(response_msg.payload.as_ref()) // Use as_ref() for payload
+                        .unwrap_or_else(|_| response_msg.payload.to_vec())
+                } else {
+                    response_msg.payload.to_vec()
+                }
+            } else {
+                response_msg.payload.to_vec()
+            };
+
+            let response_str = std::str::from_utf8(&data).unwrap_or("{\"status\":\"error\",\"message\":\"Invalid UTF-8 response\"}");
+            debug!("Received NATS response from agent {} (size: {} bytes)", agent_id, data.len());
+            
+            Ok(serde_json::from_str(response_str).unwrap_or_else(|_| error_json("Invalid JSON response from agent")))
+        }
+        Err(e) => {
+            Ok(error_json(&format!("NATS request failed: {}", e)))
+        }
     }
 }
 
@@ -196,24 +246,32 @@ pub async fn get_plugin_objects(
         "agent_id": agent_id
     });
 
-    match send_command_to_agent(&agent_id, &app_state, command).await {
-        Some(response) => {
-            if response.get("success").and_then(|v| v.as_bool()).unwrap_or(false) {
-                let data = response.get("data").cloned().unwrap_or(json!({}));
-                Ok(Json(json!({
-                    "status": "ok",
-                    "plugin": plugin_name,
-                    "objects": data.get("objects").cloned().unwrap_or(json!([])),
-                    "object_type": data.get("object_type").and_then(|v| v.as_str()).unwrap_or("item")
-                })))
+    let command_payload = json!({
+        "command": "get_available_objects",
+        "params": {
+            "plugin": plugin_name
+        },
+    });
+
+    match send_agent_command_nats(Path(agent_id), State(app_state), Json(command_payload)).await {
+        Ok(Json(response)) => {
+            if response.get("status").and_then(|v| v.as_str()) == Some("ok") {
+                Ok(Json(response.get("data").cloned().unwrap_or(json!({}))))
             } else {
                 Ok(error_json(&format!(
                     "Agent returned error: {}",
-                    response.get("error").and_then(|v| v.as_str()).unwrap_or("unknown")
+                    response.get("message").and_then(|v| v.as_str()).unwrap_or("unknown")
                 )))
             }
         }
-        None => Ok(error_json("Agent not connected or did not respond")),
+        Err(e) => {
+            let error_message = match e {
+                StatusCode::NOT_FOUND => "Agent not found or offline".to_string(),
+                StatusCode::BAD_REQUEST => "Invalid command request".to_string(),
+                _ => format!("Server error: {:?}", e),
+            };
+            Ok(error_json(&error_message))
+        }
     }
 }
 
@@ -223,9 +281,8 @@ pub async fn get_plugin_object_data(
     State(app_state): State<Arc<AppState>>,
 ) -> Result<Json<Value>, StatusCode> {
     // Send command to agent to get object data from plugin
-    let command = json!({
-        "type": "command",
-        "command": "get_object_data",
+    let command_payload = json!({
+        "command": "get_object_data", // Assuming this command exists in forensic plugin
         "params": {
             "plugin": plugin_name,
             "object_id": object_id
@@ -233,18 +290,24 @@ pub async fn get_plugin_object_data(
         "agent_id": agent_id
     });
 
-    match send_command_to_agent(&agent_id, &app_state, command).await {
-        Some(response) => {
-            if response.get("success").and_then(|v| v.as_bool()).unwrap_or(false) {
-                let data = response.get("data").cloned().unwrap_or(json!({}));
-                Ok(Json(data))
+    match send_agent_command_nats(Path(agent_id), State(app_state), Json(command_payload)).await {
+        Ok(Json(response)) => {
+            if response.get("status").and_then(|v| v.as_str()) == Some("ok") {
+                Ok(Json(response.get("data").cloned().unwrap_or(json!({}))))
             } else {
                 Ok(error_json(&format!(
                     "Agent returned error: {}",
-                    response.get("error").and_then(|v| v.as_str()).unwrap_or("unknown")
+                    response.get("message").and_then(|v| v.as_str()).unwrap_or("unknown")
                 )))
             }
         }
-        None => Ok(error_json("Agent not connected or did not respond")),
+        Err(e) => {
+            let error_message = match e {
+                StatusCode::NOT_FOUND => "Agent not found or offline".to_string(),
+                StatusCode::BAD_REQUEST => "Invalid command request".to_string(),
+                _ => format!("Server error: {:?}", e),
+            };
+            Ok(error_json(&error_message))
+        }
     }
 }

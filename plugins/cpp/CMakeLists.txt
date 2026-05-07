@@ -17,6 +17,15 @@ project(SystemPluginV3
     LANGUAGES CXX
 )
 
+# Boost Configuration
+find_package(Boost 1.82 COMPONENTS filesystem QUIET)
+if(Boost_FOUND)
+    message(STATUS "✅ Found Boost ${Boost_VERSION}")
+    include_directories(${Boost_INCLUDE_DIRS})
+else()
+    message(WARNING "⚠️ Boost 1.82+ not found. Boost-dependent features will be disabled.")
+endif()
+
 # Include required CMake modules
 include(GenerateExportHeader)
 
@@ -151,6 +160,9 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         dl
         m
     )
+    if(Boost_FOUND)
+        target_link_libraries(ForensicPlugin PRIVATE Boost::filesystem)
+    endif()
     
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     # macOS Forensic Plugin

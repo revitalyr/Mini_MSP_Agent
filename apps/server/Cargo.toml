@@ -35,10 +35,12 @@ futures-util = { workspace = true }
 tokio-tungstenite = { workspace = true }
 clap = { workspace = true }
 jsonwebtoken = "10.3.0"
-chrono = "0.4"
+chrono = { workspace = true }
 toml = { workspace = true }
-libloading = "0.8"
+libloading = { workspace = true }
 parking_lot = "0.12"
+zstd = { workspace = true }
+
 
 # OpenAPI generation
 utoipa = { version = "5.0", features = ["axum_extras"] }

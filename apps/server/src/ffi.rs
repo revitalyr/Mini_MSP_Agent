@@ -18,7 +18,6 @@ pub use crate::semantic_types::*;
 #[derive(Debug, Clone)]
 pub struct ProcessInfo {
     pub pid: ProcessId,
-    pub _reserved1: u32, // Padding to 8-byte boundary
     pub name: [c_char; MAX_HOSTNAME_LEN],
     pub cpu_usage: CpuUsage,
     pub _reserved2: u32, // Padding after f32

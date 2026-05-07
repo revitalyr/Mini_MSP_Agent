@@ -2,72 +2,54 @@
 //! 
 //! Provides system information and forensic metrics from plugins.
 
-use axum::{response::Json, http::StatusCode, extract::State};
+use axum::{response::Json, http::StatusCode, extract::{State, Path}};
 use serde_json::{json, Value};
 use std::process::Command;
 use std::sync::Arc;
 use crate::AppState;
-use tracing::{info, warn};
+use tracing::{info, warn, instrument};
+use crate::api::agents::{send_agent_command_nats, calculate_status}; // Import calculate_status
 use crate::semantic_types::{Timestamp, format_timestamp};
 
 /// Get forensic metrics from C++ plugin
 pub async fn get_forensic_metrics(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Value>, StatusCode> {
-    let forensic = state.forensic_plugin.lock().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let agent_id = {
+        let agents = state.agents.lock().unwrap();
+        agents.iter()
+            .filter(|(_, info)| calculate_status(info.last_seen) == "online")
+            .map(|(id, _)| id.clone())
+            .next()
+            .unwrap_or_else(|| "5824f0ee-56d1-40ab-9c89-70b112b57a01".to_string()) // Fallback to hardcoded
+    };
+    let command_payload = json!({"command": "get_metrics", "params": {}});
     
-    if let Some(ref loader) = *forensic {
-        let interface = loader.interface();
-        
-        // Get system metrics from forensic plugin
-        match interface.get_system_metrics() {
-            Ok(metrics) => {
-                info!("Retrieved forensic metrics from plugin: {} v{}", loader.name(), loader.version());
-                // Convert C-string hostname to Rust String
-                let hostname = unsafe {
-                    std::ffi::CStr::from_ptr(metrics.hostname.as_ptr())
-                        .to_string_lossy()
-                        .to_string()
-                };
-                
-                let timestamp: Timestamp = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_millis() as Timestamp;
-                
-                return Ok(Json(json!({
-                    "source": "forensic_plugin",
-                    "plugin_name": loader.name(),
-                    "plugin_version": loader.version(),
-                    "metrics": {
-                        "hostname": hostname,
-                        "ram_usage": metrics.ram_usage,
-                        "cpu_usage": metrics.cpu_usage,
-                        "uptime": metrics.uptime
-                    },
-                    "timestamp": timestamp,
-                    "timestamp_formatted": format_timestamp(timestamp)
-                })));
-            }
-            Err(e) => {
-                warn!("Failed to get forensic metrics: {}", e);
-                return Ok(Json(json!({
-                    "source": "forensic_plugin",
-                    "plugin_name": loader.name(),
-                    "plugin_version": loader.version(),
-                    "error": e.to_string(),
-                    "status": "error"
-                })));
+    match send_agent_command_nats(Path(agent_id), State(app_state), Json(command_payload)).await {
+        Ok(Json(response)) => {
+            if response.get("status").and_then(|v| v.as_str()) == Some("ok") {
+                Ok(Json(response.get("data").cloned().unwrap_or(json!({}))))
+            } else {
+                Ok(Json(json!({
+                    "status": "error",
+                    "error": response.get("message").and_then(|v| v.as_str()).unwrap_or("Unknown error from agent"),
+                    "supported_commands": response.get("supported_commands").cloned().unwrap_or(json!([])),
+                })))
             }
         }
+        Err(e) => {
+            let error_message = match e {
+                StatusCode::NOT_FOUND => "Agent not found or offline".to_string(),
+                StatusCode::BAD_REQUEST => "Invalid command request".to_string(),
+                _ => format!("Server error: {:?}", e),
+            };
+            Ok(Json(json!({
+                "status": "error",
+                "error": error_message,
+                "supported_commands": ["get_status", "get_metrics"] // Fallback for UI
+            })))
+        }
     }
-    
-    // No forensic plugin loaded
-    Ok(Json(json!({
-        "source": "forensic_plugin",
-        "status": "not_loaded",
-        "message": "Forensic plugin is not loaded or available"
-    })))
 }
 
 /// Get system information
@@ -89,75 +71,41 @@ pub async fn get_system_info() -> Result<Json<Value>, StatusCode> {
 pub async fn get_forensic_data(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Value>, StatusCode> {
-    let forensic = state.forensic_plugin.lock().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let agent_id = {
+        let agents = state.agents.lock().unwrap();
+        agents.iter()
+            .filter(|(_, info)| calculate_status(info.last_seen) == "online")
+            .map(|(id, _)| id.clone())
+            .next()
+            .unwrap_or_else(|| "5824f0ee-56d1-40ab-9c89-70b112b57a01".to_string()) // Fallback to hardcoded
+    };
+    let command_payload = json!({"command": "get_forensic", "params": {}});
     
-    if let Some(ref loader) = *forensic {
-        let interface = loader.interface();
-        
-        match interface.get_forensic_data() {
-            Ok(Some(data)) => {
-                info!("Retrieved forensic data: {} findings", data.count);
-                
-                // Convert findings to JSON
-                let findings: Vec<Value> = if data.count > 0 && !data.findings.is_null() {
-                    let slice = unsafe { std::slice::from_raw_parts(data.findings, data.count) };
-                    slice.iter().map(|f| {
-                        let category = unsafe { std::ffi::CStr::from_ptr(f.category.as_ptr()) }.to_string_lossy();
-                        let artifact_type = unsafe { std::ffi::CStr::from_ptr(f.artifact_type.as_ptr()) }.to_string_lossy();
-                        let path = unsafe { std::ffi::CStr::from_ptr(f.path.as_ptr()) }.to_string_lossy();
-                        let value = unsafe { std::ffi::CStr::from_ptr(f.value.as_ptr()) }.to_string_lossy();
-                        let details = unsafe { std::ffi::CStr::from_ptr(f.details.as_ptr()) }.to_string_lossy();
-                        
-                        json!({
-                            "category": category.to_string(),
-                            "artifact_type": artifact_type.to_string(),
-                            "path": path.to_string(),
-                            "value": value.to_string(),
-                            "suspicious": f.suspicious,
-                            "details": details.to_string()
-                        })
-                    }).collect()
-                } else {
-                    Vec::new()
-                };
-                
-                return Ok(Json(json!({
-                    "source": "forensic_plugin",
-                    "plugin_name": loader.name(),
-                    "plugin_version": loader.version(),
-                    "collection_time": data.collection_time,
-                    "count": data.count,
-                    "findings": findings,
-                    "status": "success"
-                })));
-            }
-            Ok(None) => {
-                return Ok(Json(json!({
-                    "source": "forensic_plugin",
-                    "plugin_name": loader.name(),
-                    "plugin_version": loader.version(),
-                    "status": "not_implemented",
-                    "message": "Forensic data collection not implemented in this plugin version"
-                })));
-            }
-            Err(e) => {
-                warn!("Failed to get forensic data: {}", e);
-                return Ok(Json(json!({
-                    "source": "forensic_plugin",
-                    "plugin_name": loader.name(),
-                    "plugin_version": loader.version(),
+    match send_agent_command_nats(Path(agent_id), State(app_state), Json(command_payload)).await {
+        Ok(Json(response)) => {
+            if response.get("status").and_then(|v| v.as_str()) == Some("ok") {
+                Ok(Json(response.get("data").cloned().unwrap_or(json!({}))))
+            } else {
+                Ok(Json(json!({
                     "status": "error",
-                    "error": e.to_string()
-                })));
+                    "error": response.get("message").and_then(|v| v.as_str()).unwrap_or("Unknown error from agent"),
+                    "supported_commands": response.get("supported_commands").cloned().unwrap_or(json!([])),
+                })))
             }
         }
+        Err(e) => {
+            let error_message = match e {
+                StatusCode::NOT_FOUND => "Agent not found or offline".to_string(),
+                StatusCode::BAD_REQUEST => "Invalid command request".to_string(),
+                _ => format!("Server error: {:?}", e),
+            };
+            Ok(Json(json!({
+                "status": "error",
+                "error": error_message,
+                "supported_commands": ["get_forensic"] // Fallback for UI
+            })))
+        }
     }
-    
-    Ok(Json(json!({
-        "source": "forensic_plugin",
-        "status": "not_loaded",
-        "message": "Forensic plugin is not loaded or available"
-    })))
 }
 
 /// Execute JSON command on plugin and forward response directly to web
@@ -166,57 +114,44 @@ pub async fn execute_plugin_json(
     State(state): State<Arc<AppState>>,
     Json(request): Json<Value>,
 ) -> Result<Json<Value>, StatusCode> {
-    let forensic = state.forensic_plugin.lock().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
-    if let Some(ref loader) = *forensic {
-        let interface = loader.interface();
-        
-        // Serialize request to JSON string
-        let json_request = match serde_json::to_string(&request) {
-            Ok(s) => s,
-            Err(e) => return Ok(Json(json!({
-                "status": "error",
-                "error": format!("Failed to serialize request: {}", e)
-            }))),
-        };
-        
-        match interface.execute_json(&json_request) {
-            Ok(Some(response_json)) => {
-                // Parse plugin response and return as-is (server just forwards)
-                match serde_json::from_str::<Value>(&response_json) {
-                    Ok(parsed) => {
-                        info!("Plugin JSON response forwarded (no server processing)");
-                        Ok(Json(parsed))
-                    }
-                    Err(_) => {
-                        // If not valid JSON, wrap as string
-                        Ok(Json(json!({
-                            "status": "ok",
-                            "raw_response": response_json
-                        })))
-                    }
-                }
-            }
-            Ok(None) => {
-                // Plugin doesn't implement execute_json, fall back to legacy
-                Ok(Json(json!({
-                    "status": "not_implemented",
-                    "message": "Plugin doesn't support direct JSON exchange"
-                })))
-            }
-            Err(e) => {
-                warn!("Plugin execute_json failed: {}", e);
+    let agent_id = {
+        let agents = state.agents.lock().unwrap();
+        agents.iter()
+            .filter(|(_, info)| calculate_status(info.last_seen) == "online")
+            .map(|(id, _)| id.clone())
+            .next()
+            .unwrap_or_else(|| "5824f0ee-56d1-40ab-9c89-70b112b57a01".to_string()) // Fallback to hardcoded
+    };
+
+    let command_payload = json!({
+        "command": request.get("cmd").cloned().unwrap_or(json!("unknown_command")),
+        "params": request.get("params").cloned().unwrap_or(json!({})),
+    });
+
+    match send_agent_command_nats(Path(agent_id), State(state), Json(command_payload)).await {
+        Ok(Json(response)) => {
+            if response.get("status").and_then(|v| v.as_str()) == Some("ok") {
+                Ok(Json(response.get("data").cloned().unwrap_or(json!({}))))
+            } else {
                 Ok(Json(json!({
                     "status": "error",
-                    "error": e.to_string()
+                    "error": response.get("message").and_then(|v| v.as_str()).unwrap_or("Unknown error from agent"),
+                    "supported_commands": response.get("supported_commands").cloned().unwrap_or(json!([])),
                 })))
             }
         }
-    } else {
-        Ok(Json(json!({
-            "status": "not_loaded",
-            "message": "Forensic plugin is not loaded"
-        })))
+        Err(e) => {
+            let error_message = match e {
+                StatusCode::NOT_FOUND => "Agent not found or offline".to_string(),
+                StatusCode::BAD_REQUEST => "Invalid command request".to_string(),
+                _ => format!("Server error: {:?}", e),
+            };
+            Ok(Json(json!({
+                "status": "error",
+                "error": error_message,
+                "supported_commands": ["execute_json"] // Fallback for UI
+            })))
+        }
     }
 }
 
