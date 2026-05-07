@@ -25,7 +25,7 @@ pub async fn get_forensic_metrics(
     };
     let command_payload = json!({"command": "get_metrics", "params": {}});
     
-    match send_agent_command_nats(Path(agent_id), State(app_state), Json(command_payload)).await {
+    match send_agent_command_nats(Path(agent_id), State(state), Json(command_payload)).await {
         Ok(Json(response)) => {
             if response.get("status").and_then(|v| v.as_str()) == Some("ok") {
                 Ok(Json(response.get("data").cloned().unwrap_or(json!({}))))
@@ -81,7 +81,7 @@ pub async fn get_forensic_data(
     };
     let command_payload = json!({"command": "get_forensic", "params": {}});
     
-    match send_agent_command_nats(Path(agent_id), State(app_state), Json(command_payload)).await {
+    match send_agent_command_nats(Path(agent_id), State(state), Json(command_payload)).await {
         Ok(Json(response)) => {
             if response.get("status").and_then(|v| v.as_str()) == Some("ok") {
                 Ok(Json(response.get("data").cloned().unwrap_or(json!({}))))

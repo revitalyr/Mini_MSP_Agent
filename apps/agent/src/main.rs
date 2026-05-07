@@ -10,7 +10,7 @@ use std::collections::HashMap; // Keep for plugin_manager
 #[derive(Debug, serde::Deserialize)]
 struct Config {
     #[allow(dead_code)]
-    server_url: Option<String>,
+    broker_url: Option<String>,
     #[allow(dead_code)]
     interval: Option<u64>,
     #[allow(dead_code)]
@@ -24,6 +24,7 @@ struct Config {
 impl Default for Config {
     fn default() -> Self {
         Config {
+            broker_url: Some("nats://localhost:4222".to_string()),
             interval: Some(30),
             agent_id: Some("unix-agent-001".to_string()),
             log_level: Some("info".to_string()),
@@ -40,12 +41,15 @@ fn load_config(path: &str) -> Config {
                     // Fill in defaults for missing values
                     let default = Config::default();
                     config.broker_url.get_or_insert_with(|| default.broker_url.unwrap());
-                    config.server_url.get_or_insert_with(|| default.server_url.unwrap());
                     config.interval.get_or_insert_with(|| default.interval.unwrap());
                     config.agent_id.get_or_insert_with(|| default.agent_id.unwrap());
                     config.log_level.get_or_insert_with(|| default.log_level.unwrap());
                     config.log_dir.get_or_insert_with(|| default.log_dir.unwrap());
                     config
+                }
+                Err(e) => {
+                    warn!("Failed to parse config file: {}, using defaults", e);
+                    Config::default()
                 }
             }
         }
@@ -179,7 +183,7 @@ async fn main() -> Result<()> {
     // Connect to NATS (required)
     let broker_url = config.broker_url.unwrap_or_else(|| "nats://localhost:4222".to_string());
     info!("Connecting to NATS at {}...", broker_url);
-    let nats_client = async_nats::connect(&broker_url).await?;
+    let nats_client: async_nats::Client = async_nats::connect(&broker_url).await?;
     info!("Connected to NATS successfully");
 
     // Send agent registration to API
@@ -244,7 +248,7 @@ async fn main() -> Result<()> {
         let topic = format!("agent.{}.commands", agent_id_for_commands);
         info!("Subscribing to NATS command topic: {}", topic);
         
-        let mut subscriber = match nats_commands.subscribe(topic.clone()).await {
+        let mut subscriber: async_nats::Subscriber = match nats_commands.subscribe(topic.clone()).await {
             Ok(sub) => sub,
             Err(e) => {
                 error!("Failed to subscribe to commands topic: {}", e);
@@ -295,6 +299,7 @@ async fn main() -> Result<()> {
                         // Compression logic: use Zstd for payloads > 1024 bytes
                         if payload_bytes.len() > 1024 {
                             if let Ok(compressed) = zstd::encode_all(&payload_bytes[..], 3) {
+                                let compressed_len = compressed.len();
                                 let mut headers = async_nats::HeaderMap::new();
                                 headers.insert("Content-Encoding", "zstd");
                                 
@@ -306,7 +311,7 @@ async fn main() -> Result<()> {
                                     error!("Failed to publish compressed response: {}", e);
                                 } else {
                                     info!("Compressed command response published ({} -> {} bytes)", 
-                                          payload_bytes.len(), compressed.len()); // Call len() before into()
+                                          payload_bytes.len(), compressed_len);
                                 }
                                 continue; // Skip regular publish
                             }

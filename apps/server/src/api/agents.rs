@@ -4,10 +4,10 @@
 
 use axum::{extract::{State, Path}, response::Json, http::StatusCode};
 use std::sync::Arc;
+use serde_json::{json, Value};
 
 use tracing::{info, debug, instrument};
 
-use crate::api::agents::calculate_status; // Import calculate_status
 use crate::broker::BrokerClient; // Import BrokerClient
 use crate::{AppState};
 use crate::semantic_types::{Duration, Timestamp};
@@ -26,7 +26,7 @@ fn error_json(message: &str) -> Json<Value> {
 const AGENT_TIMEOUT_SECS: Duration = 120;
 
 /// Calculate agent status based on last_seen timestamp
-fn calculate_status(last_seen: Timestamp) -> &'static str {
+pub fn calculate_status(last_seen: Timestamp) -> &'static str {
     let now = chrono::Utc::now().timestamp() as Timestamp;
     if (now - last_seen) < AGENT_TIMEOUT_SECS {
         "online"
@@ -207,7 +207,7 @@ pub async fn send_agent_command_nats(
     let subject = format!("forensic.cmd.{}", agent_id);
     info!("Sending NATS request to subject: {}", subject);
 
-    match broker.request(&subject, command_request.to_string().into_bytes()).await {
+    match broker.request(subject, command_request.to_string().into_bytes()).await {
         Ok(response_msg) => { // response_msg is async_nats::Message
             let data = if let Some(encoding) = response_msg.headers.as_ref().and_then(|h| h.get("Content-Encoding")) {
                 if encoding.to_string() == "zstd" {
@@ -223,7 +223,9 @@ pub async fn send_agent_command_nats(
             let response_str = std::str::from_utf8(&data).unwrap_or("{\"status\":\"error\",\"message\":\"Invalid UTF-8 response\"}");
             debug!("Received NATS response from agent {} (size: {} bytes)", agent_id, data.len());
             
-            Ok(serde_json::from_str(response_str).unwrap_or_else(|_| error_json("Invalid JSON response from agent")))
+            let value: Value = serde_json::from_str(response_str)
+                .unwrap_or_else(|_| json!({"status": "error", "message": "Invalid JSON response from agent"}));
+            Ok(Json(value))
         }
         Err(e) => {
             Ok(error_json(&format!("NATS request failed: {}", e)))

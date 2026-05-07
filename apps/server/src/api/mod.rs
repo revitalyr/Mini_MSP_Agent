@@ -6,7 +6,7 @@
 //! - Agent management
 //! - WebSocket connections
 
-pb mod health;
+pub mod health;
 pub mod agents;
 pub mod auth;
 pub mod system;
