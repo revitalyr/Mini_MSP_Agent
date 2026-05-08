@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 project(MiniMSPQtClient VERSION 0.1.0 LANGUAGES CXX)
  
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
@@ -38,6 +38,17 @@ if(NOT cnats_FOUND)
  
     FetchContent_MakeAvailable(cnats)
 endif()
+
+# Find or Fetch zstd (required by natsclient.cpp)
+include(FetchContent)
+FetchContent_Declare(
+    zstd
+    GIT_REPOSITORY https://github.com/facebook/zstd.git
+    GIT_TAG v1.5.5
+    SOURCE_SUBDIR build/cmake
+    GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(zstd)
  
 # Find nlohmann/json for JSON handling
 find_package(nlohmann_json QUIET)
@@ -87,22 +98,34 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Widgets
     Qt6::Network
     nats_static
+    libzstd_static
     nlohmann_json::nlohmann_json
 )
  
 # Include directories
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${cnats_SOURCE_DIR}/include
 )
+
+if(cnats_SOURCE_DIR)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${cnats_SOURCE_DIR}/src)
+endif()
+
+if(cnats_INCLUDE_DIRS)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${cnats_INCLUDE_DIRS})
+endif()
  
 # Compiler options
-target_compile_options(${PROJECT_NAME} PRIVATE
-    -Wall
-    -Wextra
-    -Wpedantic
-)
- 
+if(MSVC)
+    target_compile_options(${PROJECT_NAME} PRIVATE /W4 /WX /permissive-)
+else()
+    target_compile_options(${PROJECT_NAME} PRIVATE
+        -Wall
+        -Wextra
+        -Wpedantic
+    )
+endif()
+
 # Installation
 install(TARGETS ${PROJECT_NAME}
     RUNTIME DESTINATION bin

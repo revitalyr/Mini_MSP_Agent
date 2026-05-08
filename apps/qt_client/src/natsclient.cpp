@@ -58,14 +58,32 @@ NatsClient::~NatsClient()
 
 bool NatsClient::connectToServer(const QString& url)
 {
-    natsStatus s = natsConnection_ConnectTo(&m_conn, url.toUtf8().constData());
+    natsOptions* opts = nullptr;
+    natsStatus s = natsOptions_Create(&opts);
+    if (s != NATS_OK) return false;
+
+    // Настройка параметров соединения для промышленного использования
+    natsOptions_SetURL(opts, url.toUtf8().constData());
+    natsOptions_SetAllowReconnect(opts, true);
+    natsOptions_SetMaxReconnect(opts, -1);      // Бесконечные попытки переподключения
+    natsOptions_SetReconnectWait(opts, 2000);   // Пауза 2 секунды между попытками
+    
+    // Регистрация коллбэков жизненного цикла
+    natsOptions_SetDisconnectedCB(opts, onConnectionLostCB, this);
+    natsOptions_SetReconnectedCB(opts, onReconnectedCB, this);
+    natsOptions_SetClosedCB(opts, onClosedCB, this);
+    natsOptions_SetErrorHandler(opts, onAsyncErrorCB, this);
+
+    // Установка соединения с использованием сконфигурированных опций
+    s = natsConnection_Connect(&m_conn, opts);
+    
+    // Опции копируются внутрь объекта соединения, поэтому хэндл нужно уничтожить
+    natsOptions_Destroy(opts);
+
     if (s != NATS_OK) {
         emit connectionError(QString("Failed to connect: %1").arg(natsStatus_GetText(s)));
         return false;
     }
-    
-    // Set connection lost handler
-    natsConnection_SetDisconnectedCB(m_conn, onConnectionLostCB, this);
     
     emit connected();
     qDebug() << "Connected to NATS at" << url;
@@ -255,10 +273,43 @@ void NatsClient::onResponseMsgCB(natsConnection* conn, natsSubscription* sub,
     natsMsg_Destroy(msg);
 }
 
+void NatsClient::onReconnectedCB(natsConnection* conn, void* closure)
+{
+    Q_UNUSED(conn)
+    auto* client = static_cast<NatsClient*>(closure);
+    qDebug() << "NATS: Соединение восстановлено";
+    emit client->connected();
+}
+
+void NatsClient::onClosedCB(natsConnection* conn, void* closure)
+{
+    Q_UNUSED(conn)
+    auto* client = static_cast<NatsClient*>(closure);
+    qDebug() << "NATS: Соединение окончательно закрыто";
+    emit client->disconnected();
+}
+
+void NatsClient::onAsyncErrorCB(natsConnection* conn, natsSubscription* sub, natsStatus s, void* closure)
+{
+    Q_UNUSED(conn)
+    auto* client = static_cast<NatsClient*>(closure);
+    QString errorMsg = QString("NATS Async Error: %1").arg(natsStatus_GetText(s));
+    
+    if (sub) {
+        char subject[256];
+        natsSubscription_GetSubject(sub, subject, sizeof(subject));
+        errorMsg += QString(" (Subscription: %1)").arg(subject);
+    }
+    
+    qWarning() << errorMsg;
+    emit client->connectionError(errorMsg);
+}
+
 void NatsClient::onConnectionLostCB(natsConnection* conn, void* closure)
 {
     Q_UNUSED(conn)
     auto* client = static_cast<NatsClient*>(closure);
+    qWarning() << "NATS: Соединение потеряно, ожидание переподключения...";
     emit client->connectionError("Connection to NATS lost");
 }
 

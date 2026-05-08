@@ -5,8 +5,9 @@
 #include <QByteArray>
 #include <QTimer>
 #include <QMap>
+#include <QMutex>
 #include <QDateTime>
-#include <nats/nats.h>
+#include <nats.h>
 #include <nlohmann/json.hpp>
 
 struct AgentInfo {
@@ -71,6 +72,9 @@ private:
     static void onResponseMsgCB(natsConnection* conn, natsSubscription* sub,
                                  natsMsg* msg, void* closure);
     static void onConnectionLostCB(natsConnection* conn, void* closure);
+    static void onReconnectedCB(natsConnection* conn, void* closure);
+    static void onClosedCB(natsConnection* conn, void* closure);
+    static void onAsyncErrorCB(natsConnection* conn, natsSubscription* sub, natsStatus s, void* closure);
 
     void handleHeartbeat(const QByteArray& payload);
     void handleResponse(const QString& agentId, const QByteArray& payload);
