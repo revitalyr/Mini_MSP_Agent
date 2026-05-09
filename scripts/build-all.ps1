@@ -36,9 +36,9 @@ function Build-Component {
                 New-Item -ItemType Directory -Force $BuildDir | Out-Null
                 Set-Location $BuildDir
                 
-                # Try different generators
+                # Try cmake without generator specification
                 if (Get-Command "cmake" -ErrorAction SilentlyContinue) {
-                    cmake .. -DCMAKE_BUILD_TYPE=Release -A x64
+                    cmake .. -DCMAKE_BUILD_TYPE=Release
                     if ($LASTEXITCODE -eq 0) {
                         cmake --build . --config Release
                     }

@@ -1,5 +1,15 @@
 cmake_minimum_required(VERSION 3.20)
 project(MiniMSPQtClient VERSION 0.1.0 LANGUAGES CXX)
+
+# Platform-specific configuration
+if(WIN32)
+    # Use default generator on Windows
+    if(NOT CMAKE_GENERATOR)
+        set(CMAKE_GENERATOR "" CACHE STRING "Generator")
+    endif()
+else()
+    set(CMAKE_GENERATOR "" CACHE STRING "Generator")
+endif()
  
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
