@@ -2,7 +2,8 @@
 members = [
     "apps/agent",
     # "apps/agent_standalone", # TODO: Fix struct mismatches before re-enabling
-    "apps/server", 
+    "apps/server",
+    "apps/qt_client",
     "shared"
 ]
 exclude = [
@@ -45,6 +46,12 @@ testcontainers = "0.15"
 tokio-test = "0.4"
 zstd = "0.13"
 libloading = "0.8"
+
+# Qt dependencies
+qt-core = "0.5"
+qt-widgets = "0.5"
+qt-gui = "0.5"
+qt-build-tools = "0.5"
 
 [profile.dev]
 opt-level = 1          # Базовая оптимизация для dev
