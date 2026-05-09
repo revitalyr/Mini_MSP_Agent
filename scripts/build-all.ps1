@@ -62,7 +62,7 @@ function Build-Component {
                 }
                 
                 if (Get-Command "cmake" -ErrorAction SilentlyContinue) {
-                    cmake -S $PluginDir -B $BuildDir -A x64
+                    cmake -S $PluginDir -B $BuildDir
                     if ($LASTEXITCODE -eq 0) {
                         cmake --build $BuildDir --config Release
                     }
