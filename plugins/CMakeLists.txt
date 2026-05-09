@@ -8,6 +8,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 if(WIN32)
     add_definitions(-DWIN32_LEAN_AND_MEAN)
     add_definitions(-DNOMINMAX)
+    # Try to find MSVC compiler
+    if(NOT CMAKE_CXX_COMPILER)
+        find_program(CMAKE_CXX_COMPILER cl)
+        if(CMAKE_CXX_COMPILER)
+            set(CMAKE_CXX_COMPILER "cl" CACHE STRING "C++ Compiler")
+        endif()
+    endif()
 endif()
 
 # Include directories

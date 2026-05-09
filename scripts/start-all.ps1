@@ -81,19 +81,32 @@ $ServerPath = "target/release/server.exe"
 $QtPath = "apps/qt_client/build/Release/qt_client.exe"
 
 $MissingBinaries = @()
+$RequiredBinaries = @("NATS Server", "Agent", "Server")
+$OptionalBinaries = @("Qt Client")
 
 if (-not (Test-Path $NatsPath)) { $MissingBinaries += "NATS Server" }
 if (-not (Test-Path $AgentPath)) { $MissingBinaries += "Agent" }
 if (-not (Test-Path $ServerPath)) { $MissingBinaries += "Server" }
-if (-not (Test-Path $QtPath)) { $MissingBinaries += "Qt Client" }
 
-if ($MissingBinaries.Count -gt 0) {
-    Write-Host "❌ Missing binaries:" -ForegroundColor Red
-    foreach ($Binary in $MissingBinaries) {
+# Check if required binaries are missing
+$RequiredMissing = $MissingBinaries | Where-Object { $_ -in $RequiredBinaries }
+if ($RequiredMissing.Count -gt 0) {
+    Write-Host "❌ Missing required binaries:" -ForegroundColor Red
+    foreach ($Binary in $RequiredMissing) {
         Write-Host "  - $Binary" -ForegroundColor White
     }
     Write-Host "💡 Run with -Build parameter to build components" -ForegroundColor Yellow
     exit 1
+}
+
+# Check optional binaries
+$OptionalMissing = $MissingBinaries | Where-Object { $_ -in $OptionalBinaries }
+if ($OptionalMissing.Count -gt 0) {
+    Write-Host "⚠️  Missing optional binaries:" -ForegroundColor Yellow
+    foreach ($Binary in $OptionalMissing) {
+        Write-Host "  - $Binary" -ForegroundColor White
+    }
+    Write-Host "🔄 Continuing without optional components..." -ForegroundColor Cyan
 }
 
 Write-Host "✅ All binaries found" -ForegroundColor Green
@@ -159,8 +172,14 @@ try {
     # Start server
     $ServerProcess = Start-Component -Component "Server" -Path $ServerPath -Arguments "--config $Config"
     
-    # Start Qt client
-    $QtProcess = Start-Component -Component "Qt Client" -Path $QtPath
+    # Start Qt client (optional)
+    if (Test-Path $QtPath) {
+        $QtProcess = Start-Component -Component "Qt Client" -Path $QtPath
+        Write-Host "✅ Qt Client found and started" -ForegroundColor Green
+    } else {
+        Write-Host "⚠️  Qt Client not found, continuing without GUI" -ForegroundColor Yellow
+        $QtProcess = $null
+    }
     
     # Start agent
     $AgentProcess = Start-Component -Component "Agent" -Path $AgentPath -Arguments "--config $Config"
