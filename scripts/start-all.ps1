@@ -76,8 +76,8 @@ if ($Clean) {
 
 # Check binaries
 $NatsPath = "nats-server-v2.10.25-windows-amd64/nats-server.exe"
-$AgentPath = "apps/agent/target/release/agent.exe"
-$ServerPath = "apps/server/target/release/server.exe"
+$AgentPath = "target/release/agent.exe"
+$ServerPath = "target/release/server.exe"
 $QtPath = "apps/qt_client/build/Release/qt_client.exe"
 
 $MissingBinaries = @()
@@ -170,9 +170,9 @@ try {
     Write-Host ""
     Write-Host "📊 Running components:" -ForegroundColor Cyan
     Write-Host "NATS:    localhost:4222 (monitoring: localhost:8222)" -ForegroundColor White
-    Write-Host "Server:  Running (PID: $($ServerProcess.Id))" -ForegroundColor White
-    Write-Host "Qt GUI:  Running (PID: $($QtProcess.Id))" -ForegroundColor White
-    Write-Host "Agent:   Running (PID: $($AgentProcess.Id))" -ForegroundColor White
+    if ($ServerProcess) { Write-Host "Server:  Running (PID: $($ServerProcess.Id))" -ForegroundColor White }
+    if ($QtProcess) { Write-Host "Qt GUI:  Running (PID: $($QtProcess.Id))" -ForegroundColor White }
+    if ($AgentProcess) { Write-Host "Agent:   Running (PID: $($AgentProcess.Id))" -ForegroundColor White }
     Write-Host ""
     Write-Host "🔧 Press Ctrl+C to stop all components" -ForegroundColor Yellow
     

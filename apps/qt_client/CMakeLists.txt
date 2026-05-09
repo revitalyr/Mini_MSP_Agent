@@ -25,6 +25,15 @@ find_package(Qt6 REQUIRED COMPONENTS
     Network
 )
  
+# Find OpenSSL first (required for cnats)
+if(WIN32)
+    # Try to find OpenSSL in common Windows locations
+    set(OPENSSL_ROOT_DIR "" CACHE PATH "Root directory of OpenSSL installation")
+    set(OPENSSL_USE_STATIC_LIBS TRUE)
+endif()
+
+find_package(OpenSSL REQUIRED)
+
 # Find nats.c library (cnats)
 # Option 1: Use system-installed cnats
 find_package(cnats QUIET)
