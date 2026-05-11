@@ -1,0 +1,24 @@
+[package]
+name = "simple_agent"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+mini_msp_shared = { path = "../shared" }
+
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+reqwest = { workspace = true, features = ["json"] } # Added for API registration
+chrono = { workspace = true, features = ["serde"] } # Added for AgentInfo timestamp
+futures-util = { workspace = true } # Added for StreamExt
+libloading = "0.7" # Added for plugin_loader
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+async-nats = { workspace = true }
+uuid = { workspace = true }
+clap = { workspace = true }
+gethostname = "0.2.3"
+toml = { workspace = true }
+zstd = { workspace = true }

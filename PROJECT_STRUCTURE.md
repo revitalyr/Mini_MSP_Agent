@@ -8,27 +8,56 @@ Cross-platform monitoring agent with C++ plugins and Rust core.
 
 ```
 Mini_MSP_Agent/
-├── src/
-│   ├── agent/
-│   │   ├── simple/          # Simple agent (WebSocket only)
-│   │   └── standalone/      # Full agent (NATS broker) - TEMPORARILY EXCLUDED
-│   ├── server/              # Rust server (NATS, HTTP, WebSocket)
-│   ├── shared/              # Shared Rust library
-│   │   └── src/
-│   │       └── lib.rs       # Core types: Heartbeat, Metrics, Command, AgentConfig
-│   └── plugins/             # C++23 plugins
-│       ├── CMakeLists.txt
-│       ├── CMakePresets.json  # MSVC, Linux GCC/Clang, macOS Intel/ARM64/Universal
-│       └── src/
-│           └── working_system_plugin.cpp
-├── plugins/                 # C plugin headers (semantic_types.h, plugin_interface.h)
-│   └── include/
-├── shared/                  # C++ shared library (delegated to src/shared)
-├── agent/                   # Legacy agent folder (delegated to src/agent)
-├── server/                  # Legacy server folder (delegated to src/server)
-├── Cargo.toml               # Workspace manifest
-├── Cargo.lock               # Dependency lock
-└── .gitignore
+├── crates/                    # All Rust crates (flatter organization)
+│   ├── shared/               # Common types and utilities
+│   │   ├── Cargo.toml
+│   │   ├── src/
+│   │   │   ├── lib.rs        # Core types: AgentConfig, EventMessage, etc.
+│   │   │   ├── os/           # OS-specific modules
+│   │   │   │   ├── windows.rs
+│   │   │   │   ├── linux.rs
+│   │   │   │   └── macos.rs
+│   │   │   └── common.rs     # Cross-platform utilities
+│   ├── agent/                # Agent application
+│   │   ├── Cargo.toml
+│   │   ├── src/
+│   │   │   ├── main.rs       # Entry point
+│   │   │   ├── lib.rs        # Agent logic
+│   │   │   └── os/           # OS-specific agent code
+│   ├── server/               # Server application
+│   │   ├── Cargo.toml
+│   │   ├── src/
+│   │   │   ├── main.rs
+│   │   │   ├── lib.rs
+│   │   │   ├── api/          # API modules
+│   │   │   ├── plugin_loader.rs
+│   │   │   └── os/           # OS-specific server code
+│   └── qt_client/            # Qt client (if keeping C++)
+│       ├── Cargo.toml
+│       ├── src/
+│       └── CMakeLists.txt
+├── plugins/                  # C++ plugins (organized by OS)
+│   ├── cpp/
+│   │   ├── CMakeLists.txt
+│   │   ├── CMakePresets.json
+│   │   ├── common/           # Shared C++ headers/utilities
+│   │   │   ├── plugin_interface.h
+│   │   │   └── semantic_types.h
+│   │   ├── windows/          # Windows-specific plugins
+│   │   │   ├── system_plugin.cpp
+│   │   │   ├── forensic_plugin.cpp
+│   │   │   └── CMakeLists.txt
+│   │   ├── linux/            # Linux-specific plugins
+│   │   │   ├── system_plugin.cpp
+│   │   │   └── CMakeLists.txt
+│   │   └── macos/            # macOS-specific plugins
+│   │       ├── system_plugin.cpp
+│   │       └── CMakeLists.txt
+├── docs/                     # Documentation
+├── scripts/                  # Build and utility scripts
+├── configs/                  # Configuration files
+├── Cargo.toml                # Workspace manifest (members: "crates/*")
+└── README.md
 ```
 
 ## Build Status

@@ -85,20 +85,64 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     )
 endif()
 
-#  source file organization - Base plugin
-set(SOURCES
-    src/system_plugin_v3.cpp
-)
+# Include common headers
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/common)
 
-# Create library target
-add_library(SystemPluginV3 SHARED ${SOURCES})
+# Platform-specific System Plugin
+if(WIN32)
+    # Windows System Plugin
+    set(SYSTEM_PLUGIN_SOURCES
+        windows/system_plugin.cpp
+    )
+    add_library(SystemPluginV3 SHARED ${SYSTEM_PLUGIN_SOURCES})
+    target_include_directories(SystemPluginV3 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/common)
+    
+elseif(UNIX AND NOT APPLE)
+    # Linux System Plugin
+    set(SYSTEM_PLUGIN_SOURCES
+        linux/system_plugin.cpp
+    )
+    add_library(SystemPluginV3 SHARED ${SYSTEM_PLUGIN_SOURCES})
+    target_include_directories(SystemPluginV3 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/common)
+    
+elseif(APPLE)
+    # macOS System Plugin
+    set(SYSTEM_PLUGIN_SOURCES
+        macos/system_plugin.cpp
+    )
+    add_library(SystemPluginV3 SHARED ${SYSTEM_PLUGIN_SOURCES})
+    target_include_directories(SystemPluginV3 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/common)
+endif()
+
+# Platform-specific Working System Plugin
+if(WIN32)
+    set(WORKING_PLUGIN_SOURCES
+        windows/working_system_plugin.cpp
+    )
+    add_library(WorkingSystemPlugin SHARED ${WORKING_PLUGIN_SOURCES})
+    target_include_directories(WorkingSystemPlugin PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/common)
+    
+elseif(UNIX AND NOT APPLE)
+    set(WORKING_PLUGIN_SOURCES
+        linux/working_system_plugin.cpp
+    )
+    add_library(WorkingSystemPlugin SHARED ${WORKING_PLUGIN_SOURCES})
+    target_include_directories(WorkingSystemPlugin PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/common)
+    
+elseif(APPLE)
+    set(WORKING_PLUGIN_SOURCES
+        macos/working_system_plugin.cpp
+    )
+    add_library(WorkingSystemPlugin SHARED ${WORKING_PLUGIN_SOURCES})
+    target_include_directories(WorkingSystemPlugin PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/common)
+endif()
 
 # Platform-specific Forensic Plugin
 # This plugin provides real forensic artifact collection for each OS
 if(WIN32)
     # Windows Forensic Plugin
     set(FORENSIC_SOURCES
-        src/windows/forensic_plugin.cpp
+        windows/forensic_plugin.cpp
     )
     add_library(ForensicPlugin SHARED ${FORENSIC_SOURCES})
     set_target_properties(ForensicPlugin PROPERTIES
@@ -110,7 +154,7 @@ if(WIN32)
         POSITION_INDEPENDENT_CODE ON
     )
     target_include_directories(ForensicPlugin PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/common
     )
     target_compile_definitions(ForensicPlugin PRIVATE
         WIN32_LEAN_AND_MEAN
@@ -136,7 +180,7 @@ if(WIN32)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # Linux Forensic Plugin
     set(FORENSIC_SOURCES
-        src/linux/forensic_plugin.cpp
+        linux/forensic_plugin.cpp
     )
     add_library(ForensicPlugin SHARED ${FORENSIC_SOURCES})
     set_target_properties(ForensicPlugin PROPERTIES
@@ -148,7 +192,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         POSITION_INDEPENDENT_CODE ON
     )
     target_include_directories(ForensicPlugin PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/common
     )
     target_compile_definitions(ForensicPlugin PRIVATE
         _POSIX_C_SOURCE=200809L
@@ -167,7 +211,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     # macOS Forensic Plugin
     set(FORENSIC_SOURCES
-        src/macos/forensic_plugin.cpp
+        macos/forensic_plugin.cpp
     )
     add_library(ForensicPlugin SHARED ${FORENSIC_SOURCES})
     set_target_properties(ForensicPlugin PROPERTIES
@@ -179,7 +223,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
         POSITION_INDEPENDENT_CODE ON
     )
     target_include_directories(ForensicPlugin PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/common
     )
     find_library(FOUNDATION_LIBRARY Foundation)
     find_library(IOKIT_LIBRARY IOKit)
@@ -194,21 +238,38 @@ endif()
 
 # Custom Plugin - Example for extensible functionality
 # This plugin demonstrates how to create custom commands and metrics
-set(CUSTOM_PLUGIN_SOURCES
-    src/custom_plugin.cpp
-)
-add_library(CustomPlugin SHARED ${CUSTOM_PLUGIN_SOURCES})
-set_target_properties(CustomPlugin PROPERTIES
-    VERSION ${PROJECT_VERSION}
-    SOVERSION ${PROJECT_VERSION_MAJOR}
-    CXX_STANDARD 23
-    CXX_STANDARD_REQUIRED ON
-    CXX_EXTENSIONS OFF
-    POSITION_INDEPENDENT_CODE ON
-)
-target_include_directories(CustomPlugin PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
+if(WIN32)
+    set(CUSTOM_PLUGIN_SOURCES
+        windows/custom_plugin.cpp
+    )
+    add_library(CustomPlugin SHARED ${CUSTOM_PLUGIN_SOURCES})
+    
+elseif(UNIX AND NOT APPLE)
+    set(CUSTOM_PLUGIN_SOURCES
+        linux/custom_plugin.cpp
+    )
+    add_library(CustomPlugin SHARED ${CUSTOM_PLUGIN_SOURCES})
+    
+elseif(APPLE)
+    set(CUSTOM_PLUGIN_SOURCES
+        macos/custom_plugin.cpp
+    )
+    add_library(CustomPlugin SHARED ${CUSTOM_PLUGIN_SOURCES})
+endif()
+
+if(TARGET CustomPlugin)
+    set_target_properties(CustomPlugin PROPERTIES
+        VERSION ${PROJECT_VERSION}
+        SOVERSION ${PROJECT_VERSION_MAJOR}
+        CXX_STANDARD 23
+        CXX_STANDARD_REQUIRED ON
+        CXX_EXTENSIONS OFF
+        POSITION_INDEPENDENT_CODE ON
+    )
+    target_include_directories(CustomPlugin PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+endif()
 
 # Generate export header for forensic plugin if it exists
 if(TARGET ForensicPlugin)
@@ -229,6 +290,21 @@ set_target_properties(SystemPluginV3 PROPERTIES
     POSITION_INDEPENDENT_CODE ON
     VISIBILITY_INLINES_HIDDEN ON
 )
+
+# Working System Plugin properties
+if(TARGET WorkingSystemPlugin)
+    set_target_properties(WorkingSystemPlugin PROPERTIES
+        VERSION ${PROJECT_VERSION}
+        SOVERSION ${PROJECT_VERSION_MAJOR}
+        CXX_STANDARD 23
+        CXX_STANDARD_REQUIRED ON
+        CXX_EXTENSIONS OFF
+        POSITION_INDEPENDENT_CODE ON
+    )
+    target_include_directories(WorkingSystemPlugin PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+endif()
 
 #  Windows-specific configuration
 if(WIN32)
@@ -292,7 +368,7 @@ endif()
 # Include directories
 target_include_directories(SystemPluginV3 PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/common
 )
 
 # Compiler-specific include directories

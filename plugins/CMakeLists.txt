@@ -23,16 +23,35 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/cpp
 )
 
-# Source files
-file(GLOB_RECURSE PLUGIN_SOURCES
-    "cpp/*.cpp"
-    "common/*.cpp"
-)
-
-file(GLOB_RECURSE PLUGIN_HEADERS
-    "cpp/*.h"
-    "common/*.h"
-)
+# Source files - platform specific
+if(WIN32)
+    file(GLOB_RECURSE PLUGIN_SOURCES
+        "cpp/src/windows/*.cpp"
+        "common/*.cpp"
+    )
+    file(GLOB_RECURSE PLUGIN_HEADERS
+        "cpp/src/windows/*.h"
+        "common/*.h"
+    )
+elseif(APPLE)
+    file(GLOB_RECURSE PLUGIN_SOURCES
+        "cpp/src/macos/*.cpp"
+        "common/*.cpp"
+    )
+    file(GLOB_RECURSE PLUGIN_HEADERS
+        "cpp/src/macos/*.h"
+        "common/*.h"
+    )
+else()
+    file(GLOB_RECURSE PLUGIN_SOURCES
+        "cpp/src/linux/*.cpp"
+        "common/*.cpp"
+    )
+    file(GLOB_RECURSE PLUGIN_HEADERS
+        "cpp/src/linux/*.h"
+        "common/*.h"
+    )
+endif()
 
 # Create plugin library
 add_library(mini_msp_plugins STATIC ${PLUGIN_SOURCES} ${PLUGIN_HEADERS})

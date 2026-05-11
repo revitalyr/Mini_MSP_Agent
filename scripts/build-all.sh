@@ -10,14 +10,14 @@ build_component() {
     
     case $component in
         "agent")
-            cargo build --release --manifest-path apps/agent/Cargo.toml
+            cargo build --release --manifest-path crates/agent/Cargo.toml
             ;;
         "server")
-            cargo build --release --manifest-path apps/server/Cargo.toml
+            cargo build --release --manifest-path crates/server/Cargo.toml
             ;;
         "qt_client")
             echo "🔧 Building Qt Client..."
-            cd apps/qt_client
+            cd crates/qt_client
             mkdir -p build
             cd build
             cmake .. -DCMAKE_BUILD_TYPE=Release
@@ -25,15 +25,16 @@ build_component() {
             cd ../../..
             ;;
         "shared")
-            cargo build --release --manifest-path shared/Cargo.toml
+            cargo build --release --manifest-path crates/shared/Cargo.toml
             ;;
         "plugins")
             echo "🔧 Building C++ plugins..."
-            mkdir -p plugins/build
-            cd plugins
-            cmake -S . -B build -A x64
-            cmake --build build --config Release
-            cd ..
+            cd plugins/cpp
+            mkdir -p build
+            cd build
+            cmake ..
+            make -j$(nproc)
+            cd ../..
             ;;
         *)
             echo "❌ Unknown component: $component"
@@ -66,9 +67,9 @@ fi
 echo "🎉 Build completed!"
 echo ""
 echo "📋 Available binaries:"
-echo "Agent:   apps/agent/target/release/agent"
-echo "Server:  apps/server/target/release/server"
-echo "Qt Client: apps/qt_client/build/qt_client"
-echo "Plugins:  plugins/build/Release/"
+echo "Agent:   target/release/agent"
+echo "Server:  target/release/server"
+echo "Qt Client: crates/qt_client/build/qt_client"
+echo "Plugins:  plugins/cpp/build/"
 echo ""
-echo "🚀 Run with: ./scripts/start.sh"
+echo "🚀 Run with: ./scripts/start-all.sh"

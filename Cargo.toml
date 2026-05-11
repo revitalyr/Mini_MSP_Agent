@@ -1,10 +1,10 @@
 [workspace]
 members = [
-    "apps/agent",
-    # "apps/agent_standalone", # TODO: Fix struct mismatches before re-enabling
-    "apps/server",
-    "apps/qt_client",
-    "shared"
+    "crates/agent",
+    # "crates/agent_standalone", # TODO: Fix struct mismatches before re-enabling
+    "crates/server",
+    # "crates/qt_client", # Temporarily excluded - C++ project
+    "crates/shared"
 ]
 exclude = [
     "tests",

@@ -1,3 +1,5 @@
+mod os;
+
 use anyhow::Result;
 use serde_json::{json, Value};
 use std::time::Duration;

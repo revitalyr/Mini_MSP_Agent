@@ -1,0 +1,1 @@
+// macOS-specific agent functionality
