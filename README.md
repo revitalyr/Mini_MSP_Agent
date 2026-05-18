@@ -6,6 +6,17 @@ Cross-platform system agent for MSP/fleet management built with Rust and C++ plu
 
 Mini MSP Agent is a comprehensive monitoring and management solution for distributed systems. It provides real-time telemetry collection, remote command execution, and extensible plugin architecture for custom functionality.
 
+### 🛠️ Technology Stack
+
+| Component | Technology |
+| :--- | :--- |
+| **Agent Core** | Rust, Tokio, NATS |
+| **Backend Server** | Rust (Axum), OpenAPI (utoipa) |
+| **Desktop Client** | C++20, Qt6, cnats |
+| **Plugin System** | C++23, Boost.DLL, CMake |
+| **Communication** | NATS Pub/Sub, Zstd compression |
+| **Web Interface** | Vue.js, WebSockets |
+
 ## ✨ Features
 
 - **🔧 Real-time telemetry collection** (CPU, RAM, Disk usage) via C++ plugins
