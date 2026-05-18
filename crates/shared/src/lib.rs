@@ -19,12 +19,15 @@
 pub mod os;
 pub mod types;
 pub mod constants;
+pub mod helpers;
+
+pub use types::*;
+pub use constants::*;
+pub use helpers::*;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
-use types::*;
-use constants::*;
 
 /// Agent heartbeat message containing status and metrics
 /// 

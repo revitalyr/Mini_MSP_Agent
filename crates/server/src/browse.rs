@@ -4,7 +4,7 @@
 
 use axum::response::Json;
 use serde_json::{json, Value};
-use crate::semantic_types::{FilePath, c_str_to_string};
+use mini_msp_shared::{FilePath, c_str_to_string};
 
 #[cfg(target_os = "windows")]
 use windows::{

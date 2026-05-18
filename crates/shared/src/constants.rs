@@ -28,6 +28,15 @@ pub const MAX_STATUS_LEN: usize = 64;
 /// Maximum length for file pattern
 pub const MAX_PATTERN_LEN: usize = 256;
 
+/// Maximum length for category name
+pub const MAX_CATEGORY_LEN: usize = 64;
+
+/// Maximum length for artifact type name
+pub const MAX_ARTIFACT_TYPE_LEN: usize = 64;
+
+/// Maximum length for file path
+pub const MAX_PATH_LEN: usize = 512;
+
 /// Maximum length for hostname
 pub const MAX_HOSTNAME_LEN: usize = 256;
 
@@ -42,6 +51,21 @@ pub const MAX_ERROR_MSG_LEN: usize = 512;
 
 /// Maximum length for command output
 pub const MAX_COMMAND_OUTPUT_LEN: usize = 512;
+
+/// Maximum length for forensic finding details
+pub const MAX_DETAILS_LEN: usize = 1024;
+
+/// Invalid process ID marker
+pub const INVALID_PID: u32 = 0;
+
+/// Invalid timestamp marker
+pub const INVALID_TIMESTAMP: u64 = 0;
+
+/// Maximum percentage value (0-100)
+pub const MAX_PERCENTAGE: u8 = 100;
+
+/// Minimum percentage value (0-100)
+pub const MIN_PERCENTAGE: u8 = 0;
 
 // -----------------------------------------------------------------------------
 // Numeric Constants

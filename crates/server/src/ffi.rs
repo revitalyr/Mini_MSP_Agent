@@ -10,8 +10,8 @@ use std::ffi::{c_char, c_void, CStr};
 use std::mem::MaybeUninit;
 use anyhow::{anyhow, Result};
 
-// Import semantic types for consistent FFI boundaries
-pub use crate::semantic_types::*;
+// Re-export shared semantic aliases and constants for FFI compatibility
+pub use mini_msp_shared::*;
 
 /// Process information structure (FFI-compatible with C)
 #[repr(C)]

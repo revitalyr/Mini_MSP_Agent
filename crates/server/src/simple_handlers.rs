@@ -11,7 +11,7 @@ use serde_json::json;
 use std::sync::Arc;
 
 use crate::AppState;
-use crate::semantic_types::{Timestamp, format_timestamp};
+use mini_msp_shared::{Timestamp, format_timestamp};
 use serde_json::Value;
 use axum::extract::Path;
 

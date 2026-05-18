@@ -10,7 +10,7 @@ use tracing::{info, debug, instrument};
 
 use crate::broker::BrokerClient; // Import BrokerClient
 use crate::{AppState};
-use crate::semantic_types::{Duration, Timestamp};
+use mini_msp_shared::{Duration, Timestamp};
 use crate::api::docs::{AgentList, CommandRequest, CommandResponse, ErrorResponse};
 
 /// Error response helper

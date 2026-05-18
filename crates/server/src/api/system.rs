@@ -9,7 +9,7 @@ use std::sync::Arc;
 use crate::AppState;
 use tracing::{info, warn, instrument};
 use crate::api::agents::{send_agent_command_nats, calculate_status}; // Import calculate_status
-use crate::semantic_types::{Timestamp, format_timestamp};
+use mini_msp_shared::{Timestamp, format_timestamp};
 
 /// Get forensic metrics from C++ plugin
 pub async fn get_forensic_metrics(

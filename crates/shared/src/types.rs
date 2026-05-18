@@ -51,6 +51,9 @@ pub type NotificationCount = u32;
 /// Generic item count (semantic alias)
 pub type ItemCount = u32;
 
+/// Count of objects returned from a plugin or query
+pub type ObjectCount = u32;
+
 /// Directory depth level (semantic alias)
 pub type DepthLevel = u32;
 
